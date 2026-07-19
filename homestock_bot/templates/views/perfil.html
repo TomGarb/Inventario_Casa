@@ -1,0 +1,221 @@
+{% extends "base.html" %}
+{% set active_page = 'perfil' %}
+{% block content %}
+<div class="view-header">
+    <h2>Mi Perfil</h2>
+</div>
+
+<div class="dash-card">
+    <h3 class="dash-header">Bienvenido, {{ current_user.username }}</h3>
+    <p>Estado de Telegram: 
+        {% if current_user.telegram_chat_id %}
+            <span style="color: var(--success-color); font-weight: bold;">Vinculado ✅</span>
+        {% else %}
+            <span style="color: var(--danger-color); font-weight: bold;">No vinculado ❌</span>
+        {% endif %}
+    </p>
+
+    <div style="margin-top: 20px;">
+        <h4>Vincular Bot de Telegram</h4>
+        <p style="color: var(--text-color); font-size: 0.9rem; margin-bottom: 10px;">
+            Si quieres añadir productos y recibir alertas por Telegram, necesitas vincular tu cuenta con nuestro Bot.
+        </p>
+        
+        <button id="btn-generar-token" class="btn btn-primary">Generar Token de Vinculación</button>
+        
+        <div id="token-container" style="display: none; margin-top: 15px; padding: 15px; background: rgba(99, 102, 241, 0.1); border: 1px solid var(--primary-color); border-radius: 8px;">
+            <p style="margin-bottom: 10px;">Abre Telegram y envíale este comando al bot:</p>
+            <code style="font-size: 1.2rem; display: block; padding: 10px; background: var(--bg-darker); border-radius: 4px; text-align: center; letter-spacing: 2px;" id="token-code">
+                /vincular ABC123
+            </code>
+            <p style="margin-top: 10px; font-size: 0.8rem; color: #aaa;">El token expira pronto y solo se puede usar una vez.</p>
+        </div>
+    </div>
+</div>
+
+{% if current_user.is_admin %}
+<div class="dash-card" style="margin-top: 20px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+        <h3 class="dash-header" style="margin: 0;">Gestión de Usuarios (Admin)</h3>
+        <button class="btn btn-primary" onclick="openCreateUserModal()">Crear Nuevo Usuario</button>
+    </div>
+    
+    <div class="table-responsive">
+        <table class="table" style="width: 100%; border-collapse: collapse;">
+            <thead>
+                <tr style="border-bottom: 1px solid var(--border-color); text-align: left;">
+                    <th style="padding: 10px;">ID</th>
+                    <th style="padding: 10px;">Usuario</th>
+                    <th style="padding: 10px;">Telegram</th>
+                    <th style="padding: 10px;">Administrador</th>
+                    <th style="padding: 10px;">Acciones</th>
+                </tr>
+            </thead>
+            <tbody id="usuarios-tbody">
+                <!-- Data will be loaded via JS -->
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+<script>
+document.getElementById('btn-generar-token').addEventListener('click', async () => {
+    try {
+        const response = await fetch('/api/generar_token', { method: 'POST' });
+        const data = await response.json();
+        
+        if (data.token) {
+            document.getElementById('token-code').innerText = `/vincular ${data.token}`;
+            document.getElementById('token-container').style.display = 'block';
+        }
+    } catch (error) {
+        alert("Error al generar el token.");
+    }
+});
+
+{% if current_user.is_admin %}
+// Admin Logic
+async function loadUsuarios() {
+    try {
+        const response = await fetch('/api/usuarios');
+        const usuarios = await response.json();
+        const tbody = document.getElementById('usuarios-tbody');
+        tbody.innerHTML = '';
+        
+        usuarios.forEach(u => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${u.id}</td>
+                <td>${u.username}</td>
+                <td>${u.telegram_chat_id ? '✅ Sí' : '❌ No'}</td>
+                <td>
+                    <input type="checkbox" onchange="toggleAdmin(${u.id}, this.checked)" ${u.is_admin ? 'checked' : ''} ${u.id === {{ current_user.id }} ? 'disabled' : ''}>
+                </td>
+                <td>
+                    <button class="btn btn-danger btn-sm" onclick="deleteUsuario(${u.id})" ${u.id === {{ current_user.id }} ? 'disabled' : ''}>Eliminar</button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+    } catch (error) {
+        console.error("Error loading users", error);
+    }
+}
+
+async function toggleAdmin(id, isAdmin) {
+    try {
+        const response = await fetch(`/api/usuarios/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ is_admin: isAdmin })
+        });
+        if(!response.ok) {
+            const res = await response.json();
+            alert(res.error || "Error al cambiar rol");
+            loadUsuarios();
+        }
+    } catch (e) {
+        alert("Error de conexión");
+        loadUsuarios();
+    }
+}
+
+async function deleteUsuario(id) {
+    if(!confirm("¿Estás seguro de eliminar este usuario?")) return;
+    try {
+        const response = await fetch(`/api/usuarios/${id}`, { method: 'DELETE' });
+        if(response.ok) {
+            loadUsuarios();
+        } else {
+            const res = await response.json();
+            alert(res.error || "Error al eliminar");
+        }
+    } catch(e) {
+        alert("Error de conexión");
+    }
+}
+
+function openCreateUserModal() {
+    document.getElementById('create-user-modal').style.display = 'block';
+}
+
+function closeCreateUserModal() {
+    document.getElementById('create-user-modal').style.display = 'none';
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    loadUsuarios();
+    
+    const formCreateUser = document.getElementById('form-create-user');
+    if (formCreateUser) {
+        formCreateUser.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const username = document.getElementById('new-new-username') ? document.getElementById('new-new-username').value : document.getElementById('new-username').value;
+            const password = document.getElementById('new-password').value;
+            const is_admin = document.getElementById('new-isadmin').checked;
+            
+            try {
+                const response = await fetch('/api/usuarios', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password, is_admin })
+                });
+                
+                if (response.ok) {
+                    closeCreateUserModal();
+                    document.getElementById('form-create-user').reset();
+                    loadUsuarios();
+                    alert("Usuario creado exitosamente");
+                } else {
+                    const res = await response.json();
+                    alert(res.error || "Error al crear usuario");
+                }
+            } catch (error) {
+                alert("Error de conexión");
+            }
+        });
+    }
+});
+
+function togglePassword(inputId) {
+    const input = document.getElementById(inputId);
+    if (input.type === 'password') {
+        input.type = 'text';
+    } else {
+        input.type = 'password';
+    }
+}
+{% endif %}
+</script>
+
+{% if current_user.is_admin %}
+<!-- Modal for Creating User -->
+<div id="create-user-modal" class="modal" style="display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5);">
+    <div class="modal-content" style="background-color: var(--bg-card); margin: 10% auto; padding: 20px; border: 1px solid var(--border-color); width: 80%; max-width: 400px; border-radius: 8px;">
+        <h3>Crear Nuevo Usuario</h3>
+        <form id="form-create-user" style="display: flex; flex-direction: column; gap: 15px; margin-top: 15px;">
+            <div>
+                <label>Usuario:</label>
+                <input type="text" id="new-username" required class="form-control" style="width: 100%; padding: 8px; margin-top: 5px; border-radius: 4px; border: 1px solid var(--border-color); background: var(--bg-darker); color: var(--text-color);">
+            </div>
+            <div>
+                <label>Contraseña:</label>
+                <div style="position: relative;">
+                    <input type="password" id="new-password" required class="form-control" style="width: 100%; padding: 8px; padding-right: 40px; margin-top: 5px; border-radius: 4px; border: 1px solid var(--border-color); background: var(--bg-darker); color: var(--text-color);">
+                    <button type="button" onclick="togglePassword('new-password')" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; font-size: 1.2rem; margin-top: 2px;">👁️</button>
+                </div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <input type="checkbox" id="new-isadmin">
+                <label for="new-isadmin">¿Es Administrador?</label>
+            </div>
+            <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px;">
+                <button type="button" class="btn btn-secondary" onclick="closeCreateUserModal()">Cancelar</button>
+                <button type="submit" class="btn btn-primary">Crear</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

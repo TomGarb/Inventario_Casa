@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+{% block content %}
+<!-- Vista 2: Inventario -->
+<section id="inventory-view" class="view active-view" style="display: flex; flex-direction: column; height: calc(100vh - 120px); overflow: hidden;">
+    
+    <!-- Barra Superior -->
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; flex-shrink: 0;">
+        <nav class="sub-nav-tabs">
+            <button class="sub-tab-btn" data-target="inv-tab-todos">📋 Todos los Productos</button>
+            <button class="sub-tab-btn active" data-target="inv-tab-salas">👀 Vista por Secciones</button>
+            <button class="sub-tab-btn" data-target="inv-tab-espacios">🛠️ Gestionar Espacios</button>
+        </nav>
+        
+        <div class="view-header-actions">
+            <button id="btn-modo-seleccion" class="btn-secundario" style="margin-right: 10px;">☑️ Modo Selección</button>
+            <button id="btn-nuevo-producto" class="btn-primary">➕ Nuevo Producto</button>
+            <button id="btnCargaMasiva" class="btn-primary" style="margin-left: 10px;">📥 Carga Masiva</button>
+        </div>
+    </div>
+    
+    <!-- Barra flotante de Bulk Edit (oculta por defecto) -->
+    <div id="bulk-edit-bar" class="oculto" style="position: fixed; bottom: 0; left: 0; right: 0; background: var(--card-bg); padding: 1rem; border-top: 1px solid var(--border-color); box-shadow: 0 -4px 10px rgba(0,0,0,0.2); z-index: 1000; display: flex; justify-content: space-between; align-items: center;">
+        <div>
+            <span id="bulk-selected-count" style="font-weight: bold; margin-right: 1rem;">0 seleccionados</span>
+            <button class="btn-delete-sm" onclick="bulkDeleteProducts()" style="margin-right: 1rem; padding: 0.4rem 0.8rem; font-size: 0.9rem;">🗑️ Eliminar</button>
+            <select id="bulk-ubicacion" style="padding: 0.4rem; border-radius: 4px; border: 1px solid var(--border-color); background: var(--bg-color); color: var(--text-color); margin-right: 0.5rem;">
+                <option value="">-- Mover a Ubicación --</option>
+            </select>
+            <select id="bulk-sububicacion" style="padding: 0.4rem; border-radius: 4px; border: 1px solid var(--border-color); background: var(--bg-color); color: var(--text-color);">
+                <option value="">-- Mover a Sububicación --</option>
+            </select>
+        </div>
+        <div>
+            <button id="btn-cancel-bulk" class="btn-secundario">Cancelar</button>
+            <button id="btn-apply-bulk" class="btn-primary">Aplicar Cambios</button>
+        </div>
+    </div>
+
+    <!-- Contenedor Principal: Sidebar + Vistas -->
+    <div style="display: flex; gap: 20px; flex: 1; overflow: hidden; min-height: 0;">
+        
+        <!-- Sidebar de Filtros -->
+        <aside id="inventory-sidebar" style="width: 280px; min-width: 280px; background: var(--card-bg); border-radius: var(--radius-md); border: 1px solid var(--border-color); display: flex; flex-direction: column; overflow-y: auto;">
+            <div style="padding: 15px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; background: var(--card-bg); z-index: 10;">
+                <h3 style="margin: 0; font-size: 1.1rem; color: var(--primary-color);">🔍 Explorador</h3>
+                <button class="btn-s" onclick="resetInventoryFilter()" style="font-size: 0.8rem;" title="Quitar Filtros">Limpiar</button>
+            </div>
+            <div id="sidebar-hierarchy" style="padding: 10px;">
+                <!-- Renderizado por JS -->
+                <p style="text-align: center; color: var(--text-secondary); margin-top: 20px;">Cargando espacios...</p>
+            </div>
+        </aside>
+
+        <!-- Vistas de Contenido -->
+        <div class="sub-view-container" style="flex: 1; overflow-y: auto; overflow-x: hidden; padding-right: 5px;">
+            <!-- Contenedor 1: Todos los Productos -->
+            <div id="inv-tab-todos" class="sub-view oculto">
+                <div id="inventory-list-all" class="items-container" style="padding-top: 1rem;">
+                    <!-- Lista plana JS -->
+                </div>
+            </div>
+            
+            <!-- Contenedor 2: Vista por Salas -->
+            <div id="inv-tab-salas" class="sub-view active-sub-view">
+                <button id="btnToggleFantasmas" class="btn-secundario" style="margin-top: 10px; margin-bottom: 10px; border-color: #f59e0b; color: #f59e0b;">👀 Mostrar Productos sin Asignar (0)</button>
+                <div id="panel-fantasmas" class="oculto" style="background: var(--card-bg); padding: 1rem; border-radius: var(--radius-md); border: 1px dashed #f59e0b; margin-bottom: 1rem; overflow-x: auto; white-space: nowrap;">
+                    <p style="margin-top:0; color: #f59e0b; font-size: 0.9rem;">Arrastra estos productos hacia una sub-ubicación de abajo para asignarlos.</p>
+                    <div id="lista-fantasmas" style="display: flex; gap: 10px;">
+                        <!-- Elementos arrastrables JS -->
+                    </div>
+                </div>
+                <div id="inventory-board" class="board-container" style="padding-top: 1rem; min-height: 500px;">
+                    <!-- Columnas Kanban JS -->
+                </div>
+            </div>
+            
+            <!-- Contenedor 3: Gestionar Espacios -->
+            <div id="inv-tab-espacios" class="sub-view oculto">
+                <div class="espacios-grid">
+                    <!-- Crear Sala -->
+                    <div style="background: var(--card-bg); padding: 1.5rem; border-radius: var(--radius-md); margin-bottom: 1rem; border: 1px solid var(--border-color); box-shadow: var(--shadow-sm);">
+                        <h3 style="font-size: 1.1rem; margin-bottom: 0.5rem; color: var(--primary-color);">Salas</h3>
+                        <form id="form-crear-sala" class="espacio-form">
+                            <div class="form-group-row">
+                                <input type="text" name="nombre" id="nueva-sala-nombre" placeholder="Nombre (ej. Cocina)" required>
+                                <button type="submit" class="btn-primary">Añadir</button>
+                            </div>
+                        </form>
+                        <ul id="lista-salas" class="espacios-list"></ul>
+                    </div>
+
+                    <!-- Crear Ubicación -->
+                    <div style="background: var(--card-bg); padding: 1.5rem; border-radius: var(--radius-md); margin-bottom: 1rem; border: 1px solid var(--border-color); box-shadow: var(--shadow-sm);">
+                        <h3 style="font-size: 1.1rem; margin-bottom: 0.5rem; color: var(--primary-color);">Ubicaciones</h3>
+                        <div class="form-group">
+                            <select id="seleccionar-sala-ubi"><option value="">-- Selecciona Sala --</option></select>
+                        </div>
+                        <form id="form-crear-ubi" class="espacio-form">
+                            <div class="form-group-row">
+                                <input type="text" name="nombre" id="nueva-ubi-nombre" placeholder="Nombre (ej. Heladera)" required>
+                                <button type="submit" class="btn-primary">Añadir</button>
+                            </div>
+                        </form>
+                        <ul id="lista-ubicaciones" class="espacios-list"></ul>
+                    </div>
+
+                    <!-- Crear Sub-ubicación -->
+                    <div style="background: var(--card-bg); padding: 1.5rem; border-radius: var(--radius-md); margin-bottom: 1rem; border: 1px solid var(--border-color); box-shadow: var(--shadow-sm);">
+                        <h3 style="font-size: 1.1rem; margin-bottom: 0.5rem; color: var(--primary-color);">Sub-ubicaciones</h3>
+                        <div class="form-group-row">
+                            <select id="seleccionar-sala-sub"><option value="">-- Sala --</option></select>
+                            <select id="seleccionar-ubi-sub" disabled><option value="">-- Ubicación --</option></select>
+                        </div>
+                        <form id="form-crear-sub" class="espacio-form">
+                            <div class="form-group-row">
+                                <input type="text" name="nombre" id="nueva-sub-nombre" placeholder="Nombre (ej. Puerta)" required>
+                                <button type="submit" class="btn-primary">Añadir</button>
+                            </div>
+                        </form>
+                        <ul id="lista-sububicaciones" class="espacios-list"></ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}

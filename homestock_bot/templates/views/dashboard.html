@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block content %}
+<!-- Vista 1: Dashboard Principal -->
+<section id="dashboard-view" class="view active-view">
+    <div class="dashboard-grid">
+        <!-- 
+        <div class="dash-card" style="grid-column: 1 / -1; border-color: var(--danger-color); box-shadow: 0 0 10px rgba(255,107,107,0.2);">
+            <h2 class="dash-header" style="color: var(--danger-color);">🚨 Alertas Críticas (Sin Stock)</h2>
+            <div class="carousel-wrapper" style="position: relative; display: flex; align-items: center; width: 100%; justify-content: center;">
+                <button id="crit-prev" onclick="document.getElementById('dash-alertas-criticas').scrollBy({left: -210, behavior: 'smooth'})" style="background: var(--bg-color); color: var(--text-color); border: 1px solid var(--border-color); cursor: pointer; padding: 5px 10px; border-radius: 5px; position: absolute; left: 0; z-index: 10;">&#10094;</button>
+                <div id="dash-alertas-criticas" class="dash-items-container" style="display: flex; gap: 10px; overflow-x: auto; scroll-behavior: smooth; scroll-snap-type: x mandatory; padding: 5px 0; flex-wrap: nowrap; width: 100%; max-width: 1040px; scrollbar-width: none; -ms-overflow-style: none;">
+                    <p style="color: var(--success-color);">Todo en orden. No hay productos agotados.</p>
+                </div>
+                <button id="crit-next" onclick="document.getElementById('dash-alertas-criticas').scrollBy({left: 210, behavior: 'smooth'})" style="background: var(--bg-color); color: var(--text-color); border: 1px solid var(--border-color); cursor: pointer; padding: 5px 10px; border-radius: 5px; position: absolute; right: 0; z-index: 10;">&#10095;</button>
+            </div>
+            <style>
+                #dash-alertas-criticas::-webkit-scrollbar { display: none; }
+            </style>
+        </div>
+        -->
+
+        <div class="dash-card">
+            <h2 class="dash-header">⚠️ Alertas de Reposición</h2>
+            <div id="dash-alertas-lista" class="dash-items-container">
+                <!-- Elementos renderizados por JS -->
+            </div>
+        </div>
+        
+        <div class="dash-card">
+            <h2 class="dash-header">📊 Inventario por Sala</h2>
+            <div style="position: relative; height:250px; width:100%; display: flex; justify-content: center;">
+                <canvas id="inventoryChart"></canvas>
+            </div>
+        </div>
+        
+        <div class="dash-card">
+            <h2 class="dash-header">📈 Tendencias (Top 5 del Mes)</h2>
+            <div style="position: relative; height:250px; width:100%; display: flex; justify-content: center;">
+                <canvas id="tendenciasChart"></canvas>
+            </div>
+        </div>
+        
+        <!-- KPIs de Actividad y Vencimientos -->
+        <div class="dash-card">
+            <h2 class="dash-header">📅 Por Vencer (7 días)</h2>
+            <div id="dash-por-vencer" class="dash-items-container">
+                <p style="text-align: center; color: var(--text-secondary); margin-top: 2rem;">Cargando...</p>
+            </div>
+        </div>
+        
+        <div class="dash-card">
+            <h2 class="dash-header">💤 Inactivos (+30 días)</h2>
+            <div id="dash-inactivos" class="dash-items-container">
+                <p style="text-align: center; color: var(--text-secondary); margin-top: 2rem;">Cargando...</p>
+            </div>
+        </div>
+        
+        <div class="dash-card" style="grid-column: 1 / -1;">
+            <h2 class="dash-header">⚡ Acciones Rápidas</h2>
+            <div id="quickActions" class="quick-actions-grid" style="display: flex; gap: 10px; flex-wrap: wrap;">
+                <!-- Elementos renderizados por JS -->
+            </div>
+        </div>
+        
+        <div class="dash-card" style="grid-column: 1 / -1;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                <h2 class="dash-header" style="margin: 0;">📜 Últimos Movimientos</h2>
+                <input type="text" id="buscador-movimientos" placeholder="🔍 Buscar movimiento..." style="padding: 0.4rem; border-radius: 4px; border: 1px solid var(--border-color); background: var(--bg-color); color: var(--text-color); width: 250px;">
+            </div>
+            <ul id="feedMovimientos" style="list-style: none; padding: 0; margin: 0; color: var(--text-color, #eee); max-height: 300px; overflow-y: auto;">
+                <!-- Elementos renderizados por JS -->
+            </ul>
+        </div>
+    </div>
+</section>
+{% endblock %}

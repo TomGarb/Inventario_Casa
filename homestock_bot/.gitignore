@@ -1,0 +1,35 @@
+# Entornos Virtuales
+venv/
+env/
+.venv/
+
+# Archivos de Entorno
+.env
+
+# Archivos Compilados de Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Bases de Datos
+*.db
+*.sqlite3
+
+# Flask
+instance/
+
+# Multimedia y Temporales
+*.ogg
+*.wav
+*.mp3
+
+# Logs y Archivos de Bloqueo
+*.log
+bot_scheduler.lock
+
+# Configuraciones de Editores
+.vscode/
+.cursor/
+.idea/
+.DS_Store

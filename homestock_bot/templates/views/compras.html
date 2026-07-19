@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block content %}
+<!-- Vista 3: Lista de Compras y Mapa -->
+<section id="shopping-view" class="view active-view">
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; flex-shrink: 0;">
+        <nav class="sub-nav-tabs">
+            <button class="sub-tab-btn active" data-target="shop-tab-lista">🛍️ Lista de Compras</button>
+            <button class="sub-tab-btn" data-target="shop-tab-comercios">🏪 Gestionar Comercios</button>
+        </nav>
+    </div>
+
+    <div class="sub-view-container" style="height: calc(100vh - 170px); overflow-y: auto; overflow-x: hidden;">
+        
+        <!-- Tab 1: Lista de Compras -->
+        <div id="shop-tab-lista" class="sub-view active-sub-view">
+            <div class="compras-master-grid">
+                <!-- Columna 1 (Izquierda) -->
+                <div class="sidebar-compras">
+                    <div class="dash-card">
+                        <h2 class="dash-header">🗺️ Mapa de Compras</h2>
+                        <div id="dash-mapa-compras" class="mapa-compras-grid" style="display: flex; flex-direction: column; gap: 10px;">
+                            <!-- Elementos renderizados por JS -->
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Columna 2 (Derecha) -->
+                <div class="main-compras">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                        <div style="display: flex; align-items: center;">
+                            <h2 style="color: var(--primary-color); margin: 0;">Listas por Comercio</h2>
+                            <button id="btnMostrarTodo" class="sub-tab-btn" style="display: none; margin-left: 15px; font-size: 0.85rem;">👀 Mostrar Todo</button>
+                        </div>
+                        <div style="display: flex; gap: 10px;">
+                            <button id="btn-optimizar-ruta" class="btn-secundario" style="padding: 0.6rem 1rem;" onclick="optimizarRuta()">🧭 Optimizar Recorrido</button>
+                            <button id="btn-enviar-telegram" class="btn-telegram" style="padding: 0.6rem 1rem;">💬 Enviar a Telegram</button>
+                            <button id="btnCargaCompras" class="btn-primary">⚡ Carga Rápida</button>
+                        </div>
+                    </div>
+                    
+                    <div id="shopping-board" class="board-container" style="display: flex; flex-wrap: wrap; gap: 0.5rem; padding-bottom: 2rem;">
+                        <!-- Columnas del Tablero (Comercios) -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab 2: Gestionar Comercios -->
+        <div id="shop-tab-comercios" class="sub-view oculto">
+            <div class="dash-card" style="max-width: 800px; margin: 0 auto;">
+                <h2 class="dash-header">🏪 Agregar Nuevo Comercio</h2>
+                <div style="background: var(--bg-color); padding: 1.5rem; border-radius: var(--radius-md); margin-bottom: 2rem;">
+                    <form id="form-crear-comercio" class="form-group-row">
+                        <input type="text" name="nombre" id="nuevo-comercio-nombre" placeholder="Nombre (ej. Supermercado)" required style="flex: 1; padding: 0.8rem;">
+                        <button type="submit" class="btn-primary" style="padding: 0.8rem 1.5rem;">Añadir Comercio</button>
+                    </form>
+                </div>
+                
+                <h2 class="dash-header">📋 Comercios Existentes</h2>
+                <ul id="lista-comercios" class="espacios-list" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1rem; padding: 0; list-style: none;">
+                    <!-- JS populate -->
+                </ul>
+            </div>
+        </div>
+        
+    </div>
+</section>
+{% endblock %}

@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>HomeStock Bot</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=1.4">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Top App Header (Móvil) -->
+        <header class="app-header">
+            <h1>HomeStock</h1>
+        </header>
+
+        <!-- Navbar (Arriba en escritorio, Abajo en móvil) -->
+        <nav class="navbar">
+            <h1 class="desktop-title">HomeStock</h1>
+            <div class="nav-buttons">
+                {% if current_user.is_authenticated %}
+                <a href="{{ url_for('dashboard') }}" class="nav-btn {% if active_page == 'dashboard' %}active{% endif %}"><span>📊</span> Dashboard</a>
+                <a href="{{ url_for('inventario') }}" class="nav-btn {% if active_page == 'inventario' %}active{% endif %}"><span>📦</span> Inventario</a>
+                <a href="{{ url_for('compras') }}" class="nav-btn {% if active_page == 'compras' %}active{% endif %}"><span>🛒</span> Compras</a>
+                <a href="{{ url_for('perfil') }}" class="nav-btn {% if active_page == 'perfil' %}active{% endif %}"><span>👤</span> Perfil</a>
+                <a href="{{ url_for('logout') }}" class="nav-btn"><span>🚪</span> Salir</a>
+                {% else %}
+                <a href="{{ url_for('login_page') }}" class="nav-btn {% if active_page == 'login' %}active{% endif %}"><span>🔑</span> Login</a>
+                {% endif %}
+            </div>
+        </nav>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+              {% if messages %}
+                <div class="flashes">
+                {% for category, message in messages %}
+                  <div class="flash-msg flash-{{ category }}">{{ message }}</div>
+                {% endfor %}
+                </div>
+              {% endif %}
+            {% endwith %}
+            <div class="views-container">
+                {% block content %}
+                {% endblock %}
+            </div>
+        </main>
+    </div>
+
+    {% include 'components/modals.html' %}
+
+    <script src="{{ url_for('static', filename='js/main.js') }}?v=1.9"></script>
+</body>
+</html>

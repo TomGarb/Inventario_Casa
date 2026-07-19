@@ -1,0 +1,194 @@
+<!-- Modales -->
+
+<!-- Modal: Información de Bienvenida -->
+<div id="modal-info" class="modal oculto">
+    <div class="modal-content" style="max-width: 500px;">
+        <h2 style="color: var(--primary-color);">👋 ¡Bienvenido a Homestock!</h2>
+        <p style="margin-bottom: 1rem;">Homestock es tu ERP personal para controlar el inventario y lista de compras de tu casa. Aquí tienes algunas cosas que debes saber para empezar:</p>
+        <ul style="margin-bottom: 1.5rem; padding-left: 1.5rem; line-height: 1.6;">
+            <li><strong>📦 Inventario:</strong> Agrega tus productos y define su ubicación (Sala > Mueble > Estante). Usa el botón `+` y `-` para controlar tu stock.</li>
+            <li><strong>🛒 Compras:</strong> Cuando un producto llega a su "Stock Mínimo", pasará automáticamente a esta lista agrupado por supermercado.</li>
+            <li><strong>📱 Telegram Bot:</strong> Puedes usar el Bot de Telegram oficial (<b>inventario_stock_bot</b>) para enviar la lista a tu teléfono y marcar cosas como compradas mientras estás en el supermercado.</li>
+        </ul>
+        <div style="display: flex; justify-content: flex-end;">
+            <button class="btn-primary" onclick="cerrarModalInfo()">¡Entendido!</button>
+        </div>
+    </div>
+</div>
+<!-- Modal: Crear Producto -->
+<div id="modal-crear" class="modal oculto">
+    <form id="form-crear-producto" class="modal-content">
+        <h2>➕ Nuevo Producto</h2>
+        <div class="form-group"><label>Nombre:</label><input type="text" name="nombre" id="crear-nombre" required></div>
+        <div class="form-group"><label>Descripción:</label><input type="text" name="descripcion" id="crear-desc"></div>
+        <div class="form-group">
+            <label>Comercio:</label>
+            <select name="comercio_id" id="crear-comercio"><option value="">-- Sin asignar --</option></select>
+        </div>
+        <div class="form-group-row">
+            <div class="form-group"><label>Stock Actual:</label><input type="number" name="stock_actual" id="crear-stock" value="0" min="0" step="any"></div>
+            <div class="form-group"><label>Stock Mínimo:</label><input type="number" name="stock_minimo" id="crear-minimo" value="1" min="0" step="any"></div>
+            <div class="form-group"><label>Unidad:</label>
+                <select name="unidad_medida" id="crear-unidad">
+                    <option value="unidades">Unidades (un.)</option>
+                    <option value="kg">Kilos (kg)</option>
+                    <option value="L">Litros (L)</option>
+                </select>
+            </div>
+        </div>
+        
+        <div class="form-group">
+            <label>Sala:</label>
+            <select id="crear-sala"><option value="">-- Sin asignar --</option></select>
+        </div>
+        <div class="form-group-row">
+            <div class="form-group">
+                <label>Ubicación:</label>
+                <select name="ubicacion_id" id="crear-ubi" disabled><option value="">-- Selecciona Sala primero --</option></select>
+            </div>
+            <div class="form-group">
+                <label>Sub-ubicación:</label>
+                <select name="sub_ubicacion_id" id="crear-sub" disabled><option value="">-- Opcional --</option></select>
+            </div>
+        </div>
+        
+        <div class="form-group-check">
+            <input type="checkbox" name="es_temporal" id="crear-temp"> <label for="crear-temp">¿Es Temporal?</label>
+        </div>
+        <div class="modal-actions">
+            <button type="button" id="btn-cancelar-crear" class="btn-secundario">Cancelar</button>
+            <button type="submit" id="btn-guardar-crear" class="btn-primary">Guardar</button>
+        </div>
+    </form>
+</div>
+
+<!-- Modal: Editar Producto -->
+<div id="modal-editar" class="modal oculto">
+    <form id="form-editar-producto" class="modal-content">
+        <h2 style="display: flex; justify-content: space-between; align-items: center;">
+            <span>✏️ Editar Producto</span>
+            <button type="button" id="btn-eliminar-producto" class="btn-delete-sm" style="font-size: 0.9rem;">🗑️ Eliminar Producto</button>
+        </h2>
+        <input type="hidden" name="id" id="editar-id">
+        <div class="form-group"><label>Nombre:</label><input type="text" name="nombre" id="editar-nombre" required></div>
+        <div class="form-group"><label>Descripción:</label><input type="text" name="descripcion" id="editar-desc"></div>
+        <div class="form-group">
+            <label>Comercio:</label>
+            <select name="comercio_id" id="editar-comercio"><option value="">-- Sin asignar --</option></select>
+        </div>
+        <div class="form-group-row">
+            <div class="form-group"><label>Stock Actual:</label><input type="number" name="stock_actual" id="editar-stock" value="0" min="0" step="any"></div>
+            <div class="form-group"><label>Stock Mínimo:</label><input type="number" name="stock_minimo" id="editar-minimo" value="1" min="0" step="any"></div>
+            <div class="form-group"><label>Unidad:</label>
+                <select name="unidad_medida" id="editar-unidad">
+                    <option value="unidades">Unidades (un.)</option>
+                    <option value="kg">Kilos (kg)</option>
+                    <option value="L">Litros (L)</option>
+                </select>
+            </div>
+        </div>
+        
+        <div class="form-group">
+            <label>Sala:</label>
+            <select id="editar-sala"><option value="">-- Sin asignar --</option></select>
+        </div>
+        <div class="form-group-row">
+            <div class="form-group">
+                <label>Ubicación:</label>
+                <select name="ubicacion_id" id="editar-ubi" disabled><option value="">-- Selecciona Sala primero --</option></select>
+            </div>
+            <div class="form-group">
+                <label>Sub-ubicación:</label>
+                <select name="sub_ubicacion_id" id="editar-sub" disabled><option value="">-- Opcional --</option></select>
+            </div>
+        </div>
+        
+        <div class="modal-actions">
+            <button type="button" id="btn-cancelar-editar" class="btn-secundario">Cancelar</button>
+            <button type="submit" id="btn-guardar-editar" class="btn-primary">Guardar Cambios</button>
+        </div>
+    </form>
+</div>
+
+<!-- Modal: Mover Producto -->
+<div id="modal-mover" class="modal oculto">
+    <form id="form-mover-producto" class="modal-content">
+        <h2>📦 Mover Producto</h2>
+        <input type="hidden" name="id" id="mover-id">
+        
+        <div class="form-group">
+            <label>Sala:</label>
+            <select id="mover-sala"><option value="">-- Sin asignar --</option></select>
+        </div>
+        <div class="form-group">
+            <label>Nueva Ubicación:</label>
+            <select name="ubicacion_id" id="mover-ubi" disabled><option value="">-- Selecciona Sala primero --</option></select>
+        </div>
+        <div class="form-group">
+            <label>Nueva Sub-ubicación:</label>
+            <select name="sub_ubicacion_id" id="mover-sub" disabled><option value="">-- Opcional --</option></select>
+        </div>
+        
+        <div class="modal-actions">
+            <button type="button" id="btn-cancelar-mover" class="btn-secundario">Cancelar</button>
+            <button type="submit" id="btn-guardar-mover" class="btn-primary">Actualizar</button>
+        </div>
+    </form>
+</div>
+
+
+<!-- Modal: Gestionar Comercios -->
+<!-- Modal: Carga Masiva -->
+<div id="modalCargaMasiva" class="modal oculto">
+    <div class="modal-content" style="max-width: 900px;">
+        <h2>⚡ Carga Masiva</h2>
+        <div class="form-group-row" style="margin-bottom: 1.5rem;">
+            <div class="form-group">
+                <label>Sala Destino:</label>
+                <select id="bulk-sala"><option value="">-- Selecciona Sala --</option></select>
+            </div>
+            <div class="form-group">
+                <label>Ubicación Destino:</label>
+                <select id="bulk-ubi" disabled><option value="">-- Ubicación --</option></select>
+            </div>
+            <div class="form-group">
+                <label>Sub-ubicación (Requerida):</label>
+                <select id="bulk-sub" disabled><option value="">-- Sub-ubicación --</option></select>
+            </div>
+        </div>
+        
+        <div id="bulkRowsContainer" style="display: flex; flex-direction: column; gap: 10px; max-height: 400px; overflow-y: auto;">
+            <!-- Filas inyectadas por JS -->
+        </div>
+        
+        <div class="modal-actions" style="justify-content: space-between;">
+            <button type="button" id="btn-add-bulk-row" class="btn-secundario">+ Añadir Fila</button>
+            <div>
+                <button type="button" id="btn-cancelar-bulk" class="btn-secundario">Cancelar</button>
+                <button type="button" id="btn-guardar-bulk" class="btn-primary">Guardar Lote</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Carga Rápida de Compras -->
+<div id="modalCargaCompras" class="modal oculto">
+    <div class="modal-content" style="max-width: 900px;">
+        <h2>⚡ Carga Masiva de Compras</h2>
+        <div class="form-group-row" style="margin-bottom: 1.5rem; display: none;">
+            <!-- Removidos a petición del usuario. Los productos quedan sin asignar -->
+        </div>
+        
+        <div id="bulkComprasRows" style="display: flex; flex-direction: column; gap: 10px; max-height: 400px; overflow-y: auto;">
+            <!-- Filas inyectadas por JS -->
+        </div>
+        
+        <div class="modal-actions" style="justify-content: space-between;">
+            <button type="button" id="btn-add-compra-row" class="btn-secundario">+ Añadir Fila</button>
+            <div>
+                <button type="button" id="btn-cancelar-compras" class="btn-secundario">Cancelar</button>
+                <button type="button" id="btn-guardar-compras" class="btn-primary">Guardar Lista</button>
+            </div>
+        </div>
+    </div>
+</div>
