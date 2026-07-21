@@ -1,13 +1,19 @@
 import os
+import calendar
 import threading
 import telebot
+import google.generativeai as genai
+import base64
+import json
+import pytz
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 from apscheduler.schedulers.background import BackgroundScheduler
 from flask import Flask, request, jsonify, render_template, redirect, url_for, flash
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import extract
 from dotenv import load_dotenv
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import datetime, date, timedelta, timedelta
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 import whisper
@@ -17,7 +23,6 @@ import difflib
 import random
 import string
 from functools import wraps
-import pytz
 
 # ==========================================
 # 1. CONFIGURACIÓN E INICIALIZACIÓN
@@ -37,12 +42,20 @@ app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///hom
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
+from flask_migrate import Migrate
+migrate = Migrate(app, db)
+
 login_manager = LoginManager(app)
 login_manager.login_view = 'login_page'
 
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN', '')
+TELEGRADMIN_CHAT_ID = os.getenv('ADMIN_CHAT_ID')
+TELEGRAM_GROUP_ID = os.getenv('TELEGRAM_GROUP_ID')
+GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
+if GEMINI_API_KEY:
+    genai.configure(api_key=GEMINI_API_KEY)
 TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID', '')
-ADMIN_CHAT_ID = os.getenv('ADMIN_CHAT_ID', TELEGRAM_CHAT_ID)
+ADMIN_CHAT_ID = os.getenv('ADMIN_CHAT_ID', TELEGRAM_GROUP_ID)
 
 bot = telebot.TeleBot(TELEGRAM_TOKEN) if TELEGRAM_TOKEN else None
 CHAT_ID = TELEGRAM_CHAT_ID
@@ -79,6 +92,89 @@ class Usuario(UserMixin, db.Model):
 @login_manager.user_loader
 def load_user(user_id):
     return Usuario.query.get(int(user_id))
+
+
+usuario_tarea = db.Table('usuario_tarea',
+    db.Column('usuario_id', db.Integer, db.ForeignKey('usuarios.id'), primary_key=True),
+    db.Column('tarea_id', db.Integer, db.ForeignKey('tareas.id'), primary_key=True)
+)
+
+usuario_modelo_tarea = db.Table('usuario_modelo_tarea',
+    db.Column('usuario_id', db.Integer, db.ForeignKey('usuarios.id'), primary_key=True),
+    db.Column('modelo_tarea_id', db.Integer, db.ForeignKey('modelo_tareas.id'), primary_key=True)
+)
+
+class ModeloTarea(db.Model):
+    __tablename__ = 'modelo_tareas'
+    id = db.Column(db.Integer, primary_key=True)
+    nombre = db.Column(db.String(100), nullable=False)
+    prioridad = db.Column(db.String(50), default='Esencial')
+    tipo_frecuencia = db.Column(db.String(50), default='dias')
+    valor_frecuencia = db.Column(db.String(50), default='1')
+    alternar = db.Column(db.Boolean, default=True)
+    fecha_ultima_ejecucion = db.Column(db.Date, nullable=True)
+    
+    usuarios = db.relationship('Usuario', secondary=usuario_modelo_tarea, lazy='subquery',
+        backref=db.backref('modelos', lazy=True))
+        
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'nombre': self.nombre,
+            'prioridad': self.prioridad,
+            'tipo_frecuencia': self.tipo_frecuencia,
+            'valor_frecuencia': self.valor_frecuencia,
+            'alternar': self.alternar,
+            'fecha_ultima_ejecucion': self.fecha_ultima_ejecucion.isoformat() if self.fecha_ultima_ejecucion else None,
+            'usuarios': [{'id': u.id, 'username': u.username} for u in self.usuarios]
+        }
+
+class Tarea(db.Model):
+    __tablename__ = 'tareas'
+    id = db.Column(db.Integer, primary_key=True)
+    nombre = db.Column(db.String(100), nullable=False)
+    prioridad = db.Column(db.String(50), default='Esencial')
+    tipo_frecuencia = db.Column(db.String(50), default='dias')
+    valor_frecuencia = db.Column(db.String(50), default='1')
+    fecha_ultima_ejecucion = db.Column(db.Date, nullable=True)
+    fecha_programada = db.Column(db.Date, nullable=True)
+    alternar = db.Column(db.Boolean, default=True)
+    completada = db.Column(db.Boolean, default=False)
+    modelo_id = db.Column(db.Integer, db.ForeignKey('modelo_tareas.id'), nullable=True)
+    
+    usuarios = db.relationship('Usuario', secondary=usuario_tarea, lazy='subquery',
+        backref=db.backref('tareas_instancias', lazy=True))
+        
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'nombre': self.nombre,
+            'prioridad': self.prioridad,
+            'tipo_frecuencia': self.tipo_frecuencia,
+            'valor_frecuencia': self.valor_frecuencia,
+            'alternar': self.alternar,
+            'completada': self.completada,
+            'fecha_programada': self.fecha_programada.isoformat() if self.fecha_programada else (self.fecha_ultima_ejecucion.isoformat() if self.fecha_ultima_ejecucion else None),
+            'modelo_id': self.modelo_id,
+            'usuarios': [{'id': u.id, 'username': u.username} for u in self.usuarios]
+        }
+
+class HistorialTarea(db.Model):
+    __tablename__ = 'historial_tareas'
+    id = db.Column(db.Integer, primary_key=True)
+    tarea_id = db.Column(db.Integer, db.ForeignKey('tareas.id'), nullable=False)
+    usuario_id = db.Column(db.Integer, db.ForeignKey('usuarios.id'), nullable=False)
+    fecha = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+
+class SaltoTarea(db.Model):
+    __tablename__ = 'salto_tareas'
+    id = db.Column(db.Integer, primary_key=True)
+    tarea_id = db.Column(db.Integer, db.ForeignKey('tareas.id'), nullable=False)
+    usuario_id = db.Column(db.Integer, db.ForeignKey('usuarios.id'), nullable=False)
+    fecha = db.Column(db.DateTime, default=datetime.utcnow)
+    motivo = db.Column(db.String(255), nullable=False)
 
 class Sala(db.Model):
     __tablename__ = 'salas'
@@ -202,9 +298,132 @@ class Movimiento(db.Model):
             'producto_nombre': self.rel_producto.nombre if self.rel_producto else None
         }
 
+
+# --- NUEVOS MODULOS ---
+
+# Modulo Finanzas
+class Gasto(db.Model):
+    __tablename__ = 'gastos'
+    id = db.Column(db.Integer, primary_key=True)
+    usuario_id = db.Column(db.Integer, db.ForeignKey('usuarios.id'), nullable=False)
+    monto = db.Column(db.Float, nullable=False)
+    descripcion = db.Column(db.String(200), nullable=False)
+    fecha = db.Column(db.Date, nullable=False, default=date.today)
+    imagen_ticket_url = db.Column(db.String(500), nullable=True)
+    
+    pagador = db.relationship('Usuario', backref='gastos_pagados')
+    divisiones = db.relationship('DivisionGasto', backref='rel_gasto', cascade='all, delete-orphan')
+
+class DivisionGasto(db.Model):
+    __tablename__ = 'division_gastos'
+    id = db.Column(db.Integer, primary_key=True)
+    gasto_id = db.Column(db.Integer, db.ForeignKey('gastos.id'), nullable=False)
+    usuario_id = db.Column(db.Integer, db.ForeignKey('usuarios.id'), nullable=False)
+    monto_adeudado = db.Column(db.Float, nullable=False)
+    esta_pagado = db.Column(db.Boolean, default=False)
+    
+    usuario = db.relationship('Usuario', backref='deudas')
+
+# Modulo Logistica
+class EventoLogistico(db.Model):
+    __tablename__ = 'eventos_logisticos'
+    id = db.Column(db.Integer, primary_key=True)
+    titulo = db.Column(db.String(100), nullable=False)
+    descripcion = db.Column(db.Text, nullable=True)
+    fecha_inicio = db.Column(db.DateTime, nullable=False)
+    fecha_fin = db.Column(db.DateTime, nullable=True)
+    creador_id = db.Column(db.Integer, db.ForeignKey('usuarios.id'), nullable=False)
+    
+    creador = db.relationship('Usuario', backref='eventos_creados')
+
+# Modulo Menus
+class HorarioComidas(db.Model):
+    __tablename__ = 'horario_comidas'
+    id = db.Column(db.Integer, primary_key=True)
+    tipo_comida = db.Column(db.String(50), nullable=False) # Desayuno, Almuerzo, Merienda, Cena
+    hora_inicio = db.Column(db.Time, nullable=False)
+    hora_fin = db.Column(db.Time, nullable=False)
+
+class IngredienteReceta(db.Model):
+    __tablename__ = 'ingrediente_receta'
+    receta_id = db.Column(db.Integer, db.ForeignKey('recetas.id'), primary_key=True)
+    producto_id = db.Column(db.Integer, db.ForeignKey('productos.id'), primary_key=True)
+    cantidad_requerida = db.Column(db.Float, nullable=False, default=1.0)
+    
+    producto = db.relationship('Producto')
+    receta = db.relationship('Receta', back_populates='ingredientes')
+
+class Receta(db.Model):
+    __tablename__ = 'recetas'
+    id = db.Column(db.Integer, primary_key=True)
+    nombre = db.Column(db.String(150), nullable=False)
+    tipo = db.Column(db.String(50), nullable=False) # Desayuno, Almuerzo, Merienda, Cena
+    es_rapida = db.Column(db.Boolean, default=False)
+    
+    ingredientes = db.relationship('IngredienteReceta', back_populates='receta', cascade="all, delete-orphan")
+
+class MenuSemanal(db.Model):
+    __tablename__ = 'menu_semanal'
+    id = db.Column(db.Integer, primary_key=True)
+    dia_semana = db.Column(db.String(20), nullable=False) # Lunes a Domingo
+    tipo_comida = db.Column(db.String(50), nullable=False) # Desayuno, Almuerzo, Merienda, Cena
+    receta_id = db.Column(db.Integer, db.ForeignKey('recetas.id'), nullable=False)
+    fecha_asignada = db.Column(db.Date, nullable=False)
+    
+    receta = db.relationship('Receta', backref='asignaciones')
+
 # ==========================================
 # 3. HELPERS Y UTILIDADES
 # ==========================================
+
+def calcular_balances_globales():
+    # Devuelve una lista de diccionarios con el balance simplificado
+    with app.app_context():
+        divisiones = DivisionGasto.query.filter_by(esta_pagado=False).all()
+        # deudas[deudor_id][acreedor_id] = monto
+        from collections import defaultdict
+        deudas = defaultdict(lambda: defaultdict(float))
+        
+        for div in divisiones:
+            deudor = div.usuario_id
+            acreedor = div.rel_gasto.usuario_id
+            if deudor != acreedor:
+                deudas[deudor][acreedor] += div.monto_adeudado
+                
+        # Simplificar deudas cruzadas
+        usuarios_ids = list(deudas.keys())
+        for deudor in usuarios_ids:
+            for acreedor in list(deudas[deudor].keys()):
+                # Si el acreedor tambien le debe al deudor
+                if deudor in deudas[acreedor]:
+                    deuda_ida = deudas[deudor][acreedor]
+                    deuda_vuelta = deudas[acreedor][deudor]
+                    
+                    if deuda_ida > deuda_vuelta:
+                        deudas[deudor][acreedor] -= deuda_vuelta
+                        del deudas[acreedor][deudor]
+                    elif deuda_vuelta > deuda_ida:
+                        deudas[acreedor][deudor] -= deuda_ida
+                        del deudas[deudor][acreedor]
+                    else:
+                        del deudas[deudor][acreedor]
+                        del deudas[acreedor][deudor]
+                        
+        # Formatear salida
+        resultado = []
+        for deudor_id, deudores_dict in deudas.items():
+            for acreedor_id, monto in deudores_dict.items():
+                u_deudor = Usuario.query.get(deudor_id)
+                u_acreedor = Usuario.query.get(acreedor_id)
+                if u_deudor and u_acreedor and monto > 0:
+                    resultado.append({
+                        'deudor_id': deudor_id,
+                        'deudor_nombre': u_deudor.username,
+                        'acreedor_id': acreedor_id,
+                        'acreedor_nombre': u_acreedor.username,
+                        'monto': round(monto, 2)
+                    })
+        return resultado
 
 def admin_required(f):
     @wraps(f)
@@ -270,6 +489,29 @@ def safe_telegram_send(chat_id, mensaje, reply_markup=None, parse_mode='HTML'):
         print(f"Error enviando mensaje a {chat_id}: {e}")
         return False
 
+def extraer_datos_evento(texto):
+    if not GEMINI_API_KEY:
+        return None
+    try:
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        tz = pytz.timezone('America/Argentina/Buenos_Aires')
+        fecha_actual = datetime.now(tz).strftime('%Y-%m-%d %H:%M:%S')
+        
+        prompt = f"Eres un asistente de calendario. Hoy es {fecha_actual} (Hora de Buenos Aires). Analiza este mensaje y extrae los detalles del evento. Devuelve EXCLUSIVAMENTE un JSON con las claves: 'titulo' (resumen corto), 'fecha_inicio' (formato ISO 8601), 'fecha_fin' (formato ISO 8601, si aplica), y 'descripcion'. No uses markdown."
+        
+        response = model.generate_content([prompt, texto])
+        resultado_str = response.text.strip()
+        
+        if resultado_str.startswith('```json'):
+            resultado_str = resultado_str.replace('```json', '').replace('```', '').strip()
+        elif resultado_str.startswith('```'):
+            resultado_str = resultado_str.replace('```', '').strip()
+            
+        return json.loads(resultado_str)
+    except Exception as e:
+        print(f"Error NLP Gemini: {e}")
+        return None
+
 def safe_telegram_reply(message, texto, reply_markup=None, parse_mode=None):
     if not bot:
         return False
@@ -284,11 +526,29 @@ def safe_telegram_reply(message, texto, reply_markup=None, parse_mode=None):
 # 4. LÓGICA DE TELEGRAM
 # ==========================================
 
-def enviar_mensaje_a_todos(mensaje, parse_mode='HTML'):
+import threading
+def _enviar_al_grupo_sync(mensaje, parse_mode):
+    if TELEGRAM_GROUP_ID:
+        safe_telegram_send(TELEGRAM_GROUP_ID, mensaje, parse_mode=parse_mode)
+
+def enviar_al_grupo(mensaje, parse_mode='HTML'):
+    threading.Thread(target=_enviar_al_grupo_sync, args=(mensaje, parse_mode)).start()
+
+def _enviar_al_usuario_sync(usuario_id, mensaje, parse_mode):
     with app.app_context():
-        usuarios = Usuario.query.filter(Usuario.telegram_chat_id != None).all()
-        for u in usuarios:
+        u = Usuario.query.get(usuario_id)
+        if u and u.telegram_chat_id:
             safe_telegram_send(u.telegram_chat_id, mensaje, parse_mode=parse_mode)
+        else:
+            # Fallback to group
+            if u:
+                fallback_msg = f"@{u.username} (Aviso: No tienes vinculado tu chat privado)\n{mensaje}"
+            else:
+                fallback_msg = mensaje
+            _enviar_al_grupo_sync(fallback_msg, parse_mode)
+
+def enviar_al_usuario(usuario_id, mensaje, parse_mode='HTML'):
+    threading.Thread(target=_enviar_al_usuario_sync, args=(usuario_id, mensaje, parse_mode)).start()
 
 def enviar_listas_agrupadas(chat_id, comercio_objetivo=None):
     with app.app_context():
@@ -330,49 +590,272 @@ if bot:
             user = Usuario.query.filter_by(telegram_chat_id=str(chat_id)).first()
             return user is not None
 
-    @bot.message_handler(content_types=['voice'])
-    def handle_voice(message):
+    @bot.message_handler(content_types=['voice', 'text'])
+    def handle_voice_and_text(message):
         if not is_authorized(message.chat.id): return
         
-        ogg_path = None
+        texto_transcrito = ''
+        
+        if message.content_type == 'voice':
+            ogg_path = None
+            try:
+                safe_telegram_reply(message, "Procesando audio... 🎙️")
+                
+                file_info = bot.get_file(message.voice.file_id)
+                downloaded_file = bot.download_file(file_info.file_path)
+                
+                temp_id = str(uuid.uuid4())
+                base_dir = os.path.dirname(os.path.abspath(__file__))
+                ogg_path = os.path.join(base_dir, f"{temp_id}.ogg")
+                
+                with open(ogg_path, 'wb') as new_file:
+                    new_file.write(downloaded_file)
+                    
+                resultado = modelo_whisper.transcribe(ogg_path, language="es")
+                texto_transcrito = resultado["text"].strip()
+            except Exception as e:
+                safe_telegram_send(message.chat.id, f"❌ Error interno: {str(e)}")
+                return
+            finally:
+                if ogg_path and os.path.exists(ogg_path):
+                    try:
+                        os.remove(ogg_path)
+                    except:
+                        pass
+        else:
+            if message.text.startswith('/'): return
+            texto_transcrito = message.text.strip()
+            
+        texto_lower = texto_transcrito.lower()
+        if texto_lower.startswith('agendar') or texto_lower.startswith('aviso') or texto_lower.startswith('visita'):
+            datos_evento = extraer_datos_evento(texto_transcrito)
+            if datos_evento and 'titulo' in datos_evento and 'fecha_inicio' in datos_evento:
+                pending_voice_commands[message.chat.id] = (datos_evento, datetime.now(), 'logistica')
+                markup = InlineKeyboardMarkup()
+                markup.row_width = 2
+                markup.add(
+                    InlineKeyboardButton("✅ Sí", callback_data="confirm_logistica"),
+                    InlineKeyboardButton("❌ No", callback_data="cancel_logistica")
+                )
+                safe_telegram_send(message.chat.id, f"📅 Entendido. Agendaré: *{datos_evento['titulo']}* para el {datos_evento['fecha_inicio']}. ¿Confírmas?", reply_markup=markup, parse_mode="Markdown")
+            else:
+                safe_telegram_send(message.chat.id, "❌ No pude extraer los detalles del evento.")
+            return
+
+        if texto_lower.startswith('sug') or 'qué comemos' in texto_lower or 'que comemos' in texto_lower or 'comida' in texto_lower or 'cena' in texto_lower or 'almuerzo' in texto_lower:
+            es_rapida = 'rápid' in texto_lower or 'rapid' in texto_lower
+            with app.app_context():
+                if es_rapida:
+                    rapidas = Receta.query.filter_by(es_rapida=True).all()
+                    if not rapidas:
+                        safe_telegram_send(message.chat.id, "❌ No hay recetas rápidas cargadas.")
+                        return
+                    import random
+                    sug = random.choice(rapidas)
+                    safe_telegram_send(message.chat.id, f"⚡ Sugerencia rápida: *{sug.nombre}*. (No desconto inventario)", parse_mode="Markdown")
+                else:
+                    todas = Receta.query.all()
+                    posibles = []
+                    for rec in todas:
+                        puede = True
+                        for ing in rec.ingredientes:
+                            if ing.producto.stock_actual < ing.cantidad_requerida:
+                                puede = False
+                                break
+                        if puede: posibles.append(rec)
+                    if not posibles:
+                        safe_telegram_send(message.chat.id, "❌ No tienes ingredientes completos para ninguna receta de la base de datos.")
+                        return
+                    import random
+                    sug = random.choice(posibles)
+                    
+                    pending_voice_commands[message.chat.id] = (sug.id, datetime.now(), 'menu')
+                    markup = InlineKeyboardMarkup()
+                    markup.row_width = 2
+                    markup.add(
+                        InlineKeyboardButton("✅ Sí, preparar", callback_data="confirm_menu"),
+                        InlineKeyboardButton("❌ No", callback_data="cancel_menu")
+                    )
+                    safe_telegram_send(message.chat.id, f"🍽️ Puedes hacer *{sug.nombre}*. Tienes todos los ingredientes. ¿Lo preparas hoy?", reply_markup=markup, parse_mode="Markdown")
+            return
+
+
+        # Para inventario / compras / tareas 
+        pending_voice_commands[message.chat.id] = (texto_transcrito, datetime.now(), 'inventario')
+        
+        markup = InlineKeyboardMarkup()
+        markup.row_width = 2
+        markup.add(
+            InlineKeyboardButton("✅ Confirmar", callback_data="confirm_voice"),
+            InlineKeyboardButton("❌ Cancelar", callback_data="cancel_voice")
+        )
+        
+        tipo_msg = "🎙️ Escuché" if message.content_type == 'voice' else "📝 Recibí"
+        safe_telegram_send(message.chat.id, f"{tipo_msg}:\n\n_{texto_transcrito}_\n\n¿Procesar esta instrucción?", reply_markup=markup, parse_mode="Markdown")
+
+    @bot.callback_query_handler(func=lambda call: call.data.startswith('ocr_div_'))
+    def handle_ocr_division(call):
+        chat_id = call.message.chat.id
+        if chat_id not in pending_ocr_confirmations:
+            bot.answer_callback_query(call.id, "Solicitud expirada.")
+            return
+            
+        data = pending_ocr_confirmations.pop(chat_id)
+        if call.data == 'ocr_div_no':
+            bot.edit_message_text("Carga de ticket cancelada.", chat_id, call.message.message_id)
+            return
+            
+        # ocr_div_si: Dividir entre todos los activos
+        with app.app_context():
+            comprador = Usuario.query.get(data['usuario_id'])
+            todos_usuarios = Usuario.query.all() # Asumimos todos activos
+            
+            nuevo_gasto = Gasto(
+                usuario_id=comprador.id,
+                monto=data['monto_total'],
+                descripcion=data['descripcion']
+            )
+            db.session.add(nuevo_gasto)
+            db.session.flush() # Para tener el ID
+            
+            monto_por_persona = data['monto_total'] / len(todos_usuarios)
+            
+            for u in todos_usuarios:
+                # El comprador ya esta pagado consigo mismo
+                esta_pagado = (u.id == comprador.id)
+                div = DivisionGasto(
+                    gasto_id=nuevo_gasto.id,
+                    usuario_id=u.id,
+                    monto_adeudado=monto_por_persona,
+                    esta_pagado=esta_pagado
+                )
+                db.session.add(div)
+                
+            db.session.commit()
+            
+            bot.edit_message_text(f"✅ ¡Gasto registrado exitosamente!\nConcepto: {data['descripcion']}\nCada usuario debe: ${round(monto_por_persona, 2)}", chat_id, call.message.message_id)
+
+    @bot.callback_query_handler(func=lambda call: True)
+    def callback_inline(call):
+        if call.data in ['confirm_voice', 'cancel_voice']:
+            callback_voice(call)
+            return
+        if call.data in ['confirm_logistica', 'cancel_logistica']:
+            handle_logistica_callback(call)
+            return
+        if call.data in ['confirm_menu', 'cancel_menu']:
+            handle_menu_callback(call)
+            return
+
+    def handle_logistica_callback(call):
+        bot.edit_message_reply_markup(call.message.chat.id, call.message.message_id, reply_markup=None)
+        
+        if call.data == 'cancel_logistica':
+            pending_voice_commands.pop(call.message.chat.id, None)
+            safe_telegram_send(call.message.chat.id, "❌ Agendamiento cancelado.")
+            return
+            
+        pending_data = pending_voice_commands.pop(call.message.chat.id, None)
+        if not pending_data or len(pending_data) != 3 or pending_data[2] != 'logistica':
+            safe_telegram_send(call.message.chat.id, "⚠️ La solicitud ha expirado o ya fue procesada.")
+            return
+            
+        datos_evento = pending_data[0]
         
         try:
-            safe_telegram_reply(message, "Procesando audio... 🎙️")
-            
-            file_info = bot.get_file(message.voice.file_id)
-            downloaded_file = bot.download_file(file_info.file_path)
-            
-            temp_id = str(uuid.uuid4())
-            base_dir = os.path.dirname(os.path.abspath(__file__))
-            ogg_path = os.path.join(base_dir, f"{temp_id}.ogg")
-            
-            with open(ogg_path, 'wb') as new_file:
-                new_file.write(downloaded_file)
+            with app.app_context():
+                user = Usuario.query.filter_by(telegram_chat_id=str(call.message.chat.id)).first()
+                if not user:
+                    safe_telegram_send(call.message.chat.id, "❌ Usuario no autorizado.")
+                    return
                 
-            resultado = modelo_whisper.transcribe(ogg_path, language="es")
-            texto_transcrito = resultado["text"].strip()
-            
-            pending_voice_commands[message.chat.id] = (texto_transcrito, datetime.now())
-            
-            markup = InlineKeyboardMarkup()
-            markup.row_width = 2
-            markup.add(
-                InlineKeyboardButton("✅ Confirmar", callback_data="confirm_voice"),
-                InlineKeyboardButton("❌ Cancelar", callback_data="cancel_voice")
-            )
-            
-            safe_telegram_send(message.chat.id, f"🎙️ Escuché:\n\n_{texto_transcrito}_\n\n¿Procesar esta instrucción?", reply_markup=markup, parse_mode="Markdown")
+                # Parsear ISO 8601 a DateTime. Gemini a veces da YYYY-MM-DD o YYYY-MM-DDTHH:MM:SS
+                def parse_fecha(f_str):
+                    if not f_str: return None
+                    try:
+                        return datetime.fromisoformat(f_str.replace('Z', '+00:00'))
+                    except:
+                        try:
+                            # Intento extra manual si falla fromisoformat
+                            return datetime.strptime(f_str[:19], "%Y-%m-%dT%H:%M:%S")
+                        except:
+                            try:
+                                return datetime.strptime(f_str[:10], "%Y-%m-%d")
+                            except:
+                                return None
+                                
+                f_inicio = parse_fecha(datos_evento.get('fecha_inicio'))
+                f_fin = parse_fecha(datos_evento.get('fecha_fin'))
+                if not f_inicio:
+                    safe_telegram_send(call.message.chat.id, "❌ Error parseando la fecha de inicio del evento.")
+                    return
                     
+                nuevo_evento = EventoLogistico(
+                    titulo=datos_evento.get('titulo'),
+                    descripcion=datos_evento.get('descripcion', ''),
+                    fecha_inicio=f_inicio,
+                    fecha_fin=f_fin,
+                    creador_id=user.id
+                )
+                db.session.add(nuevo_evento)
+                db.session.commit()
+                
+                safe_telegram_send(call.message.chat.id, f"✅ Evento guardado correctamente:\n*{datos_evento['titulo']}*", parse_mode="Markdown")
         except Exception as e:
-            safe_telegram_send(message.chat.id, f"❌ Error interno: {str(e)}")
-        finally:
-            if ogg_path and os.path.exists(ogg_path):
-                try:
-                    os.remove(ogg_path)
-                except:
-                    pass
+            print(f"Error guardando evento: {e}")
+            safe_telegram_send(call.message.chat.id, f"❌ Error interno al guardar: {e}")
 
-    @bot.callback_query_handler(func=lambda call: call.data in ['confirm_voice', 'cancel_voice'])
+    def handle_menu_callback(call):
+        bot.edit_message_reply_markup(call.message.chat.id, call.message.message_id, reply_markup=None)
+        
+        if call.data == 'cancel_menu':
+            pending_voice_commands.pop(call.message.chat.id, None)
+            safe_telegram_send(call.message.chat.id, "❌ Sugerencia cancelada.")
+            return
+            
+        pending_data = pending_voice_commands.pop(call.message.chat.id, None)
+        if not pending_data or len(pending_data) != 3 or pending_data[2] != 'menu':
+            safe_telegram_send(call.message.chat.id, "⚠️ La solicitud ha expirado o ya fue procesada.")
+            return
+            
+        receta_id = pending_data[0]
+        
+        try:
+            with app.app_context():
+                receta = Receta.query.get(receta_id)
+                if not receta:
+                    safe_telegram_send(call.message.chat.id, "❌ No se encontró la receta.")
+                    return
+                
+                # Infer meal type based on current time
+                tz = pytz.timezone('America/Argentina/Buenos_Aires')
+                ahora = datetime.now(tz).time()
+                
+                horarios = HorarioComidas.query.all()
+                tipo_inferido = "Cena" # Default
+                for h in horarios:
+                    if h.hora_inicio <= ahora <= h.hora_fin:
+                        tipo_inferido = h.tipo_comida
+                        break
+                
+                # Consume ingredients
+                if consumir_receta(receta_id):
+                    # Guardar en menu semanal
+                    nuevo_menu = MenuSemanal(
+                        dia_semana=datetime.now(tz).strftime('%A'), # Not perfectly mapped to Spanish but ok for model
+                        tipo_comida=tipo_inferido,
+                        receta_id=receta.id,
+                        fecha_asignada=datetime.now(tz).date()
+                    )
+                    db.session.add(nuevo_menu)
+                    db.session.commit()
+                    safe_telegram_send(call.message.chat.id, f"✅ ¡Excelente! He descontado los ingredientes de *{receta.nombre}* y la registré como tu {tipo_inferido} de hoy.", parse_mode="Markdown")
+                else:
+                    safe_telegram_send(call.message.chat.id, "❌ Error consumiendo receta.")
+        except Exception as e:
+            print(f"Error procesando menu: {e}")
+            safe_telegram_send(call.message.chat.id, f"❌ Error interno: {e}")
+
     def callback_voice(call):
         bot.edit_message_reply_markup(call.message.chat.id, call.message.message_id, reply_markup=None)
         
@@ -402,6 +885,7 @@ if bot:
         match_inv = re.search(r'(agregar|añadir|compré|compre|comprado|sumar|meté|mete)\s+(.*)', texto_lower)
         match_comp = re.search(r'(comprar|falta|faltan|necesito|necesitamos)\s+(.*)', texto_lower)
         match_resta = re.search(r'(gasté|gaste|consumí|consumi|usé|use|comí|comi|saqué|saque|quité|quite)\s+(.*)', texto_lower)
+        match_tarea = re.search(r'(hice|terminé|termine|limpié|limpie|saqué|saque)\s+(.*)', texto_lower)
         
         if match_inv:
             rama = "inventario"
@@ -412,6 +896,9 @@ if bot:
         elif match_resta:
             rama = "restar"
             texto_sin_accion = match_resta.group(2)
+        elif match_tarea:
+            rama = "tarea"
+            texto_sin_accion = match_tarea.group(2)
             
         if not rama:
             safe_telegram_send(call.message.chat.id, "❌ No pude entender la orden. Intenta decir: 'Agregar 2 de leche...' o 'Gasté 1 pan'.")
@@ -536,6 +1023,28 @@ if bot:
                                 respuestas.append(f"{cantidad_restada}x {producto.nombre}{ubi_msg}")
                             else:
                                 respuestas.append(f"⚠️ {producto_texto.capitalize()} no existe, omitido.")
+                        elif rama == "tarea":
+                            tarea_nombre = producto_texto.strip()
+                            tarea_db = Tarea.query.filter(Tarea.nombre.ilike(f"%{tarea_nombre}%")).first()
+                            if tarea_db:
+                                user = Usuario.query.filter_by(telegram_chat_id=str(call.message.chat.id)).first()
+                                if user:
+                                    # Registrar historial y actualizar fecha
+                                    old_date = tarea_db.fecha_ultima_ejecucion
+                                    historial = HistorialTarea(tarea_id=tarea_db.id, usuario_id=user.id)
+                                    db.session.add(historial)
+                                    tarea_db.fecha_ultima_ejecucion = datetime.now().date()
+                                    db.session.flush()
+                                    recent_transactions[tx_id].append({
+                                        "is_tarea": True, 
+                                        "tarea_id": tarea_db.id, 
+                                        "historial_id": historial.id, 
+                                        "old_date": old_date
+                                    })
+                                    respuestas.append(f"✨ Tarea '{tarea_db.nombre}' completada por {user.username}.")
+                            else:
+                                respuestas.append(f"⚠️ No se encontró la tarea '{tarea_nombre}'.")
+
 
                     db.session.commit()
                     
@@ -572,6 +1081,17 @@ if bot:
                     prod = Producto.query.get(op['producto_id'])
                     if not prod: continue
                     
+                    
+                    if op.get('is_tarea'):
+                        if 'historial_id' in op:
+                            h = HistorialTarea.query.get(op['historial_id'])
+                            if h: db.session.delete(h)
+                        if 'tarea_id' in op:
+                            t = Tarea.query.get(op['tarea_id'])
+                            if t and 'old_date' in op:
+                                t.fecha_ultima_ejecucion = op['old_date']
+                        continue
+
                     if op.get('is_new'):
                         if 'movimiento_id' in op:
                             mov = Movimiento.query.get(op['movimiento_id'])
@@ -625,6 +1145,94 @@ if bot:
                 safe_telegram_reply(message, f"¡Cuenta vinculada con éxito! Hola, {user.username}. Ya recibirás notificaciones aquí.")
             else:
                 safe_telegram_reply(message, "Token inválido o expirado. Genera uno nuevo en la web.")
+
+        pending_ocr_confirmations = {}
+
+    @bot.message_handler(commands=['balance'])
+    def handle_balance(message):
+        if not is_authorized(message.chat.id): return
+        balances = calcular_balances_globales()
+        if not balances:
+            safe_telegram_reply(message, "🎉 ¡Todo está al día! Nadie le debe dinero a nadie en la casa.")
+            return
+        
+        respuesta = "⚖️ <b>Balances Actuales de la Casa:</b>\n\n"
+        for b in balances:
+            respuesta += f"🔹 <b>{b['deudor_nombre']}</b> le debe a <b>{b['acreedor_nombre']}</b>: ${b['monto']}\n"
+        
+        safe_telegram_reply(message, respuesta, parse_mode='HTML')
+
+    @bot.message_handler(content_types=['photo', 'document'])
+    def handle_photo(message):
+        if not is_authorized(message.chat.id): return
+        
+        if not GEMINI_API_KEY:
+            safe_telegram_reply(message, "❌ Gemini no está configurado para leer tickets. Sube el gasto manualmente en la web.")
+            return
+            
+        try:
+            usuario = get_usuario_por_chat(message.chat.id)
+            if not usuario:
+                safe_telegram_reply(message, "❌ No encuentro tu usuario en el sistema.")
+                return
+                
+            safe_telegram_reply(message, "📸 Recibí el ticket. Analizando con IA, dame unos segundos...")
+            
+            if message.content_type == 'photo':
+                file_id = message.photo[-1].file_id
+            else:
+                file_id = message.document.file_id
+                
+            file_info = bot.get_file(file_id)
+            downloaded_file = bot.download_file(file_info.file_path)
+            
+            import tempfile
+            import os
+            
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.jpg') as temp_file:
+                temp_file.write(downloaded_file)
+                temp_file_path = temp_file.name
+                
+            try:
+                model = genai.GenerativeModel('gemini-1.5-flash')
+                imagen_gemini = genai.upload_file(temp_file_path)
+                
+                prompt = "Eres un asistente contable. Analiza este ticket/factura y devuelve EXCLUSIVAMENTE un JSON con tres claves: 'descripcion' (resumen de la compra en 3-4 palabras), 'monto_total' (numero float, el total final pagado), e 'items' (lista de productos si es legible). No uses markdown ni texto adicional."
+                response = model.generate_content([prompt, imagen_gemini])
+                
+                resultado_str = response.text.strip()
+                if resultado_str.startswith('```json'):
+                    resultado_str = resultado_str.replace('```json', '').replace('```', '').strip()
+                elif resultado_str.startswith('```'):
+                    resultado_str = resultado_str.replace('```', '').strip()
+                    
+                resultado = json.loads(resultado_str)
+                monto_total = float(resultado.get('monto_total', 0))
+                descripcion = resultado.get('descripcion', 'Ticket')
+                
+                if monto_total <= 0:
+                    safe_telegram_reply(message, "❌ No pude detectar un monto válido en el ticket.")
+                    return
+                    
+                pending_ocr_confirmations[message.chat.id] = {
+                    'usuario_id': usuario.id,
+                    'monto_total': monto_total,
+                    'descripcion': descripcion
+                }
+                
+                markup = InlineKeyboardMarkup()
+                markup.add(
+                    InlineKeyboardButton("✅ Sí, dividir", callback_data="ocr_div_si"),
+                    InlineKeyboardButton("❌ Cancelar", callback_data="ocr_div_no")
+                )
+                safe_telegram_reply(message, f"🧾 <b>Ticket detectado</b>\n\nConcepto: {descripcion}\nTotal: ${monto_total}\n\n¿Se divide en partes iguales entre todos los usuarios activos?", reply_markup=markup, parse_mode='HTML')
+                
+            finally:
+                if os.path.exists(temp_file_path):
+                    os.remove(temp_file_path)
+            
+        except Exception as e:
+            safe_telegram_reply(message, f"❌ Falló la lectura: {str(e)}")
 
     @bot.message_handler(commands=['comprado'])
     def handle_comprado(message):
@@ -880,9 +1488,131 @@ def require_login():
             return jsonify({'error': 'Unauthorized'}), 401
         return redirect(url_for('login_page'))
 
+@app.route('/finanzas')
+@login_required
+def finanzas_page():
+    return render_template('views/finanzas.html', active_page='finanzas')
+
 @app.route('/')
+@login_required
 def dashboard():
-    return render_template('views/dashboard.html', active_page='dashboard')
+    hoy = datetime.now().date()
+    mes_actual = hoy.month
+    ano_actual = hoy.year
+    
+    # 1. Mis Tareas Pendientes (del usuario, hoy o vencidas, o TODAS si es admin)
+    mis_tareas = []
+    tareas = Tarea.query.all()
+    es_admin = getattr(current_user, 'is_admin', False)
+    
+    for t in tareas:
+        if current_user in t.usuarios or es_admin:
+            current_date = t.fecha_ultima_ejecucion or (hoy - timedelta(days=1))
+            proxima = calcular_proxima_fecha(t, current_date)
+            if t.tipo_frecuencia == 'fecha_fija':
+                try: proxima = datetime.strptime(t.valor_frecuencia, '%Y-%m-%d').date()
+                except: proxima = hoy
+            if proxima <= hoy:
+                # Es mi turno o soy admin?
+                prox_user_id = calcular_proximo_turno(t)
+                
+                if prox_user_id == current_user.id or es_admin:
+                    prox_user = Usuario.query.get(prox_user_id) if prox_user_id else None
+                    nombre_asignado = prox_user.username if prox_user else "Todos/Nadie"
+                    
+                    if prox_user_id == current_user.id:
+                        nombre_mostrar = t.nombre
+                    else:
+                        nombre_mostrar = f"{t.nombre} ({nombre_asignado})"
+                        
+                    mis_tareas.append({'nombre': nombre_mostrar, 'vencida': (hoy - proxima).days > 0})
+                    
+    # 2. Ranking del Hogar (completadas en mes actual)
+    usuarios = Usuario.query.all()
+    ranking = []
+    for u in usuarios:
+        completadas = HistorialTarea.query.filter(
+            HistorialTarea.usuario_id == u.id,
+            extract('month', HistorialTarea.fecha) == mes_actual,
+            extract('year', HistorialTarea.fecha) == ano_actual
+        ).count()
+        ranking.append({'username': u.username, 'completadas': completadas})
+    ranking.sort(key=lambda x: x['completadas'], reverse=True)
+    
+    # 3. Radar de Tareas Críticas (vencidas > 2 días)
+    criticas = []
+    for t in tareas:
+        current_date = t.fecha_ultima_ejecucion or (hoy - timedelta(days=3))
+        proxima = calcular_proxima_fecha(t, current_date)
+        if t.tipo_frecuencia == 'fecha_fija':
+            try: proxima = datetime.strptime(t.valor_frecuencia, '%Y-%m-%d').date()
+            except: proxima = hoy
+        dias_vencida = (hoy - proxima).days
+        if dias_vencida > 2:
+            criticas.append({'nombre': t.nombre, 'dias_vencida': dias_vencida})
+            
+    # 4. Medidor de Excusas (Skips en mes actual)
+    skips_por_usuario = {}
+    for u in usuarios:
+        skips = SaltoTarea.query.filter(
+            SaltoTarea.usuario_id == u.id,
+            extract('month', SaltoTarea.fecha) == mes_actual,
+            extract('year', SaltoTarea.fecha) == ano_actual
+        ).count()
+        skips_por_usuario[u.username] = skips
+        
+    # 5. Última Actividad (ultimos 5 registros: historiales o saltos)
+    actividad = []
+    historiales = HistorialTarea.query.order_by(HistorialTarea.fecha.desc()).limit(5).all()
+    saltos = SaltoTarea.query.order_by(SaltoTarea.fecha.desc()).limit(5).all()
+    
+    for h in historiales:
+        u = Usuario.query.get(h.usuario_id)
+        t = Tarea.query.get(h.tarea_id)
+        actividad.append({'tipo': 'completada', 'fecha': h.fecha, 'texto': f"{u.username} completó: {t.nombre}"})
+        
+    for s in saltos:
+        u = Usuario.query.get(s.usuario_id)
+        t = Tarea.query.get(s.tarea_id)
+        actividad.append({'tipo': 'skip', 'fecha': s.fecha, 'texto': f"{u.username} saltó: {t.nombre}"})
+        
+    actividad.sort(key=lambda x: x['fecha'], reverse=True)
+    actividad = actividad[:5]
+    
+    # 6. Finanzas
+    gastos_mes = db.session.query(db.func.sum(Gasto.monto)).filter(
+        extract('month', Gasto.fecha) == mes_actual,
+        extract('year', Gasto.fecha) == ano_actual
+    ).scalar() or 0.0
+    balances = calcular_balances_globales()
+
+    # 7. Logística (Próximo evento y agenda hoy/mañana)
+    tz = pytz.timezone('America/Argentina/Buenos_Aires')
+    ahora = datetime.now(tz)
+    fin_manana = (ahora + timedelta(days=1)).replace(hour=23, minute=59, second=59)
+    
+    eventos_agenda = EventoLogistico.query.filter(
+        EventoLogistico.fecha_inicio >= ahora,
+        EventoLogistico.fecha_inicio <= fin_manana
+    ).order_by(EventoLogistico.fecha_inicio.asc()).limit(3).all()
+    
+    proximo_evento = EventoLogistico.query.filter(
+        EventoLogistico.fecha_inicio >= ahora
+    ).order_by(EventoLogistico.fecha_inicio.asc()).first()
+
+    return render_template('views/dashboard.html', 
+        active_page='dashboard',
+        mis_tareas=mis_tareas,
+        ranking=ranking,
+        criticas=criticas,
+        skips_por_usuario=skips_por_usuario,
+        actividad=actividad,
+        gastos_mes=gastos_mes,
+        balances=balances,
+        eventos_agenda=eventos_agenda,
+        proximo_evento=proximo_evento,
+        usuarios=usuarios
+    )
 
 @app.route('/inventario')
 def inventario():
@@ -941,6 +1671,21 @@ def update_usuario(id_user):
         
     db.session.commit()
     return jsonify({'mensaje': 'Usuario actualizado'})
+
+@app.route('/api/usuarios/<int:id>/password', methods=['PUT'])
+@login_required
+def change_password(id):
+    if current_user.id != id and not current_user.is_admin:
+        return jsonify({'error': 'No tienes permisos para cambiar esta contraseña'}), 403
+        
+    data = request.get_json()
+    if not data or 'nueva_password' not in data:
+        return jsonify({'error': 'Falta la nueva contraseña'}), 400
+        
+    u = Usuario.query.get_or_404(id)
+    u.set_password(data['nueva_password'])
+    db.session.commit()
+    return jsonify({'mensaje': 'Contraseña actualizada correctamente'})
 
 # === Espacios (Salas, Ubicaciones, SubUbicaciones, Comercios) ===
 @app.route('/api/espacios', methods=['GET'])
@@ -1031,6 +1776,213 @@ def eliminar_comercio(id_comercio):
     db.session.delete(c)
     db.session.commit()
     return jsonify({'mensaje': 'Comercio eliminado'})
+
+
+@app.route('/tareas')
+@login_required
+def tareas_view():
+    return render_template('views/tareas.html', active_page='tareas')
+
+@app.route('/api/modelos', methods=['GET'])
+@login_required
+def get_modelos():
+    modelos = ModeloTarea.query.all()
+    hoy = datetime.now().date()
+    res = []
+    for m in modelos:
+        d = m.to_dict()
+        current_date = m.fecha_ultima_ejecucion or (hoy - timedelta(days=1))
+        proxima = calcular_proxima_fecha(m, current_date)
+        if m.tipo_frecuencia == 'fecha_fija':
+            try: proxima = datetime.strptime(m.valor_frecuencia, '%Y-%m-%d').date()
+            except: proxima = hoy
+        d['proxima_fecha_calculada'] = proxima.isoformat()
+        res.append(d)
+    return jsonify(res)
+
+@app.route('/api/tareas', methods=['GET'])
+@login_required
+def get_tareas_activas():
+    # Return instantiated tasks (for table and dashboard)
+    tareas = Tarea.query.all()
+    return jsonify([t.to_dict() for t in tareas])
+
+@app.route('/api/modelos', methods=['POST'])
+@login_required
+def crear_modelo():
+    data = request.json
+    if not data or 'nombre' not in data:
+        return jsonify({'error': 'Falta el nombre'}), 400
+    nueva = ModeloTarea(
+        nombre=data['nombre'],
+        tipo_frecuencia=data.get('tipo_frecuencia', 'dias'),
+        valor_frecuencia=str(data.get('valor_frecuencia', '1')),
+        prioridad=data.get('prioridad', 'Esencial'),
+        alternar=data.get('alternar', True)
+    )
+    if 'fecha_inicio' in data and data['fecha_inicio']:
+        nueva.fecha_ultima_ejecucion = datetime.strptime(data['fecha_inicio'], '%Y-%m-%d').date() - timedelta(days=1)
+        
+    if 'usuarios_ids' in data and isinstance(data['usuarios_ids'], list):
+        for uid in data['usuarios_ids']:
+            u = Usuario.query.get(uid)
+            if u: nueva.usuarios.append(u)
+            
+    db.session.add(nueva)
+    db.session.commit()
+    return jsonify(nueva.to_dict()), 201
+
+@app.route('/api/modelos/<int:id_modelo>', methods=['PUT'])
+@login_required
+def editar_modelo(id_modelo):
+    data = request.json
+    modelo = ModeloTarea.query.get_or_404(id_modelo)
+    if 'nombre' in data:
+        modelo.nombre = data['nombre']
+    if 'tipo_frecuencia' in data:
+        modelo.tipo_frecuencia = data['tipo_frecuencia']
+    if 'valor_frecuencia' in data:
+        modelo.valor_frecuencia = str(data['valor_frecuencia'])
+    if 'prioridad' in data:
+        modelo.prioridad = data['prioridad']
+    if 'alternar' in data:
+        modelo.alternar = data['alternar']
+    if 'usuarios_ids' in data and isinstance(data['usuarios_ids'], list):
+        modelo.usuarios.clear()
+        for uid in data['usuarios_ids']:
+            u = Usuario.query.get(uid)
+            if u: modelo.usuarios.append(u)
+    db.session.commit()
+    return jsonify(modelo.to_dict())
+
+@app.route('/api/modelos/<int:id_modelo>', methods=['DELETE'])
+@login_required
+def eliminar_modelo(id_modelo):
+    modelo = ModeloTarea.query.get_or_404(id_modelo)
+    
+    # Unlink instantiated tasks instead of deleting them
+    Tarea.query.filter_by(modelo_id=modelo.id).update({'modelo_id': None})
+    
+    db.session.delete(modelo)
+    db.session.commit()
+    return jsonify({'mensaje': 'Modelo Eliminado'})
+
+@app.route('/api/tareas/<int:id_tarea>', methods=['DELETE'])
+@login_required
+def eliminar_tarea(id_tarea):
+    tarea = Tarea.query.get_or_404(id_tarea)
+    HistorialTarea.query.filter_by(tarea_id=tarea.id).delete()
+    SaltoTarea.query.filter_by(tarea_id=tarea.id).delete()
+    db.session.delete(tarea)
+    db.session.commit()
+    return jsonify({'mensaje': 'Eliminado'})
+
+
+@app.route('/api/tareas/<int:id_tarea>/skip', methods=['POST'])
+@login_required
+def skip_tarea(id_tarea):
+    data = request.json
+    if not data or 'motivo' not in data:
+        return jsonify({'error': 'Falta el motivo'}), 400
+        
+    tarea = Tarea.query.get_or_404(id_tarea)
+    
+    now = datetime.now()
+    saltos_mes = SaltoTarea.query.filter(
+        SaltoTarea.usuario_id == current_user.id,
+        extract('year', SaltoTarea.fecha) == now.year,
+        extract('month', SaltoTarea.fecha) == now.month
+    ).count()
+    
+    if saltos_mes >= 3:
+        return jsonify({'error': 'Has alcanzado el límite de 3 delegaciones este mes.'}), 403
+        
+    nuevo_salto = SaltoTarea(
+        tarea_id=tarea.id,
+        usuario_id=current_user.id,
+        motivo=data['motivo']
+    )
+    db.session.add(nuevo_salto)
+    
+    fake_historial = HistorialTarea(tarea_id=tarea.id, usuario_id=current_user.id)
+    db.session.add(fake_historial)
+    db.session.flush()
+    
+    nuevo_encargado_id = calcular_proximo_turno(tarea)
+    nuevo_encargado_nombre = "Nadie"
+    nuevo_encargado = None
+    if nuevo_encargado_id:
+        nuevo_encargado = Usuario.query.get(nuevo_encargado_id)
+        if nuevo_encargado: nuevo_encargado_nombre = nuevo_encargado.username
+        
+    db.session.commit()
+    
+    skips_restantes = 3 - (saltos_mes + 1)
+    
+    # 1. Avisar al grupo
+    mensaje_grupo = (f"⚠️ <b>{current_user.username}</b> ha delegado su turno de <b>{tarea.nombre}</b>.\n"
+                     f"Motivo: {data['motivo']}\n"
+                     f"(Le quedan {skips_restantes} skips este mes).\n"
+                     f"El nuevo encargado es: <b>{nuevo_encargado_nombre}</b>")
+    enviar_al_grupo(mensaje_grupo)
+    
+    # 2. Avisar al usuario por privado
+    if nuevo_encargado:
+        mensaje_privado = f"🔄 <b>{current_user.username}</b> te ha delegado una tarea.\n\nHoy es tu turno de: <b>{tarea.nombre}</b>."
+        enviar_al_usuario(nuevo_encargado.id, mensaje_privado)
+    
+    return jsonify({'mensaje': 'Turno delegado con éxito', 'nuevo_encargado': nuevo_encargado_nombre}), 200
+
+@app.route('/api/calendario_tareas', methods=['GET'])
+@login_required
+def calendario_tareas():
+    # Only return actual Tarea instances, no projection needed!
+    tareas = Tarea.query.all()
+    eventos = []
+    
+    for t in tareas:
+        usuarios_ids = [u.id for u in t.usuarios]
+        nombres_asignados = [u.username for u in t.usuarios]
+        
+        if not t.alternar:
+            label_asignados = "Todos (" + ", ".join(nombres_asignados) + ")"
+            user_id = None
+        elif len(nombres_asignados) > 1:
+            label_asignados = f"{t.usuarios[0].username} (de {len(nombres_asignados)})"
+            user_id = t.usuarios[0].id
+        else:
+            label_asignados = t.usuarios[0].username if t.usuarios else "Nadie"
+            user_id = t.usuarios[0].id if t.usuarios else None
+            
+        prioridad_emoji = "🔹"
+        if getattr(t, 'completada', False): prioridad_emoji = "✅"
+        elif t.prioridad == 'Urgente': prioridad_emoji = "🔥"
+        elif t.prioridad == 'Secundaria': prioridad_emoji = "💤"
+            
+        color = '#0d6efd' # Esencial
+        if getattr(t, 'completada', False): color = '#198754' # Verde si esta completada
+        elif t.prioridad == 'Urgente': color = '#dc3545'
+        elif t.prioridad == 'Secundaria': color = '#6c757d'
+        
+        proxima = getattr(t, 'fecha_programada', None) or t.fecha_ultima_ejecucion
+        if not proxima: continue
+        
+        eventos.append({
+            'title': f"{prioridad_emoji} {t.nombre} ({label_asignados})",
+            'start': proxima.isoformat(),
+            'backgroundColor': color,
+            'borderColor': color,
+            'extendedProps': {
+                'tarea_id': t.id,
+                'usuario_asignado': user_id,
+                'nombre_tarea': t.nombre,
+                'tipo_frecuencia': t.tipo_frecuencia,
+                'valor_frecuencia': t.valor_frecuencia,
+                'completada': getattr(t, 'completada', False)
+            }
+        })
+                
+    return jsonify(eventos)
 
 # === REST Productos ===
 @app.route('/api/productos', methods=['GET'])
@@ -1238,7 +2190,7 @@ def actualizar_stock(id_producto):
             f"ha bajado a {producto.stock_actual} unidad(es).\n\n"
             f"🛒 <i>Se ha añadido automáticamente a la lista ({comercio_nombre}).</i>"
         )
-        enviar_mensaje_a_todos(mensaje)
+        enviar_al_grupo(mensaje)
         alerta_enviada = True
                 
     db.session.commit()
@@ -1352,7 +2304,7 @@ def consumir_rapido(id_producto):
                 f"ha bajado a {producto.stock_actual} unidad(es).\n\n"
                 f"🛒 <i>Se ha añadido automáticamente a la lista ({comercio_nombre}).</i>"
             )
-            enviar_mensaje_a_todos(mensaje)
+            enviar_al_grupo(mensaje)
                     
         db.session.commit()
         return jsonify({'mensaje': 'Consumo rápido exitoso'})
@@ -1454,12 +2406,92 @@ def estadisticas_tendencias():
 # 6. TAREAS PROGRAMADAS Y ARRANQUE
 # ==========================================
 
-def cleanup_pending_commands():
-    ahora = datetime.now()
-    vencidos = [chat_id for chat_id, data in pending_voice_commands.items() 
-                if isinstance(data, tuple) and (ahora - data[1]) > timedelta(hours=1)]
-    for chat_id in vencidos:
-        pending_voice_commands.pop(chat_id, None)
+
+def calcular_proxima_fecha(tarea, desde_fecha):
+    if not desde_fecha:
+        return datetime.now().date()
+    if tarea.tipo_frecuencia == 'dias':
+        try:
+            dias = int(tarea.valor_frecuencia)
+        except:
+            dias = 1
+        return desde_fecha + timedelta(days=dias)
+    elif tarea.tipo_frecuencia == 'dia_semana':
+        days_map = {'0': 0, '1': 1, '2': 2, '3': 3, '4': 4, '5': 5, '6': 6} # Lunes=0, Domingo=6
+        target = days_map.get(str(tarea.valor_frecuencia), 0)
+        days_ahead = target - desde_fecha.weekday()
+        if days_ahead <= 0:
+            days_ahead += 7
+        return desde_fecha + timedelta(days=days_ahead)
+    elif tarea.tipo_frecuencia == 'mes':
+        if desde_fecha.month == 12:
+            next_month = 1
+            next_year = desde_fecha.year + 1
+        else:
+            next_month = desde_fecha.month + 1
+            next_year = desde_fecha.year
+        if tarea.valor_frecuencia == 'inicio':
+            return date(next_year, next_month, 1)
+        elif tarea.valor_frecuencia == 'fin':
+            last_day = calendar.monthrange(next_year, next_month)[1]
+            return date(next_year, next_month, last_day)
+        else:
+            try:
+                day_val = int(tarea.valor_frecuencia)
+                # If target day is earlier than today in the CURRENT month, schedule for next month
+                if desde_fecha.day < day_val:
+                    last_day_current = calendar.monthrange(desde_fecha.year, desde_fecha.month)[1]
+                    target_day = min(day_val, last_day_current)
+                    return date(desde_fecha.year, desde_fecha.month, target_day)
+                else:
+                    last_day_next = calendar.monthrange(next_year, next_month)[1]
+                    target_day = min(day_val, last_day_next)
+                    return date(next_year, next_month, target_day)
+            except ValueError:
+                return date(next_year, next_month, 1)
+    elif tarea.tipo_frecuencia == 'fecha_fija':
+        try:
+            return datetime.strptime(tarea.valor_frecuencia, '%Y-%m-%d').date()
+        except:
+            return desde_fecha
+    return desde_fecha + timedelta(days=1)
+
+def calcular_proximo_turno(tarea):
+    if not tarea.usuarios:
+        return None
+    ultimo = HistorialTarea.query.filter_by(tarea_id=tarea.id).order_by(HistorialTarea.fecha.desc()).first()
+    if not ultimo:
+        return tarea.usuarios[0].id
+    usuarios_ids = [u.id for u in tarea.usuarios]
+    if ultimo.usuario_id in usuarios_ids:
+        idx = usuarios_ids.index(ultimo.usuario_id)
+        next_idx = (idx + 1) % len(usuarios_ids)
+        return usuarios_ids[next_idx]
+    return usuarios_ids[0]
+
+def check_tareas_pendientes():
+    with app.app_context():
+        hoy = datetime.now().date()
+        # Query only pending Tareas
+        tareas = Tarea.query.filter_by(completada=False).all()
+        for t in tareas:
+            vencida = False
+            es_manana = False
+            
+            proxima = t.fecha_programada or t.fecha_ultima_ejecucion
+            if not proxima: continue
+            
+            if hoy >= proxima:
+                vencida = True
+            elif proxima == hoy + timedelta(days=1):
+                es_manana = True
+                
+            if vencida or es_manana:
+                for u in t.usuarios:
+                    if vencida:
+                        enviar_al_usuario(u.id, f"📅 <b>Recordatorio de Tarea</b>\n\nHola {u.username}, hoy te toca encargarte de: <b>{t.nombre}</b>.\n\nCuando la termines, márcala como completada en la web.")
+                    elif es_manana:
+                        enviar_al_usuario(u.id, f"📅 <b>Aviso Anticipado</b>\n\nHola {u.username}, te recuerdo que <b>mañana</b> debes encargarte de: <b>{t.nombre}</b>.")
 
 def check_low_stock():
     with app.app_context():
@@ -1468,7 +2500,7 @@ def check_low_stock():
             nombres = [p.nombre for p in productos_bajos]
             mensaje = f"⚠️ Atención: Te estás quedando sin: {', '.join(nombres)}. ¿Los agrego a la lista de compras?"
             markup = InlineKeyboardMarkup()
-            markup.add(InlineKeyboardButton("🛒 Agregar todos a la lista", callback_data="add_low_stock"))
+            markup.add(InlineKeyboardButton("✅ Agregar todos a la lista", callback_data="add_low_stock"))
             safe_telegram_send(ADMIN_CHAT_ID, mensaje, reply_markup=markup)
 
 def iniciar_bot():
@@ -1484,6 +2516,117 @@ def iniciar_bot():
 # inicie el bot de Telegram y el APScheduler.
 LOCK_FILE = "bot_scheduler.lock"
 
+
+@app.route('/api/tareas/<int:id_tarea>/completar', methods=['POST'])
+@login_required
+def completar_tarea(id_tarea):
+    tarea = Tarea.query.get_or_404(id_tarea)
+    tarea.completada = True
+    
+    # Register in Historial
+    hist = HistorialTarea(tarea_id=tarea.id, usuario_id=current_user.id)
+    db.session.add(hist)
+    
+    # Update model's last execution date if applicable
+    if tarea.modelo_id:
+        mod = ModeloTarea.query.get(tarea.modelo_id)
+        if mod:
+            mod.fecha_ultima_ejecucion = datetime.now().date()
+            
+    db.session.commit()
+    return jsonify({'mensaje': 'Tarea completada'})
+    
+@app.route('/api/generar_mes', methods=['POST'])
+@login_required
+def generar_mes():
+    hoy = datetime.now().date()
+    modelos = ModeloTarea.query.all()
+    
+    from dateutil.relativedelta import relativedelta
+    fin_de_mes = hoy + relativedelta(day=31)
+    
+    nuevas_tareas = 0
+    for m in modelos:
+        # Compute dates up to fin_de_mes
+        current_date = m.fecha_ultima_ejecucion or (hoy - timedelta(days=1))
+        
+        usuarios_ids = [u.id for u in m.usuarios]
+        if not usuarios_ids: continue
+        
+        # Determine starting index for turn rotation based on historial
+        # For simplicity in generation, we can just randomly start or start at 0
+        idx = 0 
+        
+        while True:
+            proxima = calcular_proxima_fecha(m, current_date)
+            if m.tipo_frecuencia == 'fecha_fija':
+                try: proxima = datetime.strptime(m.valor_frecuencia, '%Y-%m-%d').date()
+                except: proxima = hoy
+                
+            if proxima > fin_de_mes or proxima < hoy:
+                break
+                
+            # Check if this task already exists for this date
+            exists = Tarea.query.filter_by(modelo_id=m.id, fecha_programada=proxima).first()
+            
+            if not exists:
+                nueva_tarea = Tarea(
+                    nombre=m.nombre,
+                    prioridad=m.prioridad,
+                    tipo_frecuencia='fecha_fija',
+                    valor_frecuencia=proxima.isoformat(),
+                    fecha_programada=proxima,
+                    fecha_ultima_ejecucion=proxima,
+                    alternar=m.alternar,
+                    modelo_id=m.id,
+                    completada=False
+                )
+                
+                # Assign users
+                if m.alternar:
+                    u = Usuario.query.get(usuarios_ids[idx])
+                    if u: nueva_tarea.usuarios.append(u)
+                    idx = (idx + 1) % len(usuarios_ids)
+                else:
+                    for uid in usuarios_ids:
+                        u = Usuario.query.get(uid)
+                        if u: nueva_tarea.usuarios.append(u)
+                        
+                db.session.add(nueva_tarea)
+                nuevas_tareas += 1
+                
+            if m.tipo_frecuencia == 'fecha_fija':
+                break
+            
+            current_date = proxima
+            
+    db.session.commit()
+    return jsonify({'mensaje': f'Se generaron {nuevas_tareas} tareas para este mes.'})
+
+def enviar_resumen_matutino():
+    with app.app_context():
+        tz = pytz.timezone('America/Argentina/Buenos_Aires')
+        hoy = datetime.now(tz).date()
+        
+        # Buscar eventos de hoy
+        eventos = EventoLogistico.query.filter(
+            db.func.date(EventoLogistico.fecha_inicio) == hoy
+        ).order_by(EventoLogistico.fecha_inicio.asc()).all()
+        
+        if not eventos:
+            return
+            
+        mensaje = "🌅 ¡Buen día! Logística para hoy:\n"
+        for ev in eventos:
+            hora = ev.fecha_inicio.strftime("%H:%M")
+            mensaje += f"- {hora}hs: {ev.titulo}\n"
+            
+        app_url = os.getenv('APP_URL', 'http://localhost:5000')
+        markup = InlineKeyboardMarkup()
+        markup.add(InlineKeyboardButton("Ver calendario web", url=f"{app_url}/logistica"))
+        
+        enviar_al_grupo(mensaje, reply_markup=markup)
+
 def start_background_tasks():
     # Previene ejecuciones múltiples usando un archivo de bloqueo o variable de entorno
     if not os.path.exists(LOCK_FILE):
@@ -1498,6 +2641,8 @@ def start_background_tasks():
             tz = pytz.timezone('America/Argentina/Buenos_Aires')
             scheduler = BackgroundScheduler(timezone=tz)
             scheduler.add_job(func=check_low_stock, trigger="cron", hour=10, minute=0)
+            scheduler.add_job(func=check_tareas_pendientes, trigger="cron", hour=9, minute=0)
+            scheduler.add_job(func=enviar_resumen_matutino, trigger="cron", hour=8, minute=0)
             scheduler.add_job(func=cleanup_pending_commands, trigger="interval", hours=1)
             scheduler.start()
         except IOError:
@@ -1505,6 +2650,335 @@ def start_background_tasks():
 
 # Intentar arrancar tareas de fondo solo una vez (compatible con WSGI)
 start_background_tasks()
+
+
+# ==========================================
+# 12. ENDPOINTS NUEVOS MODULOS (STUBS)
+# ==========================================
+
+@app.route('/logistica')
+@login_required
+def logistica_page():
+    return render_template('views/logistica.html', active_page='logistica')
+
+@app.route('/api/logistica/eventos', methods=['GET'])
+@login_required
+def api_logistica_get():
+    eventos = EventoLogistico.query.all()
+    result = []
+    for ev in eventos:
+        result.append({
+            'id': ev.id,
+            'title': ev.titulo,
+            'start': ev.fecha_inicio.isoformat(),
+            'end': ev.fecha_fin.isoformat() if ev.fecha_fin else None
+        })
+    return jsonify(result)
+
+@app.route('/api/logistica/eventos', methods=['POST'])
+@login_required
+def api_logistica_post():
+    data = request.json
+    try:
+        # Front end manda 'YYYY-MM-DDTHH:MM' (hora local de BA)
+        tz = pytz.timezone('America/Argentina/Buenos_Aires')
+        
+        # Parse naive dt and localize it
+        dt_inicio_naive = datetime.strptime(data['start'], "%Y-%m-%dT%H:%M")
+        f_inicio = tz.localize(dt_inicio_naive)
+        
+        f_fin = None
+        if data.get('end'):
+            dt_fin_naive = datetime.strptime(data['end'], "%Y-%m-%dT%H:%M")
+            f_fin = tz.localize(dt_fin_naive)
+            
+        nuevo_evento = EventoLogistico(
+            titulo=data['title'],
+            fecha_inicio=f_inicio,
+            fecha_fin=f_fin,
+            creador_id=current_user.id
+        )
+        db.session.add(nuevo_evento)
+        db.session.commit()
+        return jsonify({'success': True}), 201
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+
+@app.route('/api/finanzas/ocr', methods=['POST'])
+@login_required
+def finanzas_ocr():
+    try:
+        data = request.json
+        if not data or 'image_base64' not in data:
+            return jsonify({'error': 'No se proporcionó imagen'}), 400
+        
+        image_base64 = data['image_base64']
+        
+        # Si tiene un header tipo data:image/jpeg;base64,... se lo quitamos
+        if ',' in image_base64:
+            image_base64 = image_base64.split(',', 1)[1]
+
+        if not GEMINI_API_KEY:
+            return jsonify({'error': 'Gemini API key no configurada'}), 500
+            
+        import tempfile
+        import os
+        
+        # Guardar en temporal para subir a Gemini
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.jpg') as temp_file:
+            temp_file.write(base64.b64decode(image_base64))
+            temp_file_path = temp_file.name
+
+        try:
+            model = genai.GenerativeModel('gemini-1.5-flash')
+            # Gemini python sdk admite subir el archivo local
+            imagen_gemini = genai.upload_file(temp_file_path)
+            
+            prompt = "Eres un asistente contable. Analiza este ticket/factura y devuelve EXCLUSIVAMENTE un JSON con tres claves: 'descripcion' (resumen de la compra en 3-4 palabras), 'monto_total' (número float, el total final pagado), e 'items' (lista de productos si es legible). No uses markdown ni texto adicional."
+            
+            response = model.generate_content([prompt, imagen_gemini])
+            
+            resultado_str = response.text.strip()
+            # Limpiar backticks por si la IA devuelve markdown
+            if resultado_str.startswith('```json'):
+                resultado_str = resultado_str.replace('```json', '').replace('```', '').strip()
+            elif resultado_str.startswith('```'):
+                resultado_str = resultado_str.replace('```', '').strip()
+                
+            resultado = json.loads(resultado_str)
+            return jsonify(resultado), 200
+        finally:
+            if os.path.exists(temp_file_path):
+                os.remove(temp_file_path)
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/finanzas/gasto', methods=['POST'])
+@login_required
+def agregar_gasto_api():
+    try:
+        data = request.json
+        descripcion = data.get('descripcion')
+        monto_total = float(data.get('monto_total', 0))
+        deudores_ids = data.get('deudores_ids', []) # Lista de IDs de usuarios que deben pagar
+
+        if not descripcion or monto_total <= 0 or not deudores_ids:
+            return jsonify({'success': False, 'error': 'Faltan datos obligatorios o monto inválido.'}), 400
+
+        nuevo_gasto = Gasto(
+            usuario_id=current_user.id,
+            monto=monto_total,
+            descripcion=descripcion,
+            fecha=datetime.now()
+        )
+        db.session.add(nuevo_gasto)
+        db.session.flush()
+
+        monto_por_persona = monto_total / len(deudores_ids)
+
+        for u_id_str in deudores_ids:
+            u_id = int(u_id_str)
+            esta_pagado = (u_id == current_user.id)
+            div = DivisionGasto(
+                gasto_id=nuevo_gasto.id,
+                usuario_id=u_id,
+                monto_adeudado=monto_por_persona,
+                esta_pagado=esta_pagado
+            )
+            db.session.add(div)
+
+        db.session.commit()
+        return jsonify({'success': True}), 200
+    except Exception as e:
+        print(f"Error agregando gasto API: {e}")
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/finanzas/balances', methods=['GET'])
+@login_required
+def finanzas_balances():
+    try:
+        balances = calcular_balances_globales()
+        return jsonify(balances), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/finanzas/exportar', methods=['GET'])
+@login_required
+def exportar_finanzas():
+    try:
+        import io
+        import csv
+        from flask import Response
+        
+        output = io.StringIO()
+        writer = csv.writer(output, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+        
+        # Cabeceras
+        writer.writerow(['ID_Gasto', 'Fecha', 'Concepto', 'Monto_Total', 'ID_Deudor', 'Nombre_Deudor', 'ID_Comprador', 'Nombre_Comprador', 'Monto_Adeudado', 'Esta_Pagado'])
+        
+        divisiones = DivisionGasto.query.join(Gasto).order_by(Gasto.fecha.desc()).all()
+        for div in divisiones:
+            gasto = div.rel_gasto
+            comprador = Usuario.query.get(gasto.usuario_id)
+            deudor = Usuario.query.get(div.usuario_id)
+            
+            writer.writerow([
+                gasto.id,
+                gasto.fecha.strftime('%Y-%m-%d %H:%M:%S'),
+                gasto.descripcion,
+                gasto.monto,
+                deudor.id if deudor else '',
+                deudor.username if deudor else 'Desconocido',
+                comprador.id if comprador else '',
+                comprador.username if comprador else 'Desconocido',
+                div.monto_adeudado,
+                'Sí' if div.esta_pagado else 'No'
+            ])
+            
+        return Response(
+            output.getvalue(),
+            mimetype="text/csv",
+            headers={"Content-disposition": "attachment; filename=finanzas_homestock.csv"}
+        )
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+def consumir_receta(receta_id):
+    with app.app_context():
+        receta = Receta.query.get(receta_id)
+        if not receta: return False
+        
+        for ing in receta.ingredientes:
+            if ing.producto.stock_actual >= ing.cantidad_requerida:
+                ing.producto.stock_actual -= ing.cantidad_requerida
+            else:
+                ing.producto.stock_actual = 0
+        db.session.commit()
+        return True
+
+@app.route('/menus')
+@login_required
+def menus_page():
+    return render_template('views/menus.html', active_page='menus')
+
+@app.route('/api/menus/horarios', methods=['GET'])
+@login_required
+def api_horarios_get():
+    horarios = HorarioComidas.query.all()
+    # Si no hay, crear defaults
+    if not horarios:
+        defaults = [
+            HorarioComidas(tipo_comida='Desayuno', hora_inicio=datetime.strptime('06:00', '%H:%M').time(), hora_fin=datetime.strptime('11:00', '%H:%M').time()),
+            HorarioComidas(tipo_comida='Almuerzo', hora_inicio=datetime.strptime('11:00', '%H:%M').time(), hora_fin=datetime.strptime('15:00', '%H:%M').time()),
+            HorarioComidas(tipo_comida='Merienda', hora_inicio=datetime.strptime('15:00', '%H:%M').time(), hora_fin=datetime.strptime('19:00', '%H:%M').time()),
+            HorarioComidas(tipo_comida='Cena', hora_inicio=datetime.strptime('19:00', '%H:%M').time(), hora_fin=datetime.strptime('23:59', '%H:%M').time())
+        ]
+        db.session.bulk_save_objects(defaults)
+        db.session.commit()
+        horarios = HorarioComidas.query.all()
+        
+    res = []
+    for h in horarios:
+        res.append({
+            'id': h.id,
+            'tipo_comida': h.tipo_comida,
+            'hora_inicio': h.hora_inicio.strftime('%H:%M'),
+            'hora_fin': h.hora_fin.strftime('%H:%M')
+        })
+    return jsonify(res)
+
+@app.route('/api/menus/horarios', methods=['POST'])
+@login_required
+def api_horarios_post():
+    data = request.json
+    try:
+        for item in data:
+            h = HorarioComidas.query.get(item['id'])
+            if h:
+                h.hora_inicio = datetime.strptime(item['hora_inicio'], '%H:%M').time()
+                h.hora_fin = datetime.strptime(item['hora_fin'], '%H:%M').time()
+        db.session.commit()
+        return jsonify({'success': True}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+
+@app.route('/api/menus/sugerir', methods=['GET'])
+@login_required
+def menus_sugerir():
+    todas_recetas = Receta.query.all()
+    posibles = []
+    for rec in todas_recetas:
+        puede_hacerse = True
+        for ing in rec.ingredientes:
+            if ing.producto.stock_actual < ing.cantidad_requerida:
+                puede_hacerse = False
+                break
+        if puede_hacerse:
+            posibles.append(rec)
+            
+    if not posibles:
+        return jsonify({'error': 'No hay ingredientes suficientes para ninguna receta.'}), 404
+        
+    sugerida = random.choice(posibles)
+    return jsonify({'id': sugerida.id, 'nombre': sugerida.nombre, 'tipo': sugerida.tipo, 'es_rapida': sugerida.es_rapida})
+
+@app.route('/api/menus/sugerir_rapida', methods=['GET'])
+@login_required
+def menus_sugerir_rapida():
+    rapidas = Receta.query.filter_by(es_rapida=True).all()
+    if not rapidas:
+        return jsonify({'error': 'No hay recetas rápidas cargadas.'}), 404
+    sugerida = random.choice(rapidas)
+    return jsonify({'id': sugerida.id, 'nombre': sugerida.nombre, 'tipo': sugerida.tipo, 'es_rapida': sugerida.es_rapida})
+
+@app.route('/api/menus/semana/duplicar', methods=['POST'])
+@login_required
+def menus_duplicar():
+    tz = pytz.timezone('America/Argentina/Buenos_Aires')
+    hoy = datetime.now(tz).date()
+    # Identificar la semana pasada (hace 7 a 14 dias)
+    fecha_limite_inf = hoy - timedelta(days=14)
+    fecha_limite_sup = hoy - timedelta(days=7)
+    
+    pasada = MenuSemanal.query.filter(MenuSemanal.fecha_asignada >= fecha_limite_inf, MenuSemanal.fecha_asignada <= fecha_limite_sup).all()
+    if not pasada:
+        return jsonify({'error': 'No hay menú la semana pasada para duplicar.'}), 404
+        
+    nuevos = []
+    for m in pasada:
+        nueva_fecha = m.fecha_asignada + timedelta(days=7)
+        nuevo_menu = MenuSemanal(
+            dia_semana=m.dia_semana,
+            tipo_comida=m.tipo_comida,
+            receta_id=m.receta_id,
+            fecha_asignada=nueva_fecha
+        )
+        nuevos.append(nuevo_menu)
+        
+    db.session.bulk_save_objects(nuevos)
+    db.session.commit()
+    return jsonify({'success': True, 'duplicados': len(nuevos)}), 200
+
+@app.route('/api/menus/eventos', methods=['GET'])
+@login_required
+def api_menus_get():
+    menus = MenuSemanal.query.all()
+    result = []
+    for m in menus:
+        # Fake a time based on meal type for visualization on fullcalendar if it's month view, or just map it to an all-day event
+        result.append({
+            'id': m.id,
+            'title': f"[{m.tipo_comida}] {m.receta.nombre}",
+            'start': m.fecha_asignada.isoformat(),
+            'allDay': True,
+            'color': 'var(--success-color)' if m.tipo_comida == 'Almuerzo' else 'var(--primary-color)'
+        })
+    return jsonify(result)
 
 if __name__ == '__main__':
     with app.app_context():

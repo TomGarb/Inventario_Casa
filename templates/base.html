@@ -23,6 +23,10 @@
                 <a href="{{ url_for('dashboard') }}" class="nav-btn {% if active_page == 'dashboard' %}active{% endif %}"><span>📊</span> Dashboard</a>
                 <a href="{{ url_for('inventario') }}" class="nav-btn {% if active_page == 'inventario' %}active{% endif %}"><span>📦</span> Inventario</a>
                 <a href="{{ url_for('compras') }}" class="nav-btn {% if active_page == 'compras' %}active{% endif %}"><span>🛒</span> Compras</a>
+                <a href="{{ url_for('tareas_view') }}" class="nav-btn {% if active_page == 'tareas' %}active{% endif %}"><span>🧹</span> Tareas</a>
+                <a href="{{ url_for('finanzas_page') }}" class="nav-btn {% if active_page == 'finanzas' %}active{% endif %}"><span>💸</span> Finanzas</a>
+                <a href="{{ url_for('logistica_page') }}" class="nav-btn {% if active_page == 'logistica' %}active{% endif %}"><span>📅</span> Logística</a>
+                <a href="{{ url_for('menus_page') }}" class="nav-btn {% if active_page == 'menus' %}active{% endif %}"><span>🍽️</span> Menús</a>
                 <a href="{{ url_for('perfil') }}" class="nav-btn {% if active_page == 'perfil' %}active{% endif %}"><span>👤</span> Perfil</a>
                 <a href="{{ url_for('logout') }}" class="nav-btn"><span>🚪</span> Salir</a>
                 {% else %}
@@ -50,7 +54,9 @@
     </div>
 
     {% include 'components/modals.html' %}
+    {% include 'components/custom_alerts.html' %}
 
     <script src="{{ url_for('static', filename='js/main.js') }}?v=1.9"></script>
+    {% block scripts %}{% endblock %}
 </body>
 </html>

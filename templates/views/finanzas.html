@@ -1,0 +1,190 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="view-header">
+    <h2>💸 Finanzas Compartidas</h2>
+    <div class="header-actions">
+        <a href="{{ url_for('exportar_finanzas') }}" class="btn btn-secondary">📥 Exportar CSV</a>
+        <button class="btn btn-primary" onclick="abrirModalGasto()">➕ Nuevo Gasto</button>
+    </div>
+</div>
+
+<div class="dashboard-grid">
+    <!-- Balances Globales -->
+    <div class="dash-card" style="grid-column: 1 / -1;">
+        <h3 class="dash-header">⚖️ Balances Globales</h3>
+        <div id="balances-container" style="display: flex; gap: 15px; flex-wrap: wrap; margin-top: 15px;">
+            <div class="loading">Cargando balances...</div>
+        </div>
+    </div>
+
+    <!-- Historial de Gastos -->
+    <div class="dash-card" style="grid-column: 1 / -1;">
+        <h3 class="dash-header">🧾 Historial de Movimientos</h3>
+        <div class="table-responsive" style="margin-top: 10px;">
+            <table class="inventory-table">
+                <thead>
+                    <tr>
+                        <th>Fecha</th>
+                        <th>Concepto</th>
+                        <th>Comprador</th>
+                        <th>Total</th>
+                    </tr>
+                </thead>
+                <tbody id="historial-gastos">
+                    <tr>
+                        <td colspan="4" style="text-align: center;">Historial detallado en desarrollo (Usa Exportar CSV por ahora).</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para Gasto -->
+<div id="modal-gasto" class="modal">
+    <div class="modal-content">
+        <span class="close" onclick="cerrarModalGasto()">&times;</span>
+        <h2>Añadir Gasto</h2>
+        
+        <div class="modal-tabs" style="display: flex; gap: 10px; margin-bottom: 15px;">
+            <button class="btn btn-primary" id="btn-tab-manual" onclick="setTabGasto('manual')">Carga Manual</button>
+            <button class="btn btn-secondary" id="btn-tab-ia" onclick="setTabGasto('ia')">Escáner IA (Ticket)</button>
+        </div>
+
+        <div id="tab-manual">
+            <form id="form-gasto">
+                <div class="form-group">
+                    <label>Concepto (Ej: Supermercado)</label>
+                    <input type="text" id="gasto-concepto" required>
+                </div>
+                <div class="form-group">
+                    <label>Monto Total ($)</label>
+                    <input type="number" id="gasto-monto" step="0.01" required>
+                </div>
+                <p style="font-size: 0.9em; color: var(--text-secondary);">Por el momento, guarda los gastos subiendo la foto del ticket al bot de Telegram. La UI web se actualizará en la próxima etapa.</p>
+                <div class="form-actions" style="margin-top: 20px;">
+                    <button type="submit" class="btn btn-primary">Registrar Gasto (Pronto)</button>
+                </div>
+            </form>
+        </div>
+
+        <div id="tab-ia" style="display: none;">
+            <p>Sube una foto clara del ticket y Gemini extraerá el monto y concepto.</p>
+            <div class="form-group">
+                <input type="file" id="ticket-file" accept="image/*">
+            </div>
+            <button class="btn btn-primary" id="btn-escanear-ia" onclick="escanearTicket()">Escanear Ticket</button>
+            <div id="ia-loading" style="display: none; margin-top: 10px;">Procesando con Gemini IA... ⏳</div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        cargarBalances();
+    });
+
+    function cargarBalances() {
+        fetch('/api/finanzas/balances')
+        .then(res => res.json())
+        .then(data => {
+            const container = document.getElementById('balances-container');
+            container.innerHTML = '';
+            
+            if(data.length === 0) {
+                container.innerHTML = '<div style="padding: 15px; background: var(--bg-secondary); border-radius: 8px;">🎉 Todo está al día. No hay deudas pendientes.</div>';
+                return;
+            }
+            
+            data.forEach(b => {
+                const badge = document.createElement('div');
+                badge.style.padding = "15px";
+                badge.style.background = "var(--bg-secondary)";
+                badge.style.borderRadius = "8px";
+                badge.style.borderLeft = "4px solid var(--danger-color)";
+                badge.innerHTML = `<strong>${b.deudor_nombre}</strong> le debe a <strong>${b.acreedor_nombre}</strong> <br> <span style="font-size: 1.2em; color: var(--danger-color); font-weight: bold;">$${b.monto}</span>`;
+                container.appendChild(badge);
+            });
+        })
+        .catch(err => {
+            console.error(err);
+            document.getElementById('balances-container').innerHTML = '<div class="error">Error cargando balances</div>';
+        });
+    }
+
+    function abrirModalGasto() {
+        document.getElementById('modal-gasto').style.display = 'block';
+        setTabGasto('manual');
+    }
+
+    function cerrarModalGasto() {
+        document.getElementById('modal-gasto').style.display = 'none';
+        document.getElementById('ticket-file').value = '';
+    }
+
+    function setTabGasto(tab) {
+        if (tab === 'manual') {
+            document.getElementById('tab-manual').style.display = 'block';
+            document.getElementById('tab-ia').style.display = 'none';
+            document.getElementById('btn-tab-manual').className = 'btn btn-primary';
+            document.getElementById('btn-tab-ia').className = 'btn btn-secondary';
+        } else {
+            document.getElementById('tab-manual').style.display = 'none';
+            document.getElementById('tab-ia').style.display = 'block';
+            document.getElementById('btn-tab-manual').className = 'btn btn-secondary';
+            document.getElementById('btn-tab-ia').className = 'btn btn-primary';
+        }
+    }
+
+    function escanearTicket() {
+        const fileInput = document.getElementById('ticket-file');
+        if (!fileInput.files || fileInput.files.length === 0) {
+            showToast("Por favor selecciona una imagen primero.", "error");
+            return;
+        }
+
+        const file = fileInput.files[0];
+        const reader = new FileReader();
+
+        reader.onload = function(e) {
+            const base64Image = e.target.result;
+            
+            document.getElementById('btn-escanear-ia').style.display = 'none';
+            document.getElementById('ia-loading').style.display = 'block';
+            
+            fetch('/api/finanzas/ocr', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ image_base64: base64Image })
+            })
+            .then(res => res.json())
+            .then(data => {
+                document.getElementById('btn-escanear-ia').style.display = 'block';
+                document.getElementById('ia-loading').style.display = 'none';
+
+                if(data.error) {
+                    showToast(data.error, "error");
+                } else {
+                    showToast("¡Ticket leído con éxito!", "success");
+                    document.getElementById('gasto-concepto').value = data.descripcion || '';
+                    document.getElementById('gasto-monto').value = data.monto_total || '';
+                    setTabGasto('manual');
+                }
+            })
+            .catch(err => {
+                document.getElementById('btn-escanear-ia').style.display = 'block';
+                document.getElementById('ia-loading').style.display = 'none';
+                showToast("Error de conexión con el OCR.", "error");
+                console.error(err);
+            });
+        };
+        reader.readAsDataURL(file);
+    }
+
+    document.getElementById('form-gasto').addEventListener('submit', function(e) {
+        e.preventDefault();
+        showToast("Registro web en desarrollo. Usa el bot de Telegram o confirma la lectura.", "info");
+    });
+</script>
+{% endblock %}

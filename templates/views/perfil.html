@@ -30,7 +30,12 @@
             </code>
             <p style="margin-top: 10px; font-size: 0.8rem; color: #aaa;">El token expira pronto y solo se puede usar una vez.</p>
         </div>
+    
+    <div style="margin-top: 20px; border-top: 1px solid var(--border-color); padding-top: 15px;">
+        <h4>Seguridad</h4>
+        <button class="btn btn-secondary" onclick="openChangePasswordModal({{ current_user.id }}, '{{ current_user.username }}')" style="margin-top: 10px;">🔑 Cambiar mi Contraseña</button>
     </div>
+</div>
 </div>
 
 {% if current_user.is_admin %}
@@ -93,7 +98,10 @@ async function loadUsuarios() {
                     <input type="checkbox" onchange="toggleAdmin(${u.id}, this.checked)" ${u.is_admin ? 'checked' : ''} ${u.id === {{ current_user.id }} ? 'disabled' : ''}>
                 </td>
                 <td>
+                    
+                    <button class="btn btn-secondary btn-sm" onclick="openChangePasswordModal(${u.id}, '${u.username}')" title="Cambiar Clave">🔑</button>
                     <button class="btn btn-danger btn-sm" onclick="deleteUsuario(${u.id})" ${u.id === {{ current_user.id }} ? 'disabled' : ''}>Eliminar</button>
+
                 </td>
             `;
             tbody.appendChild(tr);
@@ -116,24 +124,26 @@ async function toggleAdmin(id, isAdmin) {
             loadUsuarios();
         }
     } catch (e) {
-        alert("Error de conexión");
+        showToast("Error de conexión", 'error');
         loadUsuarios();
     }
 }
 
-async function deleteUsuario(id) {
-    if(!confirm("¿Estás seguro de eliminar este usuario?")) return;
-    try {
-        const response = await fetch(`/api/usuarios/${id}`, { method: 'DELETE' });
-        if(response.ok) {
-            loadUsuarios();
-        } else {
-            const res = await response.json();
-            alert(res.error || "Error al eliminar");
+function deleteUsuario(id) {
+    showConfirm("¿Estás seguro de eliminar este usuario?", async () => {
+        try {
+            const response = await fetch(`/api/usuarios/${id}`, { method: 'DELETE' });
+            if(response.ok) {
+                showToast("Usuario eliminado", 'success');
+                loadUsuarios();
+            } else {
+                const res = await response.json();
+                showToast(res.error || "Error al eliminar", 'error');
+            }
+        } catch(e) {
+            showToast("Error de red", 'error');
         }
-    } catch(e) {
-        alert("Error de conexión");
-    }
+    });
 }
 
 function openCreateUserModal() {
@@ -178,6 +188,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
+{% endif %}
 function togglePassword(inputId) {
     const input = document.getElementById(inputId);
     if (input.type === 'password') {
@@ -186,7 +197,53 @@ function togglePassword(inputId) {
         input.type = 'password';
     }
 }
-{% endif %}
+
+function openChangePasswordModal(userId, username) {
+    document.getElementById('pwd-user-id').value = userId;
+    document.getElementById('modal-pwd-title').innerText = "Cambiar Contraseña: " + username;
+    document.getElementById('form-cambiar-password').reset();
+    document.getElementById('modal-cambiar-password').style.display = 'block';
+}
+
+function closeChangePasswordModal() {
+    document.getElementById('modal-cambiar-password').style.display = 'none';
+}
+
+document.getElementById('form-cambiar-password').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const id = document.getElementById('pwd-user-id').value;
+    const pwd1 = document.getElementById('new-pwd-1').value;
+    const pwd2 = document.getElementById('new-pwd-2').value;
+    
+    if (pwd1 !== pwd2) {
+        alert("Las contraseñas no coinciden.");
+        return;
+    }
+    
+    if (pwd1.trim() === "") {
+        alert("La contraseña no puede estar vacía.");
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/usuarios/${id}/password`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ nueva_password: pwd1 })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            alert(data.mensaje);
+            closeChangePasswordModal();
+        } else {
+            alert("Error: " + (data.error || "Desconocido"));
+        }
+    } catch(err) {
+        alert("Error de red.");
+    }
+});
 </script>
 
 {% if current_user.is_admin %}
@@ -218,4 +275,33 @@ function togglePassword(inputId) {
     </div>
 </div>
 {% endif %}
+
+<!-- Modal Cambio de Contraseña -->
+<div id="modal-cambiar-password" class="modal" style="display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5);">
+    <div class="modal-content" style="background-color: var(--bg-card); margin: 10% auto; padding: 20px; border: 1px solid var(--border-color); width: 80%; max-width: 400px; border-radius: 8px;">
+        <h3 id="modal-pwd-title">Cambiar Contraseña</h3>
+        <form id="form-cambiar-password" style="display: flex; flex-direction: column; gap: 15px; margin-top: 15px;">
+            <input type="hidden" id="pwd-user-id">
+            <div>
+                <label>Nueva Contraseña:</label>
+                <div style="position: relative;">
+                    <input type="password" id="new-pwd-1" required class="form-control" style="width: 100%; padding: 8px; padding-right: 40px; margin-top: 5px; border-radius: 4px; border: 1px solid var(--border-color); background: var(--bg-darker); color: var(--text-color);">
+                    <button type="button" onclick="togglePassword('new-pwd-1')" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; font-size: 1.2rem; margin-top: 2px;">👁️</button>
+                </div>
+            </div>
+            <div>
+                <label>Confirmar Nueva Contraseña:</label>
+                <div style="position: relative;">
+                    <input type="password" id="new-pwd-2" required class="form-control" style="width: 100%; padding: 8px; padding-right: 40px; margin-top: 5px; border-radius: 4px; border: 1px solid var(--border-color); background: var(--bg-darker); color: var(--text-color);">
+                    <button type="button" onclick="togglePassword('new-pwd-2')" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; font-size: 1.2rem; margin-top: 2px;">👁️</button>
+                </div>
+            </div>
+            <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px;">
+                <button type="button" class="btn btn-secondary" onclick="closeChangePasswordModal()">Cancelar</button>
+                <button type="submit" class="btn btn-primary">Guardar Contraseña</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 {% endblock %}

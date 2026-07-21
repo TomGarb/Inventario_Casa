@@ -1990,3 +1990,63 @@ function populateBulkDropdowns() {
         subSelect.disabled = true;
     }
 }
+
+
+// --- Notificaciones Personalizadas ---
+function showToast(message, type = 'success') {
+    const container = document.getElementById('toast-container');
+    if (!container) return;
+    
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+    
+    let icon = '✅';
+    if(type === 'error') icon = '❌';
+    else if(type === 'info') icon = 'ℹ️';
+    
+    toast.innerHTML = `<span>${icon}</span> <span>${message}</span>`;
+    
+    container.appendChild(toast);
+    
+    setTimeout(() => {
+        toast.classList.add('toast-hiding');
+        setTimeout(() => {
+            if (toast.parentElement) toast.remove();
+        }, 300); // Wait for transition
+    }, 3000);
+}
+
+window.alert = function(message) {
+    // Override default alert
+    showToast(message, 'info');
+};
+
+function showConfirm(message, callback) {
+    const modal = document.getElementById('custom-confirm-modal');
+    if (!modal) {
+        // Fallback
+        if(window.confirm(message)) callback();
+        return;
+    }
+    document.getElementById('custom-confirm-message').innerText = message;
+    modal.style.display = 'flex';
+    
+    const btnCancel = document.getElementById('custom-confirm-cancel');
+    const btnOk = document.getElementById('custom-confirm-ok');
+    
+    // Cleanup function
+    const cleanup = () => {
+        modal.style.display = 'none';
+        btnCancel.replaceWith(btnCancel.cloneNode(true));
+        btnOk.replaceWith(btnOk.cloneNode(true));
+    };
+    
+    btnCancel.onclick = () => {
+        cleanup();
+    };
+    
+    btnOk.onclick = () => {
+        cleanup();
+        callback();
+    };
+}

@@ -26,35 +26,62 @@
             </div>
         </div>
         
+        <!-- Widget Logística -->
         <div class="dash-card">
-            <h2 class="dash-header">📊 Inventario por Sala</h2>
-            <div style="position: relative; height:250px; width:100%; display: flex; justify-content: center;">
-                <canvas id="inventoryChart"></canvas>
+            <h2 class="dash-header">📅 Agenda Logística</h2>
+            {% if proximo_evento %}
+                <div style="background: var(--bg-secondary); padding: 10px; border-radius: 8px; border-left: 4px solid var(--primary-color); margin-bottom: 10px;">
+                    <span style="font-size: 0.8rem; color: var(--text-secondary);">Próximo evento</span><br>
+                    <strong>{{ proximo_evento.titulo }}</strong><br>
+                    <span style="font-size: 0.9rem;">{{ proximo_evento.fecha_inicio.strftime('%d/%m %H:%M') }}</span>
+                </div>
+            {% else %}
+                <p style="color: var(--text-secondary); font-size: 0.9rem;">No hay eventos próximos.</p>
+            {% endif %}
+            
+            {% if eventos_agenda %}
+                <ul style="list-style: none; padding: 0; margin-top: 10px; font-size: 0.9rem;">
+                {% for ev in eventos_agenda %}
+                    <li style="padding: 5px 0; border-bottom: 1px solid var(--border-color);">
+                        {{ ev.titulo }} <span style="float: right; color: var(--text-secondary);">{{ ev.fecha_inicio.strftime('%H:%M') }}</span>
+                    </li>
+                {% endfor %}
+                </ul>
+            {% endif %}
+        </div>
+
+        <!-- Widget Finanzas -->
+        <div class="dash-card">
+            <h2 class="dash-header">💸 Finanzas (Mes Actual)</h2>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <div>
+                    <span style="font-size: 0.8rem; color: var(--text-secondary);">Gasto Total</span><br>
+                    <strong style="font-size: 1.5rem;">${{ gastos_mes | round(2) }}</strong>
+                </div>
+                <!-- Botón rápido de cámara -->
+                <button class="btn btn-primary" onclick="document.getElementById('dash-ticket-file').click()" style="padding: 10px 15px; border-radius: 20px;">
+                    📸 Subir Ticket
+                </button>
+                <input type="file" id="dash-ticket-file" accept="image/*" capture="environment" style="display: none;" onchange="procesarTicketDash()">
+            </div>
+            
+            <div id="dash-balances" style="max-height: 120px; overflow-y: auto;">
+                {% if balances %}
+                    <ul style="list-style: none; padding: 0; font-size: 0.9rem;">
+                    {% for b in balances %}
+                        <li style="padding: 5px 0; border-bottom: 1px solid var(--border-color);">
+                            <strong>{{ b.deudor_nombre }}</strong> debe a <strong>{{ b.acreedor_nombre }}</strong>: 
+                            <span style="color: var(--danger-color); float: right; font-weight: bold;">${{ b.monto | round(2) }}</span>
+                        </li>
+                    {% endfor %}
+                    </ul>
+                {% else %}
+                    <p style="color: var(--success-color); font-size: 0.9rem; margin-top: 10px;">¡Todo al día! No hay deudas.</p>
+                {% endif %}
             </div>
         </div>
         
-        <div class="dash-card">
-            <h2 class="dash-header">📈 Tendencias (Top 5 del Mes)</h2>
-            <div style="position: relative; height:250px; width:100%; display: flex; justify-content: center;">
-                <canvas id="tendenciasChart"></canvas>
-            </div>
-        </div>
-        
-        <!-- KPIs de Actividad y Vencimientos -->
-        <div class="dash-card">
-            <h2 class="dash-header">📅 Por Vencer (7 días)</h2>
-            <div id="dash-por-vencer" class="dash-items-container">
-                <p style="text-align: center; color: var(--text-secondary); margin-top: 2rem;">Cargando...</p>
-            </div>
-        </div>
-        
-        <div class="dash-card">
-            <h2 class="dash-header">💤 Inactivos (+30 días)</h2>
-            <div id="dash-inactivos" class="dash-items-container">
-                <p style="text-align: center; color: var(--text-secondary); margin-top: 2rem;">Cargando...</p>
-            </div>
-        </div>
-        
+        <!-- Acciones Rápidas -->
         <div class="dash-card" style="grid-column: 1 / -1;">
             <h2 class="dash-header">⚡ Acciones Rápidas</h2>
             <div id="quickActions" class="quick-actions-grid" style="display: flex; gap: 10px; flex-wrap: wrap;">
@@ -71,6 +98,232 @@
                 <!-- Elementos renderizados por JS -->
             </ul>
         </div>
+
+        <!-- ==== WIDGETS DE TAREAS ==== -->
+        <!-- Mis Tareas Pendientes -->
+        <div class="dash-card">
+            <h3 class="dash-header">📌 {% if current_user.is_admin %}Tareas Pendientes (Todas){% else %}Mis Tareas Pendientes{% endif %}</h3>
+            {% if mis_tareas %}
+                <ul style="list-style: none; padding: 0;">
+                {% for t in mis_tareas %}
+                    <li style="padding: 10px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between;">
+                        <span>{{ t.nombre }}</span>
+                        {% if t.vencida %}
+                            <span style="color: var(--danger-color); font-weight: bold; font-size: 0.8rem;">⚠️ Vencida</span>
+                        {% else %}
+                            <span style="color: var(--warning-color); font-weight: bold; font-size: 0.8rem;">Hoy</span>
+                        {% endif %}
+                    </li>
+                {% endfor %}
+                </ul>
+            {% else %}
+                <p style="color: var(--text-color); font-size: 0.9rem; margin-top: 10px;">¡Estás al día! No tienes tareas pendientes hoy. 🎉</p>
+            {% endif %}
+        </div>
+
+        <!-- Ranking del Hogar -->
+        <div class="dash-card">
+            <h3 class="dash-header">🏆 Ranking del Hogar (Mes)</h3>
+            <ul style="list-style: none; padding: 0;">
+            {% for r in ranking %}
+                <li style="padding: 10px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
+                    <span>
+                        {% if loop.index == 1 %}🥇{% elif loop.index == 2 %}🥈{% elif loop.index == 3 %}🥉{% else %}👤{% endif %}
+                        {{ r.username }}
+                    </span>
+                    <span style="background: var(--primary-color); color: white; padding: 2px 8px; border-radius: 12px; font-size: 0.8rem; font-weight: bold;">
+                        {{ r.completadas }}
+                    </span>
+                </li>
+            {% endfor %}
+            </ul>
+        </div>
+
+        <!-- Radar de Tareas Críticas -->
+        <div class="dash-card">
+            <h3 class="dash-header">🚨 Tareas Críticas</h3>
+            {% if criticas %}
+                <ul style="list-style: none; padding: 0;">
+                {% for c in criticas %}
+                    <li style="padding: 10px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; color: var(--danger-color);">
+                        <span>{{ c.nombre }}</span>
+                        <span style="font-weight: bold; font-size: 0.8rem;">+{{ c.dias_vencida }} días</span>
+                    </li>
+                {% endfor %}
+                </ul>
+            {% else %}
+                <p style="color: var(--success-color); font-size: 0.9rem; margin-top: 10px;">Todo en orden. No hay tareas muy atrasadas.</p>
+            {% endif %}
+        </div>
+
+        <!-- Medidor de Excusas (Skips) -->
+        <div class="dash-card">
+            <h3 class="dash-header">⏭️ Skips de Tareas (Mes)</h3>
+            <ul style="list-style: none; padding: 0;">
+            {% for username, skips in skips_por_usuario.items() %}
+                <li style="padding: 10px; border-bottom: 1px solid var(--border-color);">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                        <span>{{ username }}</span>
+                        <span style="font-size: 0.8rem;">{{ skips }} / 3 skips</span>
+                    </div>
+                    <div style="width: 100%; background-color: var(--bg-darker); border-radius: 4px; height: 8px;">
+                        {% set porcentaje = (skips / 3) * 100 %}
+                        <div style="width: {{ porcentaje if porcentaje <= 100 else 100 }}%; background-color: {% if skips >= 3 %}var(--danger-color){% elif skips == 2 %}var(--warning-color){% else %}var(--success-color){% endif %}; height: 100%; border-radius: 4px;"></div>
+                    </div>
+                </li>
+            {% endfor %}
+            </ul>
+        </div>
+
+        <!-- Última Actividad -->
+        <div class="dash-card">
+            <h3 class="dash-header">⏱️ Última Actividad Tareas</h3>
+            {% if actividad %}
+                <ul style="list-style: none; padding: 0;">
+                {% for act in actividad %}
+                    <li style="padding: 10px; border-bottom: 1px solid var(--border-color); font-size: 0.9rem;">
+                        {% if act.tipo == 'completada' %}
+                            <span style="color: var(--success-color);">✅</span>
+                        {% else %}
+                            <span style="color: var(--warning-color);">⏭️</span>
+                        {% endif %}
+                        {{ act.texto }}
+                        <div style="font-size: 0.7rem; color: #888; margin-top: 3px;">
+                            {{ act.fecha.strftime('%d/%m/%Y %H:%M') }}
+                        </div>
+                    </li>
+                {% endfor %}
+                </ul>
+            {% else %}
+                <p style="color: var(--text-color); font-size: 0.9rem; margin-top: 10px;">No hay actividad reciente.</p>
+            {% endif %}
+        </div>
+        <!-- ==== FIN WIDGETS DE TAREAS ==== -->
+
     </div>
 </section>
+
+<!-- Modal Ticket Rápido -->
+<div id="modal-dash-ticket" class="modal">
+    <div class="modal-content" style="max-width: 400px;">
+        <span class="close" onclick="document.getElementById('modal-dash-ticket').style.display='none'">&times;</span>
+        <h2>Confirmar Gasto</h2>
+        <div id="dash-ticket-loading" style="display: none; text-align: center; padding: 20px;">
+            <p>Procesando ticket con IA... ⏳</p>
+        </div>
+        <div id="dash-ticket-form" style="display: none;">
+            <div class="form-group">
+                <label>Concepto</label>
+                <input type="text" id="dash-gasto-concepto" required>
+            </div>
+            <div class="form-group">
+                <label>Monto Total ($)</label>
+                <input type="number" id="dash-gasto-monto" step="0.01" required>
+            </div>
+            
+            <div class="form-group">
+                <label>Dividir entre:</label>
+                <div style="background: var(--bg-secondary); padding: 10px; border-radius: 8px;">
+                    {% for u in usuarios %}
+                        <div style="margin-bottom: 5px;">
+                            <label style="display: flex; align-items: center; gap: 10px; font-weight: normal;">
+                                <input type="checkbox" class="deudor-checkbox" value="{{ u.id }}" checked>
+                                {{ u.username }}
+                            </label>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+            
+            <button class="btn btn-primary" style="width: 100%; margin-top: 15px;" onclick="guardarGastoDash()">Guardar Gasto</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function procesarTicketDash() {
+    const fileInput = document.getElementById('dash-ticket-file');
+    if (!fileInput.files || fileInput.files.length === 0) return;
+
+    const file = fileInput.files[0];
+    const reader = new FileReader();
+
+    const modal = document.getElementById('modal-dash-ticket');
+    const loading = document.getElementById('dash-ticket-loading');
+    const form = document.getElementById('dash-ticket-form');
+    
+    modal.style.display = 'block';
+    loading.style.display = 'block';
+    form.style.display = 'none';
+
+    reader.onload = function(e) {
+        const base64Image = e.target.result.split(',')[1];
+        
+        fetch('/api/finanzas/ocr', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ image_base64: base64Image })
+        })
+        .then(res => res.json())
+        .then(data => {
+            loading.style.display = 'none';
+            if(data.error) {
+                showToast(data.error, "error");
+                modal.style.display = 'none';
+            } else {
+                form.style.display = 'block';
+                document.getElementById('dash-gasto-concepto').value = data.descripcion || '';
+                document.getElementById('dash-gasto-monto').value = data.monto_total || '';
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            loading.style.display = 'none';
+            modal.style.display = 'none';
+            showToast("Error procesando imagen", "error");
+        });
+    };
+    reader.readAsDataURL(file);
+    fileInput.value = ''; // Reset
+}
+
+function guardarGastoDash() {
+    const descripcion = document.getElementById('dash-gasto-concepto').value;
+    const monto = document.getElementById('dash-gasto-monto').value;
+    const checkboxes = document.querySelectorAll('.deudor-checkbox:checked');
+    
+    if (!descripcion || !monto || checkboxes.length === 0) {
+        showToast("Completa los campos y selecciona al menos un deudor", "error");
+        return;
+    }
+    
+    const deudores_ids = Array.from(checkboxes).map(cb => cb.value);
+    
+    fetch('/api/finanzas/gasto', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            descripcion: descripcion,
+            monto_total: monto,
+            deudores_ids: deudores_ids
+        })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if(data.success) {
+            showToast("Gasto guardado exitosamente", "success");
+            document.getElementById('modal-dash-ticket').style.display = 'none';
+            setTimeout(() => location.reload(), 1500); // Reload to update balances
+        } else {
+            showToast(data.error || "Error", "error");
+        }
+    })
+    .catch(err => {
+        console.error(err);
+        showToast("Error de red", "error");
+    });
+}
+</script>
 {% endblock %}

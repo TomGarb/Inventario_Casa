@@ -1,0 +1,153 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="view-header">
+    <h2>📅 Calendario Logístico</h2>
+    <div class="header-actions">
+        <button class="btn btn-primary" onclick="abrirModalEvento()">➕ Agregar Evento</button>
+    </div>
+</div>
+
+<div class="calendar-layout" style="display: flex; gap: 20px; margin-top: 20px; flex-wrap: wrap;">
+    <!-- Columna Izquierda: Calendario -->
+    <div class="card" style="flex: 1; min-width: 300px; padding: 20px;">
+        <div id="calendar"></div>
+    </div>
+
+    <!-- Columna Derecha: Agenda -->
+    <div class="card" style="flex: 1; min-width: 300px; padding: 20px;">
+        <h3>📌 Agenda (Esta Semana)</h3>
+        <ul id="agenda-lista" style="list-style: none; padding: 0; margin-top: 15px;">
+            <li>Cargando eventos...</li>
+        </ul>
+    </div>
+</div>
+
+<!-- Modal para Crear Evento Manual -->
+<div id="modal-evento" class="modal">
+    <div class="modal-content">
+        <span class="close" onclick="cerrarModalEvento()">&times;</span>
+        <h2>Nuevo Evento</h2>
+        <form id="form-evento">
+            <div class="form-group">
+                <label>Título (Ej: Viene el plomero)</label>
+                <input type="text" id="ev-titulo" required>
+            </div>
+            <div class="form-group">
+                <label>Fecha y Hora de Inicio</label>
+                <input type="datetime-local" id="ev-inicio" required>
+            </div>
+            <div class="form-group">
+                <label>Fecha y Hora de Fin (Opcional)</label>
+                <input type="datetime-local" id="ev-fin">
+            </div>
+            <div class="form-actions" style="margin-top: 20px;">
+                <button type="submit" class="btn btn-primary">Guardar Evento</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<link href='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.css' rel='stylesheet' />
+<script src='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.js'></script>
+<script src='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/locales/es.js'></script>
+<script>
+    let calendar;
+
+    document.addEventListener("DOMContentLoaded", function() {
+        var calendarEl = document.getElementById('calendar');
+        calendar = new FullCalendar.Calendar(calendarEl, {
+            initialView: 'dayGridMonth',
+            locale: 'es',
+            headerToolbar: {
+                left: 'prev,next today',
+                center: 'title',
+                right: 'dayGridMonth,timeGridWeek,timeGridDay'
+            },
+            events: '/api/logistica/eventos',
+            themeSystem: 'standard',
+            height: 'auto',
+            eventColor: 'var(--primary-color)',
+            eventsSet: function(events) {
+                // Update Agenda List
+                const lista = document.getElementById('agenda-lista');
+                lista.innerHTML = '';
+                
+                // Sort events by start date
+                const sortedEvents = events.sort((a, b) => a.start - b.start);
+                
+                if (sortedEvents.length === 0) {
+                    lista.innerHTML = '<li>No hay eventos en esta vista.</li>';
+                    return;
+                }
+                
+                sortedEvents.slice(0, 7).forEach(ev => {
+                    const li = document.createElement('li');
+                    li.style.padding = '8px 0';
+                    li.style.borderBottom = '1px solid var(--border-color)';
+                    
+                    const dateStr = ev.start.toLocaleDateString('es-AR', {day: '2-digit', month: '2-digit'});
+                    const timeStr = ev.start.toLocaleTimeString('es-AR', {hour: '2-digit', minute:'2-digit'});
+                    
+                    li.innerHTML = `<strong>${dateStr} ${timeStr}</strong> - ${ev.title}`;
+                    lista.appendChild(li);
+                });
+            }
+        });
+        calendar.render();
+
+        document.getElementById('form-evento').addEventListener('submit', function(e) {
+            e.preventDefault();
+            guardarEvento();
+        });
+    });
+
+    function abrirModalEvento() {
+        document.getElementById('modal-evento').style.display = 'block';
+    }
+
+    function cerrarModalEvento() {
+        document.getElementById('modal-evento').style.display = 'none';
+        document.getElementById('form-evento').reset();
+    }
+
+    function guardarEvento() {
+        const titulo = document.getElementById('ev-titulo').value;
+        const inicio = document.getElementById('ev-inicio').value;
+        const fin = document.getElementById('ev-fin').value;
+
+        if (!titulo || !inicio) {
+            showToast('Faltan campos obligatorios', 'error');
+            return;
+        }
+
+        const data = {
+            title: titulo,
+            start: inicio,
+            end: fin ? fin : null
+        };
+
+        fetch('/api/logistica/eventos', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        })
+        .then(res => res.json())
+        .then(result => {
+            if (result.success) {
+                showToast('Evento creado exitosamente', 'success');
+                cerrarModalEvento();
+                calendar.refetchEvents();
+            } else {
+                showToast(result.error || 'Error creando evento', 'error');
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            showToast('Error de red', 'error');
+        });
+    }
+</script>
+{% endblock %}

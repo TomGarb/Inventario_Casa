@@ -1,0 +1,736 @@
+{% extends "base.html" %}
+{% set active_page = 'tareas' %}
+{% block content %}
+<style>
+    /* FullCalendar compact styles */
+    .fc .fc-toolbar.fc-header-toolbar {
+        margin-bottom: 0.5em;
+        font-size: 0.85em;
+    }
+    .fc .fc-button {
+        padding: 0.2em 0.5em;
+        font-size: 0.85em;
+    }
+    .fc .fc-daygrid-day-number {
+        font-size: 0.85em;
+        padding: 2px;
+    }
+    .fc .fc-daygrid-event {
+        font-size: 0.75em;
+        padding: 1px 2px;
+        margin-top: 1px;
+        border-radius: 4px;
+        /* background-color removed to allow dynamic event colors */
+        color: white;
+        border: none;
+    }
+    .fc .fc-col-header-cell-cushion {
+        font-size: 0.95em;
+        padding: 10px 4px;
+        color: var(--text-color);
+        text-transform: capitalize;
+    }
+    .fc-theme-standard th {
+        background-color: var(--bg-darker);
+        border-color: var(--border-color);
+    }
+    .fc-theme-standard td {
+        border-color: var(--border-color);
+    }
+</style>
+<script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js'></script>
+<div class="view-header" style="flex-direction: column; align-items: flex-start; gap: 10px;">
+    <div style="display: flex; justify-content: space-between; width: 100%;">
+        <h2>Gestión de Tareas</h2>
+        <div class="view-header-actions">
+            <button class="btn-secundario" onclick="generarMes()" style="margin-right: 10px;">
+                🔄 Cargar Tareas del Mes
+            </button>
+            <button class="btn-primary" onclick="openModal('modal-crear-tarea')">
+                ➕ Nuevo Modelo
+            </button>
+        </div>
+    </div>
+    
+    <nav class="sub-nav-tabs" style="width: 100%; margin-top: 10px;">
+        <button id="tab-calendario" class="sub-tab-btn active" onclick="switchTab('calendario')">📅 Calendario y Activas</button>
+        <button id="tab-modelos" class="sub-tab-btn" onclick="switchTab('modelos')">⚙️ Modelos (Plantillas)</button>
+    </nav>
+</div>
+
+<div id="view-calendario">
+    <div id='calendar' style="margin-top: 20px; margin-bottom: 20px; background: var(--bg-card); padding: 20px; border-radius: 8px; border: 1px solid var(--border-color);"></div>
+    
+    <div class="dash-card">
+        <div class="table-responsive">
+            <table class="table" style="width: 100%; border-collapse: collapse;">
+                <thead>
+                    <tr style="border-bottom: 1px solid var(--border-color); text-align: left;">
+                        <th style="padding: 10px;">ID</th>
+                        <th style="padding: 10px;">Tarea</th>
+                        <th style="padding: 10px;">Prioridad</th>
+                        <th style="padding: 10px;">Frecuencia</th>
+                        <th style="padding: 10px;">Próxima (o Vencida)</th>
+                        <th style="padding: 10px;">Asignados</th>
+                        <th style="padding: 10px;">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody id="tareas-tbody">
+                    <!-- Data loaded via JS -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div> <!-- End view-calendario -->
+
+<div id="view-modelos" style="display: none; margin-top: 20px;">
+    <!-- Modelos Table -->
+    <div class="dash-card">
+        <h3>Plantillas de Tareas</h3>
+        <div class="table-responsive">
+            <table class="table" style="width: 100%; border-collapse: collapse;">
+                <thead>
+                    <tr style="border-bottom: 1px solid var(--border-color); text-align: left;">
+                        <th style="padding: 10px;">ID</th>
+                        <th style="padding: 10px;">Nombre</th>
+                        <th style="padding: 10px;">Prioridad</th>
+                        <th style="padding: 10px;">Frecuencia</th>
+                        <th style="padding: 10px;">Asignados</th>
+                        <th style="padding: 10px;">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody id="modelos-tbody">
+                    <!-- Data loaded via JS -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Crear/Editar Tarea -->
+<div id="modal-crear-tarea" class="modal" style="display: none; position: fixed; z-index: 10000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.7);">
+    <div class="modal-content" style="background-color: #212529; margin: 5vh auto; padding: 20px; border: 1px solid var(--border-color); width: 90%; max-width: 500px; border-radius: 8px; max-height: 85vh; overflow-y: auto;">
+        <h3 id="modal-title">Nueva Tarea</h3>
+        <form id="form-tarea" style="display: flex; flex-direction: column; gap: 15px; margin-top: 15px;">
+            <input type="hidden" id="tarea-id">
+            <div>
+                <label>Nombre de la Tarea:</label>
+                <input type="text" id="tarea-nombre" required class="form-control" style="width: 100%; padding: 8px; margin-top: 5px; border-radius: 4px; border: 1px solid var(--border-color); background: var(--bg-darker); color: var(--text-color);">
+            </div>
+            <div style="margin-top: 10px;">
+                <label>Prioridad:</label>
+                <select id="tarea-prioridad" class="form-control" style="width: 100%; padding: 8px; margin-top: 5px; border-radius: 4px; border: 1px solid var(--border-color); background: var(--bg-darker); color: var(--text-color);">
+                    <option value="Esencial">Esencial (Rutina)</option>
+                    <option value="Urgente">Urgente (Alta)</option>
+                    <option value="Secundaria">Secundaria (Baja)</option>
+                </select>
+            </div>
+            <div style="margin-top: 10px; display: flex; align-items: center; gap: 8px;">
+                <input type="checkbox" id="tarea-alternar" checked style="transform: scale(1.2);">
+                <label for="tarea-alternar" style="margin: 0; cursor: pointer;">Alternar turnos entre asignados</label>
+            </div>
+            <p style="font-size: 0.8em; color: var(--text-secondary); margin-top: 5px; margin-bottom: 0;">Si se desactiva, se notificará a TODOS los asignados para que la hagan al mismo tiempo.</p>
+            <div>
+                <label>Tipo de repetición:</label>
+                <select id="tipo-frecuencia" required class="form-control" style="width: 100%; padding: 8px; margin-top: 5px; border-radius: 4px; border: 1px solid var(--border-color); background: var(--bg-darker); color: var(--text-color);" onchange="updateValorInput()">
+                    <option value="dias">Cada X días</option>
+                    <option value="dia_semana">Día de la semana</option>
+                    <option value="mes">Mensual</option>
+                    <option value="fecha_fija">Fecha Específica</option>
+                </select>
+            </div>
+            <div id="valor-frecuencia-container">
+                <label id="lbl-valor">Valor:</label>
+                <input type="number" id="valor-dias" required min="1" value="1" class="form-control" style="width: 100%; padding: 8px; margin-top: 5px; border-radius: 4px; border: 1px solid var(--border-color); background: var(--bg-darker); color: var(--text-color);">
+                <select id="valor-dia-semana" class="form-control" style="display:none; width: 100%; padding: 8px; margin-top: 5px; border-radius: 4px; border: 1px solid var(--border-color); background: var(--bg-darker); color: var(--text-color);">
+                    <option value="0">Lunes</option>
+                    <option value="1">Martes</option>
+                    <option value="2">Miércoles</option>
+                    <option value="3">Jueves</option>
+                    <option value="4">Viernes</option>
+                    <option value="5">Sábado</option>
+                    <option value="6">Domingo</option>
+                </select>
+                <select id="valor-mes" class="form-control" style="display:none; width: 100%; padding: 8px; margin-top: 5px; border-radius: 4px; border: 1px solid var(--border-color); background: var(--bg-darker); color: var(--text-color);">
+                    <option value="inicio">Principio de mes</option>
+                    <option value="fin">Fin de mes</option>
+                </select>
+                <input type="date" id="valor-fecha-fija" class="form-control" style="display:none; width: 100%; padding: 8px; margin-top: 5px; border-radius: 4px; border: 1px solid var(--border-color); background: var(--bg-darker); color: var(--text-color);">
+            </div>
+            <div>
+                <label>Usuarios Asignados:</label>
+                <div id="usuarios-checkboxes" style="margin-top: 10px; display: flex; flex-direction: column; gap: 8px; max-height: 150px; overflow-y: auto; padding: 10px; background: var(--bg-darker); border: 1px solid var(--border-color); border-radius: 4px;">
+                    <!-- Checkboxes de usuarios cargados por JS -->
+                </div>
+            </div>
+            <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px;">
+                <button type="button" class="btn-secundario" onclick="closeModal('modal-crear-tarea')">Cancelar</button>
+                <button type="submit" class="btn-primary">Guardar Tarea</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+
+<!-- Modal Delegar Tarea -->
+<div id="modal-delegar" class="modal" style="display: none; position: fixed; z-index: 10000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.7); backdrop-filter: blur(4px); z-index: 10000;">
+    <div class="modal-content" style="background-color: #212529; margin: 10% auto; padding: 20px; border: 1px solid var(--border-color); width: 90%; max-width: 400px; border-radius: 8px;">
+        <h3 id="modal-delegar-title">Delegar Tarea</h3>
+        <p style="color: var(--warning-color); margin-top: 5px; font-size: 0.9em;">Tienes un límite de 3 saltos por mes.</p>
+        <div style="display: flex; justify-content: space-between; margin-top: 15px;">
+            <button type="button" class="btn-primary" onclick="completarTarea()" style="flex: 1; margin-right: 10px;">✅ Marcar Completada</button>
+        </div>
+        <hr style="border-color: var(--border-color); margin: 15px 0;">
+        <form id="form-delegar" style="display: flex; flex-direction: column; gap: 15px;">
+            <input type="hidden" id="delegar-tarea-id">
+            <div>
+                <label>O Delegar al siguiente (Requiere Motivo):</label>
+                <textarea id="delegar-motivo" required class="form-control" rows="3" style="width: 100%; padding: 8px; margin-top: 5px; border-radius: 4px; border: 1px solid var(--border-color); background: var(--bg-darker); color: var(--text-color);"></textarea>
+            </div>
+            <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 5px;">
+                <button type="button" class="btn-secundario" onclick="closeSkipModal()">Cancelar</button>
+                <button type="submit" class="btn-primary">Delegar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+const CURRENT_USER_ID = {{ current_user.id }};
+
+let calendar;
+document.addEventListener('DOMContentLoaded', async () => {
+    // Wait for initial load if necessary, but actually we can just init fullcalendar
+    const calendarEl = document.getElementById('calendar');
+    calendar = new FullCalendar.Calendar(calendarEl, {
+        height: 'auto',
+        contentHeight: 450,
+        initialView: 'dayGridMonth',
+        locale: 'es',
+        dayHeaderFormat: { weekday: 'long' },
+        events: '/api/calendario_tareas',
+        selectable: true,
+        dateClick: function(info) {
+            openModal('modal-crear-tarea');
+            document.getElementById('tipo-frecuencia').value = 'fecha_fija';
+            updateValorInput();
+            document.getElementById('valor-fecha-fija').value = info.dateStr;
+        },
+        dayCellContent: function(e) {
+            let wrapper = document.createElement('div');
+            wrapper.style.display = 'flex';
+            wrapper.style.justifyContent = 'space-between';
+            wrapper.style.width = '100%';
+            
+            let addBtn = document.createElement('div');
+            addBtn.innerHTML = '+';
+            addBtn.style.cursor = 'pointer';
+            addBtn.style.fontWeight = 'bold';
+            addBtn.style.color = 'var(--primary-color)';
+            
+            let dayNum = document.createElement('span');
+            dayNum.innerText = e.dayNumberText;
+            
+            wrapper.appendChild(addBtn);
+            wrapper.appendChild(dayNum);
+            
+            return { domNodes: [wrapper] };
+        },
+        eventClick: function(info) {
+            const props = info.event.extendedProps;
+            if (props.usuario_asignado === CURRENT_USER_ID) {
+                openSkipModal(props.tarea_id, props.nombre_tarea);
+            } else {
+                alert("Esta tarea le toca a otro usuario. (Puedes verla pero no delegarla)");
+            }
+        }
+    });
+    calendar.render();
+});
+
+function openSkipModal(tareaId, nombreTarea) {
+    document.getElementById('delegar-tarea-id').value = tareaId;
+    document.getElementById('modal-delegar-title').innerText = "Delegar: " + nombreTarea;
+    document.getElementById('delegar-motivo').value = "";
+    document.getElementById('modal-delegar').style.display = 'block';
+}
+
+function closeSkipModal() {
+    document.getElementById('modal-delegar').style.display = 'none';
+}
+
+let allUsers = [];
+
+async function init() {
+    await fetchUsuarios();
+    await loadModelos(); loadTareas();
+}
+
+async function fetchUsuarios() {
+    try {
+        const response = await fetch('/api/usuarios');
+        if (response.ok) {
+            allUsers = await response.json();
+        }
+    } catch (e) {
+        console.error("Error obteniendo usuarios", e);
+    }
+}
+
+
+function selectAllUsers() {
+    const checkboxes = document.querySelectorAll('.usuario-chk');
+    const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+    checkboxes.forEach(cb => cb.checked = !allChecked);
+}
+
+function renderUsuariosCheckboxes(selectedIds = []) {
+    const container = document.getElementById('usuarios-checkboxes');
+    container.innerHTML = '';
+    
+    if (allUsers.length === 0) {
+        container.innerHTML = '<span style="color: var(--danger-color); font-size: 0.9rem;">(No hay usuarios registrados. La lista de compras o tareas no podrá ser asignada).</span>';
+        return;
+    }
+
+    allUsers.forEach(u => {
+        const div = document.createElement('div');
+        div.style.display = 'flex';
+        div.style.alignItems = 'center';
+        div.style.gap = '10px';
+        
+        const isChecked = selectedIds.includes(u.id) ? 'checked' : '';
+        div.innerHTML = `
+            <input type="checkbox" id="user_${u.id}" class="usuario-chk" value="${u.id}" ${isChecked}>
+            <label for="user_${u.id}" style="margin: 0; cursor: pointer;">${u.username}</label>
+        `;
+        container.appendChild(div);
+    });
+}
+
+function switchTab(tab) {
+    if (tab === 'calendario') {
+        document.getElementById('view-calendario').style.display = 'block';
+        document.getElementById('view-modelos').style.display = 'none';
+        
+        document.getElementById('tab-calendario').classList.add('active');
+        document.getElementById('tab-modelos').classList.remove('active');
+        
+        if (calendar) calendar.render();
+    } else {
+        document.getElementById('view-calendario').style.display = 'none';
+        document.getElementById('view-modelos').style.display = 'block';
+        
+        document.getElementById('tab-modelos').classList.add('active');
+        document.getElementById('tab-calendario').classList.remove('active');
+        
+        loadModelos();
+    }
+}
+
+async function loadModelos() {
+    try {
+        const response = await fetch('/api/modelos');
+        const modelos = await response.json();
+        const tbody = document.getElementById('modelos-tbody');
+        tbody.innerHTML = '';
+        
+        if (modelos.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 20px;">No hay plantillas configuradas.</td></tr>';
+            return;
+        }
+        
+        modelos.forEach(m => {
+            const tr = document.createElement('tr');
+            const asignados = m.usuarios.map(u => u.username).join(', ') || '<em style="color:#aaa;">Sin asignar</em>';
+            
+            tr.innerHTML = `
+                <td style="padding: 10px;">${m.id}</td>
+                <td style="padding: 10px;"><b>${m.nombre}</b></td>
+                <td style="padding: 10px;">
+                    <span style="font-size: 0.8em; padding: 2px 6px; border-radius: 4px; color: white; background-color: ${m.prioridad === 'Urgente' ? 'var(--danger-color)' : m.prioridad === 'Secundaria' ? 'var(--text-secondary)' : 'var(--primary-color)'};">
+                        ${m.prioridad || 'Esencial'}
+                    </span>
+                </td>
+                <td style="padding: 10px;">
+                    ${m.tipo_frecuencia === 'dias' ? 'Cada ' + m.valor_frecuencia + ' día(s)' : ''}
+                    ${m.tipo_frecuencia === 'dia_semana' ? 'Día ' + m.valor_frecuencia : ''}
+                    ${m.tipo_frecuencia === 'mes' ? 'Mensual (' + m.valor_frecuencia + ')' : ''}
+                    ${m.tipo_frecuencia === 'fecha_fija' ? 'Fija: ' + m.valor_frecuencia : ''}
+                </td>
+                <td style="padding: 10px;">${asignados}</td>
+                <td style="padding: 10px;">
+                    <button class="btn-secundario" onclick='editModelo(${JSON.stringify(m).replace(/'/g, "&#39;")})' title="Editar Modelo">✏️</button>
+                    <button class="btn-delete-sm" onclick="deleteModelo(${m.id})" title="Eliminar Modelo">🗑️</button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+    } catch (e) {
+        console.error("Error al cargar los modelos", e);
+    }
+}
+
+function deleteModelo(id) {
+    showConfirm("¿Seguro que deseas eliminar esta plantilla? (Las tareas generadas en el calendario no se borrarán)", async () => {
+        try {
+            const response = await fetch(`/api/modelos/${id}`, { method: 'DELETE' });
+            if(response.ok) {
+                showToast("Plantilla eliminada", 'success');
+                loadModelos();
+            } else {
+                showToast("Error eliminando modelo.", 'error');
+            }
+        } catch(err) {
+            showToast("Error de red.", 'error');
+        }
+    });
+}
+
+function editModelo(m) {
+    document.getElementById('tarea-id').value = m.id;
+    document.getElementById('modal-title').innerText = "Editar Modelo";
+    
+    document.getElementById('tarea-nombre').value = m.nombre;
+    if (m.prioridad) document.getElementById('tarea-prioridad').value = m.prioridad;
+    document.getElementById('tarea-alternar').checked = m.alternar !== false;
+    
+    if (m.tipo_frecuencia) {
+        document.getElementById('tipo-frecuencia').value = m.tipo_frecuencia;
+        updateValorInput();
+        if (m.tipo_frecuencia === 'dias') document.getElementById('valor-dias').value = m.valor_frecuencia;
+        if (m.tipo_frecuencia === 'dia_semana') document.getElementById('valor-dia-semana').value = m.valor_frecuencia;
+        if (m.tipo_frecuencia === 'mes') document.getElementById('valor-mes').value = m.valor_frecuencia;
+        if (m.tipo_frecuencia === 'fecha_fija') document.getElementById('valor-fecha-fija').value = m.valor_frecuencia;
+    }
+    
+    renderUsuariosCheckboxes(m.usuarios.map(u => u.id));
+    openModal('modal-crear-tarea');
+}
+
+function generarMes() {
+    showConfirm("¿Deseas generar todas las tareas del mes actual en el calendario?", async () => {
+        try {
+            const response = await fetch('/api/generar_mes', { method: 'POST' });
+            const data = await response.json();
+            showToast(data.mensaje, 'success');
+            loadModelos(); loadTareas();
+            if (calendar) calendar.refetchEvents();
+        } catch(err) {
+            showToast("Error al generar el mes.", 'error');
+        }
+    });
+}
+
+async function completarTarea() {
+    const id = document.getElementById('delegar-tarea-id').value;
+    if(!id) return;
+    
+    closeSkipModal();
+    showToast("Completando tarea...", "info");
+    
+    try {
+        const response = await fetch(`/api/tareas/${id}/completar`, { method: 'POST' });
+        if(response.ok) {
+            showToast("Tarea marcada como completada", "success");
+            loadModelos(); loadTareas();
+            if (calendar) calendar.refetchEvents();
+        } else {
+            showToast("Error completando la tarea.", "error");
+        }
+    } catch(err) {
+        showToast("Error de red.", "error");
+    }
+}
+
+// Override original loadTareas so it just loads instances
+async function loadTareas() {
+    try {
+        const response = await fetch('/api/tareas');
+        const tareas = await response.json();
+        const tbody = document.getElementById('tareas-tbody');
+        tbody.innerHTML = '';
+        
+        const tareasDelDia = tareas.filter(t => {
+            if (!t.fecha_programada) return false;
+            const hoy = new Date();
+            hoy.setHours(0,0,0,0);
+            const [yyyy, mm, dd] = t.fecha_programada.split('-');
+            const prox = new Date(yyyy, mm - 1, dd);
+            
+            // Mostrar si es para hoy, o si ya venció y no está completada
+            return (prox.getTime() === hoy.getTime()) || (prox < hoy && !t.completada);
+        });
+
+        if (tareasDelDia.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 20px;">No hay tareas para hoy.</td></tr>';
+            return;
+        }
+        
+        tareasDelDia.forEach(t => {
+            const tr = document.createElement('tr');
+            const asignados = t.usuarios.map(u => u.username).join(', ') || '<em style="color:#aaa;">Sin asignar</em>';
+            
+            let fecha_str = "N/A";
+            if(t.fecha_programada) {
+                const hoy = new Date();
+                hoy.setHours(0,0,0,0);
+                const [yyyy, mm, dd] = t.fecha_programada.split('-');
+                const prox = new Date(yyyy, mm - 1, dd);
+                
+                if (prox < hoy && !t.completada) {
+                    fecha_str = `<span style="color: var(--danger-color); font-weight: bold;">${t.fecha_programada} (Vencida)</span>`;
+                } else if (prox.getTime() === hoy.getTime() && !t.completada) {
+                    fecha_str = `<span style="color: var(--warning-color); font-weight: bold;">Hoy</span>`;
+                } else {
+                    fecha_str = t.fecha_programada;
+                }
+            }
+            
+            let status = t.completada ? '<span style="color:var(--success-color)">✅ Lista</span>' : '<span style="color:var(--warning-color)">⏳ Pdt</span>';
+            
+            tr.innerHTML = `
+                <td style="padding: 10px;">${t.id}</td>
+                <td style="padding: 10px;"><b>${t.nombre}</b> <br><small>${status}</small></td>
+                <td style="padding: 10px;">
+                    <span style="font-size: 0.8em; padding: 2px 6px; border-radius: 4px; color: white; background-color: ${t.prioridad === 'Urgente' ? 'var(--danger-color)' : t.prioridad === 'Secundaria' ? 'var(--text-secondary)' : 'var(--primary-color)'};">
+                        ${t.prioridad || 'Esencial'}
+                    </span>
+                </td>
+                <td style="padding: 10px;">Fija</td>
+                <td style="padding: 10px;">${fecha_str}</td>
+                <td style="padding: 10px;">${asignados}</td>
+                <td style="padding: 10px;">
+                    <button class="btn-secundario" onclick="openSkipModal(${t.id}, '${t.nombre}')" title="Acciones">🚀</button>
+                    <button class="btn-delete-sm" onclick="deleteTarea(${t.id})" title="Eliminar">🗑️</button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+    } catch (e) {
+        console.error("Error al cargar las tareas activas", e);
+    }
+}
+
+
+/* OLD LOADTAREAS DISABLED */
+async function oldLoadTareas() {
+    try {
+        const response = await fetch('/api/tareas');
+        const tareas = await response.json();
+        const tbody = document.getElementById('tareas-tbody');
+        tbody.innerHTML = '';
+        
+        if (tareas.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 20px;">No hay tareas configuradas.</td></tr>';
+            return;
+        }
+        
+        tareas.forEach(t => {
+            const tr = document.createElement('tr');
+            const asignados = t.usuarios.map(u => u.username).join(', ') || '<em style="color:#aaa;">Sin asignar</em>';
+            
+            let fecha_str = "N/A";
+            if(t.proxima_fecha_calculada) {
+                const hoy = new Date();
+                hoy.setHours(0,0,0,0);
+                // Convert YYYY-MM-DD to Date object avoiding timezone offset issues
+                const [yyyy, mm, dd] = t.proxima_fecha_calculada.split('-');
+                const prox = new Date(yyyy, mm - 1, dd);
+                
+                if (prox < hoy) {
+                    fecha_str = `<span style="color: var(--danger-color); font-weight: bold;">${t.proxima_fecha_calculada} (Vencida)</span>`;
+                } else if (prox.getTime() === hoy.getTime()) {
+                    fecha_str = `<span style="color: var(--warning-color); font-weight: bold;">Hoy</span>`;
+                } else {
+                    fecha_str = t.proxima_fecha_calculada;
+                }
+            }
+            
+            tr.innerHTML = `
+                <td style="padding: 10px;">${t.id}</td>
+                <td style="padding: 10px;"><b>${t.nombre}</b></td>
+                <td style="padding: 10px;">
+                    <span style="font-size: 0.8em; padding: 2px 6px; border-radius: 4px; color: white; background-color: ${t.prioridad === 'Urgente' ? 'var(--danger-color)' : t.prioridad === 'Secundaria' ? 'var(--text-secondary)' : 'var(--primary-color)'};">
+                        ${t.prioridad || 'Esencial'}
+                    </span>
+                </td>
+                <td style="padding: 10px;">
+                    ${t.tipo_frecuencia === 'dias' ? 'Cada ' + t.valor_frecuencia + ' día(s)' : ''}
+                    ${t.tipo_frecuencia === 'dia_semana' ? 'Día ' + t.valor_frecuencia : ''}
+                    ${t.tipo_frecuencia === 'mes' ? 'Mensual (' + t.valor_frecuencia + ')' : ''}
+                    ${t.tipo_frecuencia === 'fecha_fija' ? 'Fija: ' + t.valor_frecuencia : ''}
+                </td>
+                <td style="padding: 10px;">${fecha_str}</td>
+                <td style="padding: 10px; font-size: 0.9em;">${asignados}</td>
+                <td style="padding: 10px; display: flex; gap: 5px;">
+                    <button class="btn-primary" onclick='editTarea(${JSON.stringify(t).replace(/'/g, "&apos;")})'>✏️ Editar</button>
+                    <button class="btn-delete-sm" onclick="deleteTarea(${t.id})">🗑️ Borrar</button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+    } catch (e) {
+        console.error("Error al cargar las tareas", e);
+    }
+}
+
+function openModal(id) {
+    document.getElementById(id).style.display = 'block';
+    if(id === 'modal-crear-tarea' && !document.getElementById('tarea-id').value) {
+        document.getElementById('modal-title').innerText = "Crear Nueva Tarea";
+        renderUsuariosCheckboxes();
+    }
+}
+
+function closeModal(id) {
+    document.getElementById(id).style.display = 'none';
+    document.getElementById('form-tarea').reset();
+    document.getElementById('tarea-id').value = '';
+}
+
+function editTarea(tarea) {
+    document.getElementById('tarea-id').value = tarea.id;
+    document.getElementById('tarea-nombre').value = tarea.nombre;
+    if (tarea.prioridad) document.getElementById('tarea-prioridad').value = tarea.prioridad;
+    document.getElementById('tarea-alternar').checked = tarea.alternar !== false; // true by default
+    if (tarea.tipo_frecuencia) {
+        document.getElementById('tipo-frecuencia').value = tarea.tipo_frecuencia;
+        updateValorInput();
+        if (tarea.tipo_frecuencia === 'dias') document.getElementById('valor-dias').value = tarea.valor_frecuencia;
+        else if (tarea.tipo_frecuencia === 'dia_semana') document.getElementById('valor-dia-semana').value = tarea.valor_frecuencia;
+        else if (tarea.tipo_frecuencia === 'mes') document.getElementById('valor-mes').value = tarea.valor_frecuencia;
+        else if (tarea.tipo_frecuencia === 'fecha_fija') document.getElementById('valor-fecha-fija').value = tarea.valor_frecuencia;
+    }
+    document.getElementById('modal-title').innerText = "Editar Tarea";
+    
+    const assignedIds = tarea.usuarios.map(u => u.id);
+    renderUsuariosCheckboxes(assignedIds);
+    
+    openModal('modal-crear-tarea');
+}
+
+document.getElementById('form-tarea').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const id = document.getElementById('tarea-id').value;
+    const nombre = document.getElementById('tarea-nombre').value;
+    const tipo_frecuencia = document.getElementById('tipo-frecuencia').value;
+    let valor_frecuencia = '1';
+    let fecha_inicio = null;
+    if (tipo_frecuencia === 'dias') valor_frecuencia = document.getElementById('valor-dias').value;
+    else if (tipo_frecuencia === 'dia_semana') valor_frecuencia = document.getElementById('valor-dia-semana').value;
+    else if (tipo_frecuencia === 'mes') valor_frecuencia = document.getElementById('valor-mes').value;
+    else if (tipo_frecuencia === 'fecha_fija') {
+        valor_frecuencia = document.getElementById('valor-fecha-fija').value;
+        fecha_inicio = valor_frecuencia;
+    }
+    
+    const checkboxes = document.querySelectorAll('.usuario-chk:checked');
+    const usuarios_ids = Array.from(checkboxes).map(cb => parseInt(cb.value));
+    
+    const method = id ? 'PUT' : 'POST';
+    const url = id ? `/api/modelos/${id}` : '/api/modelos';
+    
+    const prioridad = document.getElementById('tarea-prioridad').value;
+    const alternar = document.getElementById('tarea-alternar').checked;
+    const payload = { nombre, tipo_frecuencia, valor_frecuencia, usuarios_ids, prioridad, alternar };
+    if (fecha_inicio && !id) {
+        payload.fecha_inicio = fecha_inicio; // set initial run date to yesterday so it triggers today
+    }
+    
+    try {
+        const response = await fetch(url, {
+            method: method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        
+        if (response.ok) {
+            closeModal('modal-crear-tarea');
+            loadModelos(); loadTareas();
+            if (calendar) { calendar.refetchEvents(); }
+        } else {
+            const data = await response.json();
+            alert("Error: " + (data.error || "Desconocido"));
+        }
+    } catch(err) {
+        alert("Error de red.");
+    }
+});
+
+function deleteTarea(id) {
+    showConfirm("¿Seguro que deseas eliminar esta tarea? Esto borrará también el historial.", async () => {
+        try {
+            const response = await fetch(`/api/tareas/${id}`, { method: 'DELETE' });
+            if(response.ok) {
+                showToast("Tarea eliminada", 'success');
+                loadModelos(); loadTareas();
+            } else {
+                showToast("Error eliminando la tarea.", 'error');
+            }
+        } catch(err) {
+            showToast("Error de red.", 'error');
+        }
+    });
+}
+
+
+document.getElementById('form-delegar').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const id = document.getElementById('delegar-tarea-id').value;
+    const motivo = document.getElementById('delegar-motivo').value;
+    
+    closeSkipModal();
+    showToast("Delegando turno...", "info");
+    
+    try {
+        const response = await fetch(`/api/tareas/${id}/skip`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ motivo })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            showToast(data.mensaje + ". Nuevo encargado: " + data.nuevo_encargado, "success");
+            calendar.refetchEvents();
+            loadModelos(); loadTareas();
+        } else {
+            showToast("Error: " + (data.error || "Desconocido"), "error");
+        }
+    } catch(err) {
+        showToast("Error de red.", "error");
+    }
+});
+
+document.addEventListener('DOMContentLoaded', init);
+
+function updateValorInput() {
+    const tipo = document.getElementById('tipo-frecuencia').value;
+    document.getElementById('valor-dias').style.display = 'none';
+    document.getElementById('valor-dia-semana').style.display = 'none';
+    document.getElementById('valor-mes').style.display = 'none';
+    document.getElementById('valor-fecha-fija').style.display = 'none';
+    
+    document.getElementById('valor-dias').required = false;
+    document.getElementById('valor-dia-semana').required = false;
+    document.getElementById('valor-mes').required = false;
+    document.getElementById('valor-fecha-fija').required = false;
+    
+    if (tipo === 'dias') {
+        document.getElementById('valor-dias').style.display = 'block';
+        document.getElementById('valor-dias').required = true;
+    } else if (tipo === 'dia_semana') {
+        document.getElementById('valor-dia-semana').style.display = 'block';
+        document.getElementById('valor-dia-semana').required = true;
+    } else if (tipo === 'mes') {
+        document.getElementById('valor-mes').style.display = 'block';
+        document.getElementById('valor-mes').required = true;
+    } else if (tipo === 'fecha_fija') {
+        document.getElementById('valor-fecha-fija').style.display = 'block';
+        document.getElementById('valor-fecha-fija').required = true;
+    }
+}
+</script>
+{% endblock %}
