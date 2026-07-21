@@ -2373,34 +2373,7 @@ def get_movimientos():
     movs = query.order_by(Movimiento.fecha.desc()).limit(limit).all()
     return jsonify([{'id': m.id, 'descripcion': m.descripcion, 'fecha': m.fecha.strftime("%Y-%m-%d %H:%M")} for m in movs])
 
-@app.route('/api/dashboard/grafico', methods=['GET'])
-def grafico_dashboard():
-    salas = Sala.query.all()
-    result = []
-    for s in salas:
-        total = sum(p.stock_actual for u in s.ubicaciones for p in u.productos)
-        if total > 0:
-            result.append({'sala': s.nombre, 'total': total})
-    return jsonify(result)
 
-@app.route('/api/stats/tendencias', methods=['GET'])
-def estadisticas_tendencias():
-    hace_30_dias = datetime.utcnow() - timedelta(days=30)
-    movs = Movimiento.query.filter(Movimiento.fecha >= hace_30_dias, Movimiento.producto_id.isnot(None)).all()
-    conteo = {}
-    for m in movs:
-        if m.producto_id not in conteo:
-            conteo[m.producto_id] = 0
-        conteo[m.producto_id] += 1
-        
-    top_5 = sorted(conteo.items(), key=lambda x: x[1], reverse=True)[:5]
-    result = []
-    for pid, count in top_5:
-        p = Producto.query.get(pid)
-        if p:
-            result.append({'nombre': p.nombre, 'movimientos': count})
-            
-    return jsonify(result)
 
 # ==========================================
 # 6. TAREAS PROGRAMADAS Y ARRANQUE
