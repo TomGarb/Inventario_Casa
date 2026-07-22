@@ -1,52 +1,21 @@
 {% extends "base.html" %}
 {% set active_page = 'tareas' %}
 {% block content %}
-<style>
-    /* FullCalendar compact styles */
-    .fc .fc-toolbar.fc-header-toolbar {
-        margin-bottom: 0.5em;
-        font-size: 0.85em;
-    }
-    .fc .fc-button {
-        padding: 0.2em 0.5em;
-        font-size: 0.85em;
-    }
-    .fc .fc-daygrid-day-number {
-        font-size: 0.85em;
-        padding: 2px;
-    }
-    .fc .fc-daygrid-event {
-        font-size: 0.75em;
-        padding: 1px 2px;
-        margin-top: 1px;
-        border-radius: 4px;
-        /* background-color removed to allow dynamic event colors */
-        color: white;
-        border: none;
-    }
-    .fc .fc-col-header-cell-cushion {
-        font-size: 0.95em;
-        padding: 10px 4px;
-        color: var(--text-color);
-        text-transform: capitalize;
-    }
-    .fc-theme-standard th {
-        background-color: var(--bg-darker);
-        border-color: var(--border-color);
-    }
-    .fc-theme-standard td {
-        border-color: var(--border-color);
-    }
-</style>
-<script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js'></script>
+
+<link href='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.css' rel='stylesheet' />
+<script src='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.js'></script>
+<script src='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/locales/es.js'></script>
 <div class="view-header" style="flex-direction: column; align-items: flex-start; gap: 10px;">
     <div style="display: flex; justify-content: space-between; width: 100%;">
         <h2>Gestión de Tareas</h2>
         <div class="view-header-actions">
-            <button class="btn-secundario" onclick="generarMes()" style="margin-right: 10px;">
+            <button class="btn btn-secondary" onclick="if(calendar) calendar.refetchEvents(); loadTareas();" style="margin-right: 10px;" title="Refrescar vista">
+                🔄 Refrescar
+            </button>
+            <button class="btn btn-secondary" onclick="generarMes()" style="margin-right: 10px;">
                 🔄 Cargar Tareas del Mes
             </button>
-            <button class="btn-primary" onclick="openModal('modal-crear-tarea')">
+            <button class="btn btn-primary" onclick="openModal('modal-crear-tarea')">
                 ➕ Nuevo Modelo
             </button>
         </div>
@@ -58,21 +27,24 @@
     </nav>
 </div>
 
-<div id="view-calendario">
-    <div id='calendar' style="margin-top: 20px; margin-bottom: 20px; background: var(--bg-card); padding: 20px; border-radius: 8px; border: 1px solid var(--border-color);"></div>
+<div id="view-calendario" class="calendar-layout" style="display: flex; gap: 20px; margin-top: 20px; flex-wrap: wrap;">
+    <!-- Columna Izquierda: Calendario -->
+    <div class="card" style="flex: 1; min-width: 300px; padding: 20px; background: var(--bg-card); border-radius: 8px; border: 1px solid var(--border-color);">
+        <div id='calendar'></div>
+    </div>
     
-    <div class="dash-card">
+    <!-- Columna Derecha: Tareas del Día -->
+    <div class="dash-card" style="flex: 1; min-width: 300px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+            <h3 style="margin: 0;">📝 Tareas: <span id="lbl-fecha-seleccionada">Hoy</span></h3>
+        </div>
         <div class="table-responsive">
-            <table class="table" style="width: 100%; border-collapse: collapse;">
+            <table class="table" style="width: 100%; border-collapse: collapse; font-size: 0.9em;">
                 <thead>
                     <tr style="border-bottom: 1px solid var(--border-color); text-align: left;">
-                        <th style="padding: 10px;">ID</th>
                         <th style="padding: 10px;">Tarea</th>
-                        <th style="padding: 10px;">Prioridad</th>
-                        <th style="padding: 10px;">Frecuencia</th>
-                        <th style="padding: 10px;">Próxima (o Vencida)</th>
                         <th style="padding: 10px;">Asignados</th>
-                        <th style="padding: 10px;">Acciones</th>
+                        <th style="padding: 10px;">Estado</th>
                     </tr>
                 </thead>
                 <tbody id="tareas-tbody">
@@ -199,6 +171,15 @@
 const CURRENT_USER_ID = {{ current_user.id }};
 
 let calendar;
+let selectedDate = new Date();
+selectedDate.setHours(0,0,0,0);
+
+function isSameDay(d1, d2) {
+    return d1.getFullYear() === d2.getFullYear() &&
+           d1.getMonth() === d2.getMonth() &&
+           d1.getDate() === d2.getDate();
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
     // Wait for initial load if necessary, but actually we can just init fullcalendar
     const calendarEl = document.getElementById('calendar');
@@ -211,10 +192,24 @@ document.addEventListener('DOMContentLoaded', async () => {
         events: '/api/calendario_tareas',
         selectable: true,
         dateClick: function(info) {
-            openModal('modal-crear-tarea');
-            document.getElementById('tipo-frecuencia').value = 'fecha_fija';
-            updateValorInput();
-            document.getElementById('valor-fecha-fija').value = info.dateStr;
+            // Check if clicking inside addBtn
+            if (info.jsEvent.target.classList.contains('add-task-btn')) {
+                openModal('modal-crear-tarea');
+                document.getElementById('tipo-frecuencia').value = 'fecha_fija';
+                updateValorInput();
+                document.getElementById('valor-fecha-fija').value = info.dateStr;
+                return;
+            }
+            // Update selected date and reload table
+            const [yyyy, mm, dd] = info.dateStr.split('-');
+            selectedDate = new Date(yyyy, mm - 1, dd);
+            
+            let lbl = info.dateStr;
+            const hoy = new Date(); hoy.setHours(0,0,0,0);
+            if (isSameDay(selectedDate, hoy)) lbl = 'Hoy';
+            
+            document.getElementById('lbl-fecha-seleccionada').innerText = lbl;
+            loadTareas();
         },
         dayCellContent: function(e) {
             let wrapper = document.createElement('div');
@@ -224,9 +219,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             
             let addBtn = document.createElement('div');
             addBtn.innerHTML = '+';
+            addBtn.className = 'add-task-btn';
             addBtn.style.cursor = 'pointer';
             addBtn.style.fontWeight = 'bold';
             addBtn.style.color = 'var(--primary-color)';
+            addBtn.style.padding = '0 5px';
             
             let dayNum = document.createElement('span');
             dayNum.innerText = e.dayNumberText;
@@ -310,13 +307,18 @@ function renderUsuariosCheckboxes(selectedIds = []) {
 
 function switchTab(tab) {
     if (tab === 'calendario') {
-        document.getElementById('view-calendario').style.display = 'block';
+        document.getElementById('view-calendario').style.display = 'flex';
         document.getElementById('view-modelos').style.display = 'none';
         
         document.getElementById('tab-calendario').classList.add('active');
         document.getElementById('tab-modelos').classList.remove('active');
         
-        if (calendar) calendar.render();
+        if (calendar) {
+            setTimeout(() => {
+                calendar.updateSize();
+                calendar.render();
+            }, 10);
+        }
     } else {
         document.getElementById('view-calendario').style.display = 'none';
         document.getElementById('view-modelos').style.display = 'block';
@@ -665,6 +667,7 @@ function deleteTarea(id) {
             if(response.ok) {
                 showToast("Tarea eliminada", 'success');
                 loadModelos(); loadTareas();
+                if (calendar) calendar.refetchEvents();
             } else {
                 showToast("Error eliminando la tarea.", 'error');
             }

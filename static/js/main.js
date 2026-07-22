@@ -42,8 +42,6 @@ document.addEventListener('DOMContentLoaded', () => {
 // ==========================================
 async function initDashboard() {
     await fetchDashboardStats();
-    await fetchGrafico();
-    await fetchTendencias();
     await fetchMovimientos();
     await fetchQuickActions();
 }

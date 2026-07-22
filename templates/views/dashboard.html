@@ -3,55 +3,15 @@
 <!-- Vista 1: Dashboard Principal -->
 <section id="dashboard-view" class="view active-view">
     <div class="dashboard-grid">
-        <!-- 
-        <div class="dash-card" style="grid-column: 1 / -1; border-color: var(--danger-color); box-shadow: 0 0 10px rgba(255,107,107,0.2);">
-            <h2 class="dash-header" style="color: var(--danger-color);">🚨 Alertas Críticas (Sin Stock)</h2>
-            <div class="carousel-wrapper" style="position: relative; display: flex; align-items: center; width: 100%; justify-content: center;">
-                <button id="crit-prev" onclick="document.getElementById('dash-alertas-criticas').scrollBy({left: -210, behavior: 'smooth'})" style="background: var(--bg-color); color: var(--text-color); border: 1px solid var(--border-color); cursor: pointer; padding: 5px 10px; border-radius: 5px; position: absolute; left: 0; z-index: 10;">&#10094;</button>
-                <div id="dash-alertas-criticas" class="dash-items-container" style="display: flex; gap: 10px; overflow-x: auto; scroll-behavior: smooth; scroll-snap-type: x mandatory; padding: 5px 0; flex-wrap: nowrap; width: 100%; max-width: 1040px; scrollbar-width: none; -ms-overflow-style: none;">
-                    <p style="color: var(--success-color);">Todo en orden. No hay productos agotados.</p>
-                </div>
-                <button id="crit-next" onclick="document.getElementById('dash-alertas-criticas').scrollBy({left: 210, behavior: 'smooth'})" style="background: var(--bg-color); color: var(--text-color); border: 1px solid var(--border-color); cursor: pointer; padding: 5px 10px; border-radius: 5px; position: absolute; right: 0; z-index: 10;">&#10095;</button>
-            </div>
-            <style>
-                #dash-alertas-criticas::-webkit-scrollbar { display: none; }
-            </style>
-        </div>
-        -->
 
-        <div class="dash-card">
-            <h2 class="dash-header">⚠️ Alertas de Reposición</h2>
-            <div id="dash-alertas-lista" class="dash-items-container">
-                <!-- Elementos renderizados por JS -->
-            </div>
+    <!-- Fila 1: Calendario (Ancho completo) -->
+    <div class="dash-card" style="grid-column: 1 / -1;">
+            <h2 class="dash-header">🌍 Calendario Global de la Casa</h2>
+            <div id="global-calendar"></div>
         </div>
-        
-        <!-- Widget Logística -->
-        <div class="dash-card">
-            <h2 class="dash-header">📅 Agenda Logística</h2>
-            {% if proximo_evento %}
-                <div style="background: var(--bg-secondary); padding: 10px; border-radius: 8px; border-left: 4px solid var(--primary-color); margin-bottom: 10px;">
-                    <span style="font-size: 0.8rem; color: var(--text-secondary);">Próximo evento</span><br>
-                    <strong>{{ proximo_evento.titulo }}</strong><br>
-                    <span style="font-size: 0.9rem;">{{ proximo_evento.fecha_inicio.strftime('%d/%m %H:%M') }}</span>
-                </div>
-            {% else %}
-                <p style="color: var(--text-secondary); font-size: 0.9rem;">No hay eventos próximos.</p>
-            {% endif %}
-            
-            {% if eventos_agenda %}
-                <ul style="list-style: none; padding: 0; margin-top: 10px; font-size: 0.9rem;">
-                {% for ev in eventos_agenda %}
-                    <li style="padding: 5px 0; border-bottom: 1px solid var(--border-color);">
-                        {{ ev.titulo }} <span style="float: right; color: var(--text-secondary);">{{ ev.fecha_inicio.strftime('%H:%M') }}</span>
-                    </li>
-                {% endfor %}
-                </ul>
-            {% endif %}
-        </div>
-
-        <!-- Widget Finanzas -->
-        <div class="dash-card">
+    
+    <!-- Fila 2: Tarjetas Rápidas Pequeñas (3 columnas en pantallas grandes) -->
+    <div class="dash-card">
             <h2 class="dash-header">💸 Finanzas (Mes Actual)</h2>
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
                 <div>
@@ -80,16 +40,7 @@
                 {% endif %}
             </div>
         </div>
-        
-        <!-- Acciones Rápidas -->
-        <div class="dash-card" style="grid-column: 1 / -1;">
-            <h2 class="dash-header">⚡ Acciones Rápidas</h2>
-            <div id="quickActions" class="quick-actions-grid" style="display: flex; gap: 10px; flex-wrap: wrap;">
-                <!-- Elementos renderizados por JS -->
-            </div>
-        </div>
-        
-        <div class="dash-card" style="grid-column: 1 / -1;">
+    <div class="dash-card">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
                 <h2 class="dash-header" style="margin: 0;">📜 Últimos Movimientos</h2>
                 <input type="text" id="buscador-movimientos" placeholder="🔍 Buscar movimiento..." style="padding: 0.4rem; border-radius: 4px; border: 1px solid var(--border-color); background: var(--bg-color); color: var(--text-color); width: 250px;">
@@ -98,10 +49,7 @@
                 <!-- Elementos renderizados por JS -->
             </ul>
         </div>
-
-        <!-- ==== WIDGETS DE TAREAS ==== -->
-        <!-- Mis Tareas Pendientes -->
-        <div class="dash-card">
+    <div class="dash-card">
             <h3 class="dash-header">📌 {% if current_user.is_admin %}Tareas Pendientes (Todas){% else %}Mis Tareas Pendientes{% endif %}</h3>
             {% if mis_tareas %}
                 <ul style="list-style: none; padding: 0;">
@@ -121,90 +69,48 @@
             {% endif %}
         </div>
 
-        <!-- Ranking del Hogar -->
-        <div class="dash-card">
-            <h3 class="dash-header">🏆 Ranking del Hogar (Mes)</h3>
-            <ul style="list-style: none; padding: 0;">
-            {% for r in ranking %}
-                <li style="padding: 10px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
-                    <span>
-                        {% if loop.index == 1 %}🥇{% elif loop.index == 2 %}🥈{% elif loop.index == 3 %}🥉{% else %}👤{% endif %}
-                        {{ r.username }}
-                    </span>
-                    <span style="background: var(--primary-color); color: white; padding: 2px 8px; border-radius: 12px; font-size: 0.8rem; font-weight: bold;">
-                        {{ r.completadas }}
-                    </span>
-                </li>
-            {% endfor %}
+    <!-- Fila 3: Listas Medianas (2 columnas en pantallas grandes) -->
+    <div class="dash-card">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                <h2 class="dash-header" style="margin: 0;">📜 Últimos Movimientos</h2>
+                <input type="text" id="buscador-movimientos" placeholder="🔍 Buscar movimiento..." style="padding: 0.4rem; border-radius: 4px; border: 1px solid var(--border-color); background: var(--bg-color); color: var(--text-color); width: 250px;">
+            </div>
+            <ul id="feedMovimientos" style="list-style: none; padding: 0; margin: 0; color: var(--text-color, #eee); max-height: 300px; overflow-y: auto;">
+                <!-- Elementos renderizados por JS -->
             </ul>
         </div>
-
-        <!-- Radar de Tareas Críticas -->
-        <div class="dash-card">
-            <h3 class="dash-header">🚨 Tareas Críticas</h3>
-            {% if criticas %}
-                <ul style="list-style: none; padding: 0;">
-                {% for c in criticas %}
-                    <li style="padding: 10px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; color: var(--danger-color);">
-                        <span>{{ c.nombre }}</span>
-                        <span style="font-weight: bold; font-size: 0.8rem;">+{{ c.dias_vencida }} días</span>
+    <div class="dash-card">
+            <h2 class="dash-header">⚠️ Alertas de Reposición</h2>
+            <div id="dash-alertas-lista" class="dash-items-container">
+                <!-- Elementos renderizados por JS -->
+            </div>
+        </div>
+    <div class="dash-card">
+            <h2 class="dash-header">📅 Agenda Logística</h2>
+            {% if proximo_evento %}
+                <div style="background: var(--bg-secondary); padding: 10px; border-radius: 8px; border-left: 4px solid var(--primary-color); margin-bottom: 10px;">
+                    <span style="font-size: 0.8rem; color: var(--text-secondary);">Próximo evento</span><br>
+                    <strong>{{ proximo_evento.titulo }}</strong><br>
+                    <span style="font-size: 0.9rem;">{{ proximo_evento.fecha_inicio.strftime('%d/%m %H:%M') }}</span>
+                </div>
+            {% else %}
+                <p style="color: var(--text-secondary); font-size: 0.9rem;">No hay eventos próximos.</p>
+            {% endif %}
+            
+            {% if eventos_agenda %}
+                <ul style="list-style: none; padding: 0; margin-top: 10px; font-size: 0.9rem;">
+                {% for ev in eventos_agenda %}
+                    <li style="padding: 5px 0; border-bottom: 1px solid var(--border-color);">
+                        {{ ev.titulo }} <span style="float: right; color: var(--text-secondary);">{{ ev.fecha_inicio.strftime('%H:%M') }}</span>
                     </li>
                 {% endfor %}
                 </ul>
-            {% else %}
-                <p style="color: var(--success-color); font-size: 0.9rem; margin-top: 10px;">Todo en orden. No hay tareas muy atrasadas.</p>
             {% endif %}
         </div>
-
-        <!-- Medidor de Excusas (Skips) -->
-        <div class="dash-card">
-            <h3 class="dash-header">⏭️ Skips de Tareas (Mes)</h3>
-            <ul style="list-style: none; padding: 0;">
-            {% for username, skips in skips_por_usuario.items() %}
-                <li style="padding: 10px; border-bottom: 1px solid var(--border-color);">
-                    <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
-                        <span>{{ username }}</span>
-                        <span style="font-size: 0.8rem;">{{ skips }} / 3 skips</span>
-                    </div>
-                    <div style="width: 100%; background-color: var(--bg-darker); border-radius: 4px; height: 8px;">
-                        {% set porcentaje = (skips / 3) * 100 %}
-                        <div style="width: {{ porcentaje if porcentaje <= 100 else 100 }}%; background-color: {% if skips >= 3 %}var(--danger-color){% elif skips == 2 %}var(--warning-color){% else %}var(--success-color){% endif %}; height: 100%; border-radius: 4px;"></div>
-                    </div>
-                </li>
-            {% endfor %}
-            </ul>
-        </div>
-
-        <!-- Última Actividad -->
-        <div class="dash-card">
-            <h3 class="dash-header">⏱️ Última Actividad Tareas</h3>
-            {% if actividad %}
-                <ul style="list-style: none; padding: 0;">
-                {% for act in actividad %}
-                    <li style="padding: 10px; border-bottom: 1px solid var(--border-color); font-size: 0.9rem;">
-                        {% if act.tipo == 'completada' %}
-                            <span style="color: var(--success-color);">✅</span>
-                        {% else %}
-                            <span style="color: var(--warning-color);">⏭️</span>
-                        {% endif %}
-                        {{ act.texto }}
-                        <div style="font-size: 0.7rem; color: #888; margin-top: 3px;">
-                            {{ act.fecha.strftime('%d/%m/%Y %H:%M') }}
-                        </div>
-                    </li>
-                {% endfor %}
-                </ul>
-            {% else %}
-                <p style="color: var(--text-color); font-size: 0.9rem; margin-top: 10px;">No hay actividad reciente.</p>
-            {% endif %}
-        </div>
-        <!-- ==== FIN WIDGETS DE TAREAS ==== -->
-
-    </div>
 </section>
 
 <!-- Modal Ticket Rápido -->
-<div id="modal-dash-ticket" class="modal">
+<div id="modal-dash-ticket" class="modal" style="display: none;">
     <div class="modal-content" style="max-width: 400px;">
         <span class="close" onclick="document.getElementById('modal-dash-ticket').style.display='none'">&times;</span>
         <h2>Confirmar Gasto</h2>
@@ -292,22 +198,18 @@ function procesarTicketDash() {
 function guardarGastoDash() {
     const descripcion = document.getElementById('dash-gasto-concepto').value;
     const monto = document.getElementById('dash-gasto-monto').value;
-    const checkboxes = document.querySelectorAll('.deudor-checkbox:checked');
     
-    if (!descripcion || !monto || checkboxes.length === 0) {
-        showToast("Completa los campos y selecciona al menos un deudor", "error");
+    if (!descripcion || !monto) {
+        showToast("Completa concepto y monto", "error");
         return;
     }
-    
-    const deudores_ids = Array.from(checkboxes).map(cb => cb.value);
     
     fetch('/api/finanzas/gasto', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
             descripcion: descripcion,
-            monto_total: monto,
-            deudores_ids: deudores_ids
+            monto_total: monto
         })
     })
     .then(res => res.json())
@@ -315,7 +217,7 @@ function guardarGastoDash() {
         if(data.success) {
             showToast("Gasto guardado exitosamente", "success");
             document.getElementById('modal-dash-ticket').style.display = 'none';
-            setTimeout(() => location.reload(), 1500); // Reload to update balances
+            setTimeout(() => location.reload(), 1500);
         } else {
             showToast(data.error || "Error", "error");
         }
@@ -325,5 +227,51 @@ function guardarGastoDash() {
         showToast("Error de red", "error");
     });
 }
+</script>
+
+<link href='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.css' rel='stylesheet' />
+<script src='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.js'></script>
+<script src='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/locales/es.js'></script>
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    var calendarEl = document.getElementById('global-calendar');
+    if (calendarEl) {
+        var calendar = new FullCalendar.Calendar(calendarEl, {
+            locale: 'es',
+            initialView: 'dayGridMonth',
+            height: 'auto',
+            headerToolbar: {
+                left: 'prev,next today',
+                center: 'title',
+                right: 'dayGridMonth,timeGridWeek,listWeek'
+            },
+            eventSources: [
+                {
+                    url: '/api/calendario_tareas',
+                    color: '#0d6efd', // Blue
+                    textColor: 'white'
+                },
+                {
+                    url: '/api/menus/eventos',
+                    color: '#fd7e14', // Orange
+                    textColor: 'white'
+                },
+                {
+                    url: '/api/logistica/eventos',
+                    color: '#6f42c1', // Purple
+                    textColor: 'white'
+                }
+            ],
+            eventClick: function(info) {
+                // Previene navegacion si es link pero aca abrimos los modals si existieran
+                if (info.event.url) {
+                    info.jsEvent.preventDefault();
+                    window.open(info.event.url);
+                }
+            }
+        });
+        calendar.render();
+    }
+});
 </script>
 {% endblock %}

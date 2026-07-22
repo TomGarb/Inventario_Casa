@@ -24,7 +24,7 @@
 </div>
 
 <!-- Modal para Crear Evento Manual -->
-<div id="modal-evento" class="modal">
+<div id="modal-evento" class="modal" style="display: none;">
     <div class="modal-content">
         <span class="close" onclick="cerrarModalEvento()">&times;</span>
         <h2>Nuevo Evento</h2>
@@ -40,6 +40,23 @@
             <div class="form-group">
                 <label>Fecha y Hora de Fin (Opcional)</label>
                 <input type="datetime-local" id="ev-fin">
+            </div>
+            <div class="form-group">
+                <label>Frecuencia de Repetición</label>
+                <select id="ev-frecuencia">
+                    <option value="none">Una sola vez (No se repite)</option>
+                    <option value="diaria">Todos los días</option>
+                    <option value="semanal">Una vez a la semana</option>
+                    <option value="mensual">Una vez al mes</option>
+                    <option value="anual">Una vez al año</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Asignado A (Opcional)</label>
+                <select id="ev-asignado">
+                    <option value="">Nadie en particular</option>
+                    <!-- Las opciones se cargarán por JS -->
+                </select>
             </div>
             <div class="form-actions" style="margin-top: 20px;">
                 <button type="submit" class="btn btn-primary">Guardar Evento</button>
@@ -57,6 +74,15 @@
     let calendar;
 
     document.addEventListener("DOMContentLoaded", function() {
+        fetch('/api/usuarios').then(r => r.json()).then(users => {
+            let select = document.getElementById('ev-asignado');
+            users.forEach(u => {
+                let opt = document.createElement('option');
+                opt.value = u.id;
+                opt.textContent = u.username;
+                select.appendChild(opt);
+            });
+        });
         var calendarEl = document.getElementById('calendar');
         calendar = new FullCalendar.Calendar(calendarEl, {
             initialView: 'dayGridMonth',
@@ -65,6 +91,11 @@
                 left: 'prev,next today',
                 center: 'title',
                 right: 'dayGridMonth,timeGridWeek,timeGridDay'
+            },
+            dateClick: function(info) {
+                // Pre-fill the start date
+                document.getElementById('ev-inicio').value = info.dateStr + 'T12:00';
+                abrirModalEvento();
             },
             events: '/api/logistica/eventos',
             themeSystem: 'standard',
@@ -117,6 +148,8 @@
         const titulo = document.getElementById('ev-titulo').value;
         const inicio = document.getElementById('ev-inicio').value;
         const fin = document.getElementById('ev-fin').value;
+        const frecuencia = document.getElementById('ev-frecuencia').value;
+        const asignado_id = document.getElementById('ev-asignado').value;
 
         if (!titulo || !inicio) {
             showToast('Faltan campos obligatorios', 'error');

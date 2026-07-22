@@ -1,140 +1,5 @@
-{% extends "base.html" %}
 
-{% block content %}
-<div class="view-header">
-    <h2>💸 Finanzas Compartidas</h2>
-    <div class="header-actions">
-        <a href="{{ url_for('exportar_finanzas') }}" class="btn btn-secondary">📥 Exportar CSV</a>
-        <button class="btn btn-primary" onclick="abrirModalGasto()">➕ Nuevo Gasto</button>
-    </div>
-</div>
-
-<div class="dashboard-grid">
-    <!-- Balances Globales -->
-    <div class="dash-card" style="grid-column: 1 / -1;">
-        <h3 class="dash-header">⚖️ Balances Globales</h3>
-        <div id="balances-container" style="display: flex; gap: 15px; flex-wrap: wrap; margin-top: 15px;">
-            <div class="loading">Cargando balances...</div>
-        </div>
-    </div>
-
-    <!-- Historial de Gastos -->
-    <div class="dash-card" style="grid-column: 1 / -1;">
-        <h3 class="dash-header">🧾 Historial de Movimientos</h3>
-        
-        <div class="table-responsive" style="margin-top: 10px;">
-            <table class="inventory-table">
-                <thead>
-                    <tr>
-                        <th>Fecha</th>
-                        <th>Concepto</th>
-                        <th>Pagador</th>
-                        <th>Total</th>
-                        <th>Acción</th>
-                    </tr>
-                </thead>
-                <tbody id="historial-gastos">
-                    <tr>
-                        <td colspan="5" style="text-align: center;">Cargando historial...</td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
-    </div>
-</div>
-
-
-<!-- Modal para Detalle de Gasto -->
-<div id="modal-detalle-gasto" class="modal" style="display: none;">
-    <div class="modal-content">
-        <span class="close" onclick="document.getElementById('modal-detalle-gasto').style.display='none'">&times;</span>
-        <h2>Detalle del Gasto</h2>
-        <div id="detalle-gasto-info" style="margin-bottom: 15px;"></div>
-        <table class="inventory-table" style="width: 100%; table-layout: fixed; word-wrap: break-word;">
-            <thead>
-                <tr>
-                    <th style="width: 50%;">Artículo</th>
-                    <th style="width: 15%;">Cant.</th>
-                    <th style="width: 15%;">Precio U.</th>
-                    <th style="width: 20%;">Subtotal</th>
-                </tr>
-            </thead>
-            <tbody id="detalle-gasto-tbody">
-            </tbody>
-        </table>
-        <div style="text-align: right; margin-top: 10px; font-size: 1.2em; font-weight: bold;">
-            Total: $<span id="detalle-gasto-total">0.00</span>
-        </div>
-    </div>
-</div>
-
-<!-- Modal para Gasto -->
-<div id="modal-gasto" class="modal" style="display: none;">
-    <div class="modal-content">
-        <span class="close" onclick="cerrarModalGasto()">&times;</span>
-        <h2>Añadir Gasto</h2>
-        
-        <div class="modal-tabs" style="display: flex; gap: 10px; margin-bottom: 15px;">
-            <button class="btn btn-primary" id="btn-tab-manual" onclick="setTabGasto('manual')">Carga Manual</button>
-            <button class="btn btn-secondary" id="btn-tab-ia" onclick="setTabGasto('ia')">Escáner IA (Ticket)</button>
-        </div>
-
-        <div id="tab-manual">
-            <form id="form-gasto">
-                <div class="form-group">
-                    <label>Concepto General (Ej: Supermercado Coto)</label>
-                    <input type="text" id="gasto-concepto" required>
-                </div>
-                
-                <hr style="margin: 15px 0; border: 0; border-top: 1px solid var(--border-color);">
-                <h4>🛒 Detalle de Artículos</h4>
-                
-                <div id="carrito-items" style="max-height: 200px; overflow-y: auto; margin-bottom: 10px; border: 1px solid var(--border-color); border-radius: 4px; padding: 10px; background: var(--bg-secondary);">
-                    <!-- Filas del carrito -->
-                </div>
-                
-                <div style="display: flex; gap: 10px; align-items: flex-end;">
-                    <div style="flex: 2;">
-                        <label>Artículo</label>
-                        <input type="text" id="item-desc" placeholder="Ej: Leche">
-                    </div>
-                    <div style="flex: 1;">
-                        <label>Cant.</label>
-                        <input type="number" id="item-cant" value="1" min="0.1" step="0.1">
-                    </div>
-                    <div style="flex: 1;">
-                        <label>Precio Unit.</label>
-                        <input type="number" id="item-precio" step="0.01">
-                    </div>
-                    <div>
-                        <button type="button" class="btn btn-secondary" onclick="agregarItemCarrito()" style="padding: 10px;">➕</button>
-                    </div>
-                </div>
-                
-                <div style="margin-top: 15px; text-align: right; font-size: 1.2em;">
-                    <strong>Total a Registrar: $<span id="gasto-monto-total">0.00</span></strong>
-                </div>
-
-                <div class="form-actions" style="margin-top: 20px;">
-                    <button type="submit" class="btn btn-primary">Registrar Gasto</button>
-                </div>
-            </form>
-        </div>
-
-        <div id="tab-ia" style="display: none;">
-            <p>Sube una foto clara del ticket y Gemini extraerá el monto y concepto.</p>
-            <div class="form-group">
-                <input type="file" id="ticket-file" accept="image/*">
-            </div>
-            <button class="btn btn-primary" id="btn-escanear-ia" onclick="escanearTicket()">Escanear Ticket</button>
-            <div id="ia-loading" style="display: none; margin-top: 10px;">Procesando con Gemini IA... ⏳</div>
-        </div>
-    </div>
-</div>
-
-<script>
     let carritoGastos = [];
-    let editandoGastoId = null;
     
     document.addEventListener("DOMContentLoaded", function() {
         cargarBalances();
@@ -149,7 +14,7 @@
             const container = document.getElementById('balances-container');
             container.innerHTML = '';
             if (data.length === 0) {
-                container.innerHTML = '<p style="color: var(--success-color); font-size: 0.9rem; margin-top: 10px;">¡Todo al día! No hay deudas.</p>';
+                container.innerHTML = '<p style=\"color: var(--success-color); font-size: 0.9rem; margin-top: 10px;\">¡Todo al día! No hay deudas.</p>';
                 return;
             }
             
@@ -164,14 +29,14 @@
                 li.style.padding = '5px 0';
                 li.style.borderBottom = '1px solid var(--border-color)';
                 li.innerHTML = `<strong>${b.deudor_nombre}</strong> debe a <strong>${b.acreedor_nombre}</strong>: 
-                                <span style="color: var(--danger-color); float: right; font-weight: bold;">$${b.monto.toFixed(2)}</span>`;
+                                <span style=\"color: var(--danger-color); float: right; font-weight: bold;\">$${b.monto.toFixed(2)}</span>`;
                 ul.appendChild(li);
             });
             container.appendChild(ul);
         })
         .catch(err => {
-            console.error("Error al cargar balances:", err);
-            document.getElementById('balances-container').innerHTML = '<p style="color: red;">Error cargando balances</p>';
+            console.error(\"Error al cargar balances:\", err);
+            document.getElementById('balances-container').innerHTML = '<p style=\"color: red;\">Error cargando balances</p>';
         });
     }
 
@@ -299,7 +164,6 @@
         carritoGastos = [];
         renderCarrito();
         document.getElementById('gasto-concepto').value = '';
-        editandoGastoId = null;
     }
 
     function setTabGasto(tab) {
@@ -369,7 +233,6 @@
         carritoGastos = [];
         renderCarrito();
         document.getElementById('gasto-concepto').value = '';
-        editandoGastoId = null;
     }
 
     document.getElementById('form-gasto').addEventListener('submit', function(e) {
@@ -383,11 +246,8 @@
             return;
         }
         
-        const url = editandoGastoId ? `/api/finanzas/gasto/${editandoGastoId}` : '/api/finanzas/gasto';
-        const method = editandoGastoId ? 'PUT' : 'POST';
-
-        fetch(url, {
-            method: method,
+        fetch('/api/finanzas/gasto', {
+            method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 descripcion: concepto,
@@ -407,47 +267,7 @@
             }
         })
         .catch(err => {
-            showToast("Error capturado: " + err.message, "error");
+            showToast("Error al procesar la solicitud", "error");
             console.error(err);
         });
     });
-
-    function editarGasto(index) {
-        const g = window.gastosData[index];
-        editandoGastoId = g.id;
-        document.getElementById('gasto-concepto').value = g.descripcion;
-        
-        carritoGastos = g.detalles ? g.detalles.map(d => ({
-            descripcion: d.descripcion,
-            cantidad: d.cantidad,
-            precio: d.precio_unitario
-        })) : [];
-        
-        renderCarrito();
-        document.getElementById('modal-gasto').style.display = 'block';
-    }
-
-    function eliminarGasto(index) {
-        const g = window.gastosData[index];
-        if (!confirm(`¿Seguro que deseas eliminar el gasto "${g.descripcion}"?`)) return;
-
-        fetch(`/api/finanzas/gasto/${g.id}`, {
-            method: 'DELETE'
-        })
-        .then(res => res.json())
-        .then(data => {
-            if (data.success) {
-                showToast(data.mensaje, "success");
-                cargarBalances();
-                cargarHistorialGastos();
-            } else {
-                showToast(data.error || "Error al eliminar gasto", "error");
-            }
-        })
-        .catch(err => {
-            console.error(err);
-            showToast("Error de red al eliminar", "error");
-        });
-    }
-</script>
-{% endblock %}

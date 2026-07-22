@@ -57,11 +57,16 @@ if GEMINI_API_KEY:
 TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID', '')
 ADMIN_CHAT_ID = os.getenv('ADMIN_CHAT_ID', TELEGRAM_GROUP_ID)
 
+from telebot import apihelper
+apihelper.READ_TIMEOUT = 120
+apihelper.CONNECT_TIMEOUT = 120
+
 bot = telebot.TeleBot(TELEGRAM_TOKEN) if TELEGRAM_TOKEN else None
 CHAT_ID = TELEGRAM_CHAT_ID
 
 pending_voice_commands = {}
 recent_transactions = {}
+pending_ocr_confirmations = {}  # {chat_id: {usuario_id, monto_total, descripcion}}
 
 # ==========================================
 # 2. MODELOS DE BASE DE DATOS
@@ -313,6 +318,16 @@ class Gasto(db.Model):
     
     pagador = db.relationship('Usuario', backref='gastos_pagados')
     divisiones = db.relationship('DivisionGasto', backref='rel_gasto', cascade='all, delete-orphan')
+    detalles = db.relationship('DetalleGasto', backref='rel_gasto', cascade='all, delete-orphan')
+
+
+class DetalleGasto(db.Model):
+    __tablename__ = 'detalle_gastos'
+    id = db.Column(db.Integer, primary_key=True)
+    gasto_id = db.Column(db.Integer, db.ForeignKey('gastos.id'), nullable=False)
+    descripcion = db.Column(db.String(200), nullable=False)
+    cantidad = db.Column(db.Float, default=1.0)
+    precio_unitario = db.Column(db.Float, nullable=False)
 
 class DivisionGasto(db.Model):
     __tablename__ = 'division_gastos'
@@ -1146,8 +1161,6 @@ if bot:
             else:
                 safe_telegram_reply(message, "Token inválido o expirado. Genera uno nuevo en la web.")
 
-        pending_ocr_confirmations = {}
-
     @bot.message_handler(commands=['balance'])
     def handle_balance(message):
         if not is_authorized(message.chat.id): return
@@ -1164,75 +1177,125 @@ if bot:
 
     @bot.message_handler(content_types=['photo', 'document'])
     def handle_photo(message):
-        if not is_authorized(message.chat.id): return
-        
-        if not GEMINI_API_KEY:
-            safe_telegram_reply(message, "❌ Gemini no está configurado para leer tickets. Sube el gasto manualmente en la web.")
-            return
-            
+        chat_id = message.chat.id
+
+        # Feedback inmediato ANTES de cualquier proceso pesado
         try:
-            usuario = get_usuario_por_chat(message.chat.id)
-            if not usuario:
-                safe_telegram_reply(message, "❌ No encuentro tu usuario en el sistema.")
-                return
-                
-            safe_telegram_reply(message, "📸 Recibí el ticket. Analizando con IA, dame unos segundos...")
-            
-            if message.content_type == 'photo':
-                file_id = message.photo[-1].file_id
-            else:
-                file_id = message.document.file_id
-                
-            file_info = bot.get_file(file_id)
-            downloaded_file = bot.download_file(file_info.file_path)
-            
-            import tempfile
-            import os
-            
-            with tempfile.NamedTemporaryFile(delete=False, suffix='.jpg') as temp_file:
-                temp_file.write(downloaded_file)
-                temp_file_path = temp_file.name
-                
+            bot.send_message(chat_id, '📸 Recibí el ticket. Analizando con IA, dame unos segundos...')
+        except Exception as send_err:
+            print(f'[handle_photo] No pude enviar ACK: {send_err}')
+
+        if not GEMINI_API_KEY:
             try:
-                model = genai.GenerativeModel('gemini-1.5-flash')
-                imagen_gemini = genai.upload_file(temp_file_path)
-                
-                prompt = "Eres un asistente contable. Analiza este ticket/factura y devuelve EXCLUSIVAMENTE un JSON con tres claves: 'descripcion' (resumen de la compra en 3-4 palabras), 'monto_total' (numero float, el total final pagado), e 'items' (lista de productos si es legible). No uses markdown ni texto adicional."
-                response = model.generate_content([prompt, imagen_gemini])
-                
-                resultado_str = response.text.strip()
-                if resultado_str.startswith('```json'):
-                    resultado_str = resultado_str.replace('```json', '').replace('```', '').strip()
-                elif resultado_str.startswith('```'):
-                    resultado_str = resultado_str.replace('```', '').strip()
-                    
-                resultado = json.loads(resultado_str)
-                monto_total = float(resultado.get('monto_total', 0))
-                descripcion = resultado.get('descripcion', 'Ticket')
-                
-                if monto_total <= 0:
-                    safe_telegram_reply(message, "❌ No pude detectar un monto válido en el ticket.")
+                bot.send_message(chat_id, '❌ Gemini no está configurado. Sube el gasto manualmente en la web.')
+            except Exception:
+                pass
+            return
+
+        try:
+            with app.app_context():
+                # Buscar usuario (reemplaza la función inexistente get_usuario_por_chat)
+                usuario = Usuario.query.filter_by(telegram_chat_id=str(chat_id)).first()
+                if not usuario:
+                    bot.send_message(chat_id, '❌ Tu cuenta no está vinculada. Usá /vincular <token> para conectarla.')
                     return
+
+                # Descargar la imagen de Telegram
+                if message.content_type == 'photo':
+                    file_id = message.photo[-1].file_id
+                else:
+                    file_id = message.document.file_id
+
+                file_info = bot.get_file(file_id)
+                downloaded_file = bot.download_file(file_info.file_path)
+
+                import tempfile
+                import os
+
+                with tempfile.NamedTemporaryFile(delete=False, suffix='.jpg') as temp_file:
+                    temp_file.write(downloaded_file)
+                    temp_file_path = temp_file.name
+
+                try:
+                    # Enviar la imagen directamente en linea (bypass de la API de archivos que causa timeout)
+                    with open(temp_file_path, 'rb') as img_f:
+                        img_data = img_f.read()
+                        
+                    imagen_gemini = {
+                        'mime_type': 'image/jpeg',
+                        'data': img_data
+                    }
                     
-                pending_ocr_confirmations[message.chat.id] = {
-                    'usuario_id': usuario.id,
-                    'monto_total': monto_total,
-                    'descripcion': descripcion
-                }
-                
-                markup = InlineKeyboardMarkup()
-                markup.add(
-                    InlineKeyboardButton("✅ Sí, dividir", callback_data="ocr_div_si"),
-                    InlineKeyboardButton("❌ Cancelar", callback_data="ocr_div_no")
-                )
-                safe_telegram_reply(message, f"🧾 <b>Ticket detectado</b>\n\nConcepto: {descripcion}\nTotal: ${monto_total}\n\n¿Se divide en partes iguales entre todos los usuarios activos?", reply_markup=markup, parse_mode='HTML')
-                
-            finally:
-                if os.path.exists(temp_file_path):
-                    os.remove(temp_file_path)
-            
+                    model = genai.GenerativeModel('gemini-3.5-flash')
+
+                    prompt = (
+                        "Eres un asistente contable. Analiza este ticket/factura y devuelve "
+                        "EXCLUSIVAMENTE un JSON con tres claves: 'descripcion' (resumen de la "
+                        "compra en 3-4 palabras), 'monto_total' (numero float, el total final "
+                        "pagado), e 'items' (un array de objetos donde cada objeto tiene 'nombre', 'cantidad' y 'precio_unitario'). "
+                        "No uses markdown ni texto adicional."
+                    )
+                    response = model.generate_content(
+                        [prompt, imagen_gemini],
+                        request_options={"timeout": 120}
+                    )
+
+                    resultado_str = response.text.strip()
+                    if resultado_str.startswith('```json'):
+                        resultado_str = resultado_str.replace('```json', '').replace('```', '').strip()
+                    elif resultado_str.startswith('```'):
+                        resultado_str = resultado_str.replace('```', '').strip()
+
+                    resultado = json.loads(resultado_str)
+                    monto_total = float(resultado.get('monto_total', 0))
+                    descripcion = resultado.get('descripcion', 'Ticket')
+
+                    if monto_total <= 0:
+                        bot.send_message(chat_id, '❌ No pude detectar un monto válido. Verificá la foto e intentá de nuevo.')
+                        return
+
+                    pending_ocr_confirmations[chat_id] = {
+                        'usuario_id': usuario.id,
+                        'monto_total': monto_total,
+                        'descripcion': descripcion
+                    }
+
+                    # Formatear el detalle de items
+                    items_str = ""
+                    items_list = resultado.get('items', [])
+                    if items_list and isinstance(items_list, list):
+                        for item in items_list:
+                            cant = item.get('cantidad', 1)
+                            nombre = item.get('nombre', 'Producto')
+                            precio = item.get('precio_unitario', 0)
+                            items_str += f"- {cant}x {nombre} (${precio})\n"
+                    else:
+                        items_str = "(No se detectaron items individuales)\n"
+
+                    markup = InlineKeyboardMarkup()
+                    markup.row(InlineKeyboardButton('👥 Dividir entre todos', callback_data='ocr_div_todos'))
+                    markup.row(InlineKeyboardButton('🙋‍♂️ Solo mío (no dividir)', callback_data='ocr_div_mio'))
+                    markup.row(InlineKeyboardButton('❌ Cancelar', callback_data='ocr_div_no'))
+                    
+                    bot.send_message(
+                        chat_id,
+                        f'🧾 <b>Detalle del Ticket</b>\n\n{items_str}\n<b>Total a pagar: ${monto_total}</b>\n\n¿Cómo querés registrar este gasto?',
+                        reply_markup=markup,
+                        parse_mode='HTML'
+                    )
+
+                finally:
+                    if os.path.exists(temp_file_path):
+                        os.remove(temp_file_path)
+
         except Exception as e:
-            safe_telegram_reply(message, f"❌ Falló la lectura: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            print(f'[handle_photo] Error: {e}')
+            try:
+                bot.send_message(chat_id, f'❌ Falló la lectura: {str(e)}')
+            except Exception:
+                pass
 
     @bot.message_handler(commands=['comprado'])
     def handle_comprado(message):
@@ -1861,7 +1924,15 @@ def eliminar_modelo(id_modelo):
     modelo = ModeloTarea.query.get_or_404(id_modelo)
     
     # Unlink instantiated tasks instead of deleting them
-    Tarea.query.filter_by(modelo_id=modelo.id).update({'modelo_id': None})
+    # Eliminar las tareas futuras (no completadas)
+    tareas_futuras = Tarea.query.filter_by(modelo_id=modelo.id, completada=False).all()
+    for t in tareas_futuras:
+        HistorialTarea.query.filter_by(tarea_id=t.id).delete()
+        SaltoTarea.query.filter_by(tarea_id=t.id).delete()
+        db.session.delete(t)
+    
+    # Desvincular las tareas completadas (historial)
+    Tarea.query.filter_by(modelo_id=modelo.id, completada=True).update({'modelo_id': None})
     
     db.session.delete(modelo)
     db.session.commit()
@@ -2600,16 +2671,48 @@ def enviar_resumen_matutino():
         
         enviar_al_grupo(mensaje, reply_markup=markup)
 
+def _pid_vivo(pid):
+    """Devuelve True si el PID todavia esta corriendo en este sistema."""
+    try:
+        import ctypes
+        handle = ctypes.windll.kernel32.OpenProcess(0x0400, False, int(pid))
+        if handle == 0:
+            return False
+        ctypes.windll.kernel32.CloseHandle(handle)
+        return True
+    except Exception:
+        return False
+
+def cleanup_pending_commands():
+    """Limpia los comandos pendientes que quedaron huerfanos."""
+    global pending_voice_commands, pending_ocr_confirmations
+    # Como no guardamos timestamp, limpiamos de forma general
+    pending_voice_commands.clear()
+    pending_ocr_confirmations.clear()
+
 def start_background_tasks():
-    # Previene ejecuciones múltiples usando un archivo de bloqueo o variable de entorno
-    if not os.path.exists(LOCK_FILE):
+    # Previene ejecuciones multiples usando un archivo de bloqueo con PID
+    lock_activo = False
+    if os.path.exists(LOCK_FILE):
+        try:
+            pid_guardado = open(LOCK_FILE).read().strip()
+            if _pid_vivo(pid_guardado):
+                lock_activo = True
+            else:
+                # Lock stale (proceso muerto): lo borramos
+                print(f"[Bot] Lock stale (PID {pid_guardado} no existe). Limpiando y reiniciando...")
+                os.remove(LOCK_FILE)
+        except Exception:
+            os.remove(LOCK_FILE)
+
+    if not lock_activo:
         try:
             with open(LOCK_FILE, "w") as f:
                 f.write(str(os.getpid()))
-                
-            print(f"Worker {os.getpid()} está iniciando hilos de fondo...")
+
+            print(f"Worker {os.getpid()} esta iniciando hilos de fondo...")
             threading.Thread(target=iniciar_bot, daemon=True).start()
-            
+
             # APScheduler con zona horaria America/Argentina/Buenos_Aires
             tz = pytz.timezone('America/Argentina/Buenos_Aires')
             scheduler = BackgroundScheduler(timezone=tz)
@@ -2637,15 +2740,73 @@ def logistica_page():
 @app.route('/api/logistica/eventos', methods=['GET'])
 @login_required
 def api_logistica_get():
+    from dateutil.rrule import rrule, DAILY, WEEKLY, MONTHLY, YEARLY
+    from dateutil import parser
+    
+    start_str = request.args.get('start')
+    end_str = request.args.get('end')
+    
+    try:
+        start_date = parser.isoparse(start_str).replace(tzinfo=None) if start_str else None
+        end_date = parser.isoparse(end_str).replace(tzinfo=None) if end_str else None
+    except:
+        start_date = None
+        end_date = None
+
     eventos = EventoLogistico.query.all()
     result = []
+    
     for ev in eventos:
-        result.append({
+        color = '#6f42c1' # Purple default
+        
+        # Build base event
+        base_event = {
             'id': ev.id,
-            'title': ev.titulo,
-            'start': ev.fecha_inicio.isoformat(),
-            'end': ev.fecha_fin.isoformat() if ev.fecha_fin else None
-        })
+            'title': ev.titulo if not ev.asignado else f"{ev.titulo} ({ev.asignado.username})",
+            'backgroundColor': color,
+            'borderColor': color
+        }
+        
+        if ev.frecuencia == 'none' or not ev.frecuencia:
+            # Not recurring, just check if within bounds
+            if start_date and end_date:
+                if ev.fecha_inicio >= end_date or (ev.fecha_fin and ev.fecha_fin <= start_date):
+                    continue
+            
+            ev_dict = base_event.copy()
+            ev_dict['start'] = ev.fecha_inicio.isoformat()
+            if ev.fecha_fin: ev_dict['end'] = ev.fecha_fin.isoformat()
+            result.append(ev_dict)
+        else:
+            # Recurring event
+            freq_map = {
+                'diaria': DAILY,
+                'semanal': WEEKLY,
+                'mensual': MONTHLY,
+                'anual': YEARLY
+            }
+            if ev.frecuencia in freq_map:
+                try:
+                    # RRule until end_date (or max 1 year if no end bounds)
+                    until_date = end_date if end_date else (ev.fecha_inicio + timedelta(days=365))
+                    rule = rrule(freq_map[ev.frecuencia], dtstart=ev.fecha_inicio, until=until_date)
+                    
+                    duration = None
+                    if ev.fecha_fin:
+                        duration = ev.fecha_fin - ev.fecha_inicio
+                        
+                    for dt in rule:
+                        if start_date and dt < start_date:
+                            continue
+                            
+                        ev_dict = base_event.copy()
+                        ev_dict['start'] = dt.isoformat()
+                        if duration:
+                            ev_dict['end'] = (dt + duration).isoformat()
+                        result.append(ev_dict)
+                except Exception as e:
+                    pass
+                    
     return jsonify(result)
 
 @app.route('/api/logistica/eventos', methods=['POST'])
@@ -2669,7 +2830,9 @@ def api_logistica_post():
             titulo=data['title'],
             fecha_inicio=f_inicio,
             fecha_fin=f_fin,
-            creador_id=current_user.id
+            creador_id=current_user.id,
+            frecuencia=data.get('frecuencia', 'none'),
+            asignado_id=data.get('asignado_id') if data.get('asignado_id') else None
         )
         db.session.add(nuevo_evento)
         db.session.commit()
@@ -2736,9 +2899,19 @@ def agregar_gasto_api():
         data = request.json
         descripcion = data.get('descripcion')
         monto_total = float(data.get('monto_total', 0))
-        deudores_ids = data.get('deudores_ids', []) # Lista de IDs de usuarios que deben pagar
+        deudores_ids = data.get('deudores_ids', [])
+        if not deudores_ids:
+            todos_usuarios = Usuario.query.all()
+            deudores_ids = [u.id for u in todos_usuarios]
 
-        if not descripcion or monto_total <= 0 or not deudores_ids:
+        items = data.get('items', [])
+
+        if items:
+            monto_calculado = sum(float(i.get('cantidad', 1)) * float(i.get('precio', 0)) for i in items)
+            if monto_calculado > 0:
+                monto_total = monto_calculado
+
+        if not descripcion or monto_total <= 0:
             return jsonify({'success': False, 'error': 'Faltan datos obligatorios o monto inválido.'}), 400
 
         nuevo_gasto = Gasto(
@@ -2749,6 +2922,16 @@ def agregar_gasto_api():
         )
         db.session.add(nuevo_gasto)
         db.session.flush()
+
+        if items:
+            for item in items:
+                det = DetalleGasto(
+                    gasto_id=nuevo_gasto.id,
+                    descripcion=item.get('descripcion', 'Sin descripción'),
+                    cantidad=float(item.get('cantidad', 1)),
+                    precio_unitario=float(item.get('precio', 0))
+                )
+                db.session.add(det)
 
         monto_por_persona = monto_total / len(deudores_ids)
 
@@ -2764,9 +2947,116 @@ def agregar_gasto_api():
             db.session.add(div)
 
         db.session.commit()
-        return jsonify({'success': True}), 200
+        return jsonify({'success': True, 'mensaje': 'Gasto registrado correctamente.'})
     except Exception as e:
-        print(f"Error agregando gasto API: {e}")
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/finanzas/gastos', methods=['GET'])
+@login_required
+def obtener_gastos_api():
+    try:
+        gastos = Gasto.query.order_by(Gasto.fecha.desc(), Gasto.id.desc()).all()
+        res = []
+        for g in gastos:
+            detalles = []
+            for d in g.detalles:
+                detalles.append({
+                    'descripcion': d.descripcion,
+                    'cantidad': d.cantidad,
+                    'precio_unitario': d.precio_unitario,
+                    'subtotal': d.cantidad * d.precio_unitario
+                })
+            res.append({
+                'id': g.id,
+                'fecha': g.fecha.strftime('%Y-%m-%d'),
+                'descripcion': g.descripcion,
+                'pagador': g.pagador.username if g.pagador else 'Desconocido',
+                'monto': g.monto,
+                'detalles': detalles
+            })
+        return jsonify(res)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/finanzas/gasto/<int:gasto_id>', methods=['DELETE'])
+@login_required
+def eliminar_gasto_api(gasto_id):
+    try:
+        gasto = Gasto.query.get(gasto_id)
+        if not gasto:
+            return jsonify({'success': False, 'error': 'Gasto no encontrado'}), 404
+        
+        db.session.delete(gasto)
+        db.session.commit()
+        return jsonify({'success': True, 'mensaje': 'Gasto eliminado correctamente'})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/finanzas/gasto/<int:gasto_id>', methods=['PUT'])
+@login_required
+def editar_gasto_api(gasto_id):
+    try:
+        gasto = Gasto.query.get(gasto_id)
+        if not gasto:
+            return jsonify({'success': False, 'error': 'Gasto no encontrado'}), 404
+
+        data = request.json
+        descripcion = data.get('descripcion')
+        monto_total = float(data.get('monto_total', 0))
+        deudores_ids = data.get('deudores_ids', [])
+        if not deudores_ids:
+            todos_usuarios = Usuario.query.all()
+            deudores_ids = [u.id for u in todos_usuarios]
+
+        items = data.get('items', [])
+        if items:
+            monto_calculado = sum(float(i.get('cantidad', 1)) * float(i.get('precio', 0)) for i in items)
+            if monto_calculado > 0:
+                monto_total = monto_calculado
+
+        if not descripcion or monto_total <= 0:
+            return jsonify({'success': False, 'error': 'Faltan datos obligatorios o monto inválido.'}), 400
+
+        # Update base Gasto
+        gasto.descripcion = descripcion
+        gasto.monto = monto_total
+
+        # Clear existing relations
+        DetalleGasto.query.filter_by(gasto_id=gasto_id).delete()
+        DivisionGasto.query.filter_by(gasto_id=gasto_id).delete()
+        db.session.flush()
+
+        # Add new DetalleGasto
+        if items:
+            for item in items:
+                det = DetalleGasto(
+                    gasto_id=gasto.id,
+                    descripcion=item.get('descripcion', 'Sin descripción'),
+                    cantidad=float(item.get('cantidad', 1)),
+                    precio_unitario=float(item.get('precio', 0))
+                )
+                db.session.add(det)
+
+        # Add new DivisionGasto
+        monto_por_persona = monto_total / len(deudores_ids)
+        for u_id_str in deudores_ids:
+            u_id = int(u_id_str)
+            esta_pagado = (u_id == gasto.usuario_id)
+            div = DivisionGasto(
+                gasto_id=gasto.id,
+                usuario_id=u_id,
+                monto_adeudado=monto_por_persona,
+                esta_pagado=esta_pagado
+            )
+            db.session.add(div)
+
+        db.session.commit()
+        return jsonify({'success': True, 'mensaje': 'Gasto actualizado correctamente.'})
+    except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'error': str(e)}), 500
 
@@ -2777,6 +3067,63 @@ def finanzas_balances():
         balances = calcular_balances_globales()
         return jsonify(balances), 200
     except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/menus/manual', methods=['POST'])
+@login_required
+def agregar_menu_manual():
+    try:
+        data = request.json
+        dia_semana = data.get('dia_semana')
+        tipo_comida = data.get('tipo_comida')
+        nombre = data.get('nombre')
+        
+        if not dia_semana or not tipo_comida or not nombre:
+            return jsonify({'error': 'Faltan datos (día, tipo, nombre).'}), 400
+            
+        # Buscar receta o crear nueva
+        receta = Receta.query.filter(Receta.nombre.ilike(f"%{nombre}%")).first()
+        if not receta:
+            receta = Receta(nombre=nombre, tipo=tipo_comida, es_rapida=True)
+            db.session.add(receta)
+            db.session.flush()
+            
+        # Calcular la fecha del dia de la semana (semana actual)
+        dias_es = {'Lunes':0, 'Martes':1, 'Miércoles':2, 'Jueves':3, 'Viernes':4, 'Sábado':5, 'Domingo':6}
+        if dia_semana not in dias_es:
+            return jsonify({'error': 'Día de la semana inválido.'}), 400
+            
+        hoy = date.today()
+        # Lunes es 0, Domingo es 6
+        dia_actual_idx = hoy.weekday()
+        target_idx = dias_es[dia_semana]
+        delta = target_idx - dia_actual_idx
+        fecha_asignada = hoy + timedelta(days=delta)
+        
+        # Opcional: Eliminar comida anterior si existe en ese turno
+        existente = MenuSemanal.query.filter_by(
+            dia_semana=dia_semana, 
+            tipo_comida=tipo_comida, 
+            fecha_asignada=fecha_asignada
+        ).first()
+        
+        if existente:
+            db.session.delete(existente)
+            db.session.flush()
+            
+        nuevo_menu = MenuSemanal(
+            dia_semana=dia_semana,
+            tipo_comida=tipo_comida,
+            receta_id=receta.id,
+            fecha_asignada=fecha_asignada
+        )
+        db.session.add(nuevo_menu)
+        db.session.commit()
+        
+        return jsonify({'success': True, 'mensaje': 'Comida agregada al calendario.'})
+    except Exception as e:
+        db.session.rollback()
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/finanzas/exportar', methods=['GET'])
@@ -2843,18 +3190,6 @@ def menus_page():
 @login_required
 def api_horarios_get():
     horarios = HorarioComidas.query.all()
-    # Si no hay, crear defaults
-    if not horarios:
-        defaults = [
-            HorarioComidas(tipo_comida='Desayuno', hora_inicio=datetime.strptime('06:00', '%H:%M').time(), hora_fin=datetime.strptime('11:00', '%H:%M').time()),
-            HorarioComidas(tipo_comida='Almuerzo', hora_inicio=datetime.strptime('11:00', '%H:%M').time(), hora_fin=datetime.strptime('15:00', '%H:%M').time()),
-            HorarioComidas(tipo_comida='Merienda', hora_inicio=datetime.strptime('15:00', '%H:%M').time(), hora_fin=datetime.strptime('19:00', '%H:%M').time()),
-            HorarioComidas(tipo_comida='Cena', hora_inicio=datetime.strptime('19:00', '%H:%M').time(), hora_fin=datetime.strptime('23:59', '%H:%M').time())
-        ]
-        db.session.bulk_save_objects(defaults)
-        db.session.commit()
-        horarios = HorarioComidas.query.all()
-        
     res = []
     for h in horarios:
         res.append({
@@ -2909,6 +3244,65 @@ def menus_sugerir_rapida():
     sugerida = random.choice(rapidas)
     return jsonify({'id': sugerida.id, 'nombre': sugerida.nombre, 'tipo': sugerida.tipo, 'es_rapida': sugerida.es_rapida})
 
+@app.route('/api/menus/<int:menu_id>', methods=['DELETE'])
+@login_required
+def eliminar_menu_api(menu_id):
+    try:
+        menu = MenuSemanal.query.get(menu_id)
+        if not menu:
+            return jsonify({'success': False, 'error': 'Menú no encontrado'}), 404
+        
+        db.session.delete(menu)
+        db.session.commit()
+        return jsonify({'success': True, 'mensaje': 'Comida eliminada correctamente'})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/menus/<int:menu_id>', methods=['PUT'])
+@login_required
+def editar_menu_api(menu_id):
+    try:
+        menu = MenuSemanal.query.get(menu_id)
+        if not menu:
+            return jsonify({'success': False, 'error': 'Menú no encontrado'}), 404
+
+        data = request.json
+        dia_semana = data.get('dia_semana')
+        tipo_comida = data.get('tipo_comida')
+        nombre = data.get('nombre')
+
+        if not dia_semana or not tipo_comida or not nombre:
+            return jsonify({'error': 'Faltan datos (día, tipo, nombre).'}), 400
+
+        # Buscar receta o crear nueva
+        receta = Receta.query.filter(Receta.nombre.ilike(f"%{nombre}%")).first()
+        if not receta:
+            receta = Receta(nombre=nombre, tipo=tipo_comida, es_rapida=True)
+            db.session.add(receta)
+            db.session.flush()
+
+        dias_es = {'Lunes':0, 'Martes':1, 'Miércoles':2, 'Jueves':3, 'Viernes':4, 'Sábado':5, 'Domingo':6}
+        if dia_semana not in dias_es:
+            return jsonify({'error': 'Día de la semana inválido.'}), 400
+
+        hoy = date.today()
+        dia_actual_idx = hoy.weekday()
+        target_idx = dias_es[dia_semana]
+        delta = target_idx - dia_actual_idx
+        fecha_asignada = hoy + timedelta(days=delta)
+
+        menu.dia_semana = dia_semana
+        menu.tipo_comida = tipo_comida
+        menu.receta_id = receta.id
+        menu.fecha_asignada = fecha_asignada
+
+        db.session.commit()
+        return jsonify({'success': True, 'mensaje': 'Comida actualizada correctamente.'})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 @app.route('/api/menus/semana/duplicar', methods=['POST'])
 @login_required
 def menus_duplicar():
@@ -2949,7 +3343,12 @@ def api_menus_get():
             'title': f"[{m.tipo_comida}] {m.receta.nombre}",
             'start': m.fecha_asignada.isoformat(),
             'allDay': True,
-            'color': 'var(--success-color)' if m.tipo_comida == 'Almuerzo' else 'var(--primary-color)'
+            'color': 'var(--success-color)' if m.tipo_comida == 'Almuerzo' else 'var(--primary-color)',
+            'extendedProps': {
+                'tipo_comida': m.tipo_comida,
+                'nombre': m.receta.nombre,
+                'dia_semana': m.dia_semana
+            }
         })
     return jsonify(result)
 

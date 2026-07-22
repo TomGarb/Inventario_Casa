@@ -4,6 +4,7 @@
 <div class="view-header">
     <h2>🍽️ Planificador de Menús</h2>
     <div class="header-actions">
+        <button class="btn btn-primary" onclick="abrirModalComidaManual()">➕ Comida Manual</button>
         <button class="btn btn-secondary" onclick="abrirModalHorarios()">⚙️ Horarios</button>
         <button class="btn btn-primary" onclick="duplicarMenuSemanaPasada()">🔁 Repetir semana pasada</button>
     </div>
@@ -24,8 +25,51 @@
     </div>
 </div>
 
+
+<!-- Modal Comida Manual -->
+<div id="modal-comida-manual" class="modal" style="display: none;">
+    <div class="modal-content">
+        <span class="close" onclick="cerrarModalComidaManual()">&times;</span>
+        <h2>➕ Añadir Comida Manual</h2>
+        <form id="form-comida-manual">
+            <div class="form-group" style="display: flex; align-items: center; gap: 10px; margin-bottom: 15px;">
+                <input type="checkbox" id="manual-todos-dias" style="width: auto; cursor: pointer;" onchange="document.getElementById('manual-dia').disabled = this.checked;">
+                <label for="manual-todos-dias" style="margin: 0; cursor: pointer;">Aplicar a todos los días de la semana</label>
+            </div>
+            <div class="form-group">
+                <label>Día de la semana</label>
+                <select id="manual-dia" required>
+                    <option value="Lunes">Lunes</option>
+                    <option value="Martes">Martes</option>
+                    <option value="Miércoles">Miércoles</option>
+                    <option value="Jueves">Jueves</option>
+                    <option value="Viernes">Viernes</option>
+                    <option value="Sábado">Sábado</option>
+                    <option value="Domingo">Domingo</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Momento del día</label>
+                <select id="manual-tipo" required>
+                    <option value="Desayuno">Desayuno</option>
+                    <option value="Almuerzo">Almuerzo</option>
+                    <option value="Merienda">Merienda</option>
+                    <option value="Cena">Cena</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Nombre de la comida (Ej: Milanesas con puré)</label>
+                <input type="text" id="manual-nombre" required>
+            </div>
+            <div class="form-actions" style="margin-top: 20px;">
+                <button type="submit" class="btn btn-primary">Guardar Comida</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <!-- Modal Horarios -->
-<div id="modal-horarios" class="modal">
+<div id="modal-horarios" class="modal" style="display: none;">
     <div class="modal-content">
         <span class="close" onclick="cerrarModalHorarios()">&times;</span>
         <h2>Configuración de Horarios de Comida</h2>
@@ -41,6 +85,20 @@
     </div>
 </div>
 
+
+<!-- Modal Detalle Menu -->
+<div id="modal-detalle-menu" class="modal" style="display: none;">
+    <div class="modal-content">
+        <span class="close" onclick="cerrarModalDetalleMenu()">&times;</span>
+        <h2>🍽️ Detalle de Comida</h2>
+        <div id="detalle-menu-info" style="margin-bottom: 20px; font-size: 1.1em; line-height: 1.5;"></div>
+        <div class="form-actions" style="display: flex; gap: 10px;">
+            <button class="btn btn-primary" onclick="editarMenuSeleccionado()">✏️ Editar</button>
+            <button class="btn btn-danger" onclick="eliminarMenuSeleccionado()">🗑️ Eliminar</button>
+        </div>
+    </div>
+</div>
+
 {% endblock %}
 
 {% block scripts %}
@@ -50,6 +108,9 @@
 <script>
     let calendarMenus;
     let horariosCargados = [];
+    let editandoMenuId = null;
+    let menuSeleccionadoId = null;
+    let menuSeleccionadoData = null;
 
     document.addEventListener("DOMContentLoaded", function() {
         var calendarEl = document.getElementById('calendar-menus');
@@ -64,6 +125,22 @@
             events: '/api/menus/eventos',
             themeSystem: 'standard',
             height: 'auto',
+            eventClick: function(info) {
+                const event = info.event;
+                menuSeleccionadoId = event.id;
+                menuSeleccionadoData = event.extendedProps;
+                
+                const props = event.extendedProps;
+                const dateStr = event.start.toLocaleDateString('es-AR', {weekday: 'long', day: '2-digit', month: '2-digit'});
+                
+                document.getElementById('detalle-menu-info').innerHTML = `
+                    <strong>Fecha:</strong> ${dateStr} <br>
+                    <strong>Día:</strong> ${props.dia_semana} <br>
+                    <strong>Tipo:</strong> ${props.tipo_comida} <br>
+                    <strong>Comida:</strong> ${props.nombre}
+                `;
+                document.getElementById('modal-detalle-menu').style.display = 'block';
+            },
             eventsSet: function(events) {
                 const lista = document.getElementById('agenda-comidas');
                 lista.innerHTML = '';
@@ -94,6 +171,163 @@
         document.getElementById('form-horarios').addEventListener('submit', function(e) {
             e.preventDefault();
             guardarHorarios();
+        });
+    });
+
+    
+    
+    function cerrarModalDetalleMenu() {
+        document.getElementById('modal-detalle-menu').style.display = 'none';
+        menuSeleccionadoId = null;
+        menuSeleccionadoData = null;
+    }
+
+    function editarMenuSeleccionado() {
+        if (!menuSeleccionadoId || !menuSeleccionadoData) return;
+        
+        // Cargar datos en el form
+        editandoMenuId = menuSeleccionadoId;
+        document.getElementById('manual-dia').value = menuSeleccionadoData.dia_semana;
+        document.getElementById('manual-tipo').value = menuSeleccionadoData.tipo_comida;
+        document.getElementById('manual-nombre').value = menuSeleccionadoData.nombre;
+        
+        // Permitir la opcion de 'todos los dias' al editar
+        if(document.getElementById('manual-todos-dias')) {
+            document.getElementById('manual-todos-dias').checked = false;
+            document.getElementById('manual-todos-dias').disabled = false;
+            document.getElementById('manual-dia').disabled = false;
+        }
+
+        cerrarModalDetalleMenu();
+        document.getElementById('modal-comida-manual').style.display = 'block';
+    }
+
+    function eliminarMenuSeleccionado() {
+        if (!menuSeleccionadoId) return;
+        if (!confirm('¿Seguro que deseas eliminar esta comida del planificador?')) return;
+
+        fetch(`/api/menus/${menuSeleccionadoId}`, {
+            method: 'DELETE'
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                showToast(data.mensaje, "success");
+                cerrarModalDetalleMenu();
+                if (calendarMenus) calendarMenus.refetchEvents();
+            } else {
+                showToast(data.error || "Error", "error");
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            showToast("Error de red", "error");
+        });
+    }
+
+    function abrirModalComidaManual() {
+        editandoMenuId = null; // Ensure we are not in edit mode
+        if(document.getElementById('manual-todos-dias')) {
+            document.getElementById('manual-todos-dias').disabled = false;
+        }
+        document.getElementById('modal-comida-manual').style.display = 'block';
+    }
+
+
+    function cerrarModalComidaManual() {
+        document.getElementById('modal-comida-manual').style.display = 'none';
+        document.getElementById('form-comida-manual').reset();
+        if(document.getElementById('manual-todos-dias')) {
+            document.getElementById('manual-todos-dias').checked = false;
+        }
+        if(document.getElementById('manual-dia')) {
+            document.getElementById('manual-dia').disabled = false;
+        }
+    }
+
+    document.getElementById('form-comida-manual').addEventListener('submit', function(e) {
+        e.preventDefault();
+        const dia = document.getElementById('manual-dia').value;
+        const tipo = document.getElementById('manual-tipo').value;
+        const nombre = document.getElementById('manual-nombre').value;
+        const todosDias = document.getElementById('manual-todos-dias') ? document.getElementById('manual-todos-dias').checked : false;
+
+        const dias = todosDias ? ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"] : [dia];
+
+        let promesas = [];
+        if (editandoMenuId) {
+            // Edit mode
+            if (todosDias) {
+                // PUT the current one to the FIRST day in the list, and POST the other 6
+                promesas.push(
+                    fetch(`/api/menus/${editandoMenuId}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            dia_semana: dias[0],
+                            tipo_comida: tipo,
+                            nombre: nombre
+                        })
+                    }).then(res => res.json())
+                );
+                dias.slice(1).forEach(d => {
+                    promesas.push(
+                        fetch('/api/menus/manual', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                dia_semana: d,
+                                tipo_comida: tipo,
+                                nombre: nombre
+                            })
+                        }).then(res => res.json())
+                    );
+                });
+            } else {
+                // single day edit
+                promesas.push(
+                    fetch(`/api/menus/${editandoMenuId}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            dia_semana: dia,
+                            tipo_comida: tipo,
+                            nombre: nombre
+                        })
+                    }).then(res => res.json())
+                );
+            }
+        } else {
+            // Create mode
+            promesas = dias.map(d => {
+                return fetch('/api/menus/manual', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        dia_semana: d,
+                        tipo_comida: tipo,
+                        nombre: nombre
+                    })
+                }).then(res => res.json());
+            });
+        }
+
+        Promise.all(promesas)
+        .then(resultados => {
+            const errores = resultados.filter(r => !r.success);
+            if (errores.length > 0) {
+                showToast("Hubo algunos errores al guardar: " + errores[0].error, "error");
+            } else {
+                showToast(todosDias ? "Comida añadida a todos los días exitosamente" : resultados[0].mensaje, "success");
+            }
+            cerrarModalComidaManual();
+            if (calendarMenus) {
+                calendarMenus.refetchEvents();
+            }
+        })
+        .catch(err => {
+            showToast("Error de red", "error");
+            console.error(err);
         });
     });
 
