@@ -1,12 +1,44 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>HomeStock Bot</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=1.4">
 
+
+    <script>
+        // Funciones globales de mitigación XSS y CSRF
+        function escapeHTML(str) {
+            if (typeof str !== 'string') return str;
+            return str.replace(/[&<>'"]/g, 
+                tag => ({
+                    '&': '&amp;',
+                    '<': '&lt;',
+                    '>': '&gt;',
+                    "'": '&#39;',
+                    '"': '&quot;'
+                }[tag] || tag)
+            );
+        }
+
+        document.addEventListener("DOMContentLoaded", function() {
+            const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+            const originalFetch = window.fetch;
+            window.fetch = async function() {
+                let [resource, config] = arguments;
+                if (config && ['POST', 'PUT', 'DELETE'].includes(config.method.toUpperCase())) {
+                    config.headers = {
+                        ...config.headers,
+                        'X-CSRFToken': csrfToken
+                    };
+                }
+                return originalFetch(resource, config);
+            };
+        });
+    </script>
 </head>
 <body>
     <div class="app-container">

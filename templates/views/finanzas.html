@@ -12,8 +12,14 @@
 <div class="dashboard-grid">
     <!-- Balances Globales -->
     <div class="dash-card" style="grid-column: 1 / -1;">
-        <h3 class="dash-header">⚖️ Balances Globales</h3>
-        <div id="balances-container" style="display: flex; gap: 15px; flex-wrap: wrap; margin-top: 15px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+            <h3 class="dash-header" style="margin: 0;">⚖️ Balances Globales</h3>
+            <select id="filtro-balance" onchange="renderBalances()" class="form-control" style="width: auto; padding: 5px 10px; font-size: 0.9em; border-radius: 6px;">
+                <option value="todos">Todos</option>
+            </select>
+        </div>
+        <!-- Contenedor scrollable horizontalmente -->
+        <div id="balances-container" style="display: flex; gap: 15px; overflow-x: auto; padding-bottom: 10px; scroll-snap-type: x mandatory;">
             <div class="loading">Cargando balances...</div>
         </div>
     </div>
@@ -64,6 +70,8 @@
         </table>
         <div style="text-align: right; margin-top: 10px; font-size: 1.2em; font-weight: bold;">
             Total: $<span id="detalle-gasto-total">0.00</span>
+        </div>
+        <div id="detalle-gasto-acciones" style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 15px; border-top: 1px solid var(--border-color); padding-top: 15px;">
         </div>
     </div>
 </div>
@@ -134,6 +142,7 @@
 
 <script>
     let carritoGastos = [];
+    let balancesData = [];
     let editandoGastoId = null;
     
     document.addEventListener("DOMContentLoaded", function() {
@@ -146,32 +155,77 @@
         fetch('/api/finanzas/balances')
         .then(res => res.json())
         .then(data => {
-            const container = document.getElementById('balances-container');
-            container.innerHTML = '';
-            if (data.length === 0) {
-                container.innerHTML = '<p style="color: var(--success-color); font-size: 0.9rem; margin-top: 10px;">¡Todo al día! No hay deudas.</p>';
-                return;
-            }
+            balancesData = data;
             
-            const ul = document.createElement('ul');
-            ul.style.listStyle = 'none';
-            ul.style.padding = '0';
-            ul.style.fontSize = '0.9rem';
-            ul.style.width = '100%';
-            
+            const filtro = document.getElementById('filtro-balance');
+            const usuarios = new Set();
             data.forEach(b => {
-                const li = document.createElement('li');
-                li.style.padding = '5px 0';
-                li.style.borderBottom = '1px solid var(--border-color)';
-                li.innerHTML = `<strong>${b.deudor_nombre}</strong> debe a <strong>${b.acreedor_nombre}</strong>: 
-                                <span style="color: var(--danger-color); float: right; font-weight: bold;">$${b.monto.toFixed(2)}</span>`;
-                ul.appendChild(li);
+                usuarios.add(b.deudor_nombre);
+                usuarios.add(b.acreedor_nombre);
             });
-            container.appendChild(ul);
+            
+            const currentValue = filtro.value;
+            filtro.innerHTML = '<option value="todos">Todos</option>';
+            Array.from(usuarios).sort().forEach(u => {
+                const opt = document.createElement('option');
+                opt.value = u;
+                opt.textContent = u;
+                if (u === currentValue) opt.selected = true;
+                filtro.appendChild(opt);
+            });
+            
+            renderBalances();
         })
         .catch(err => {
             console.error("Error al cargar balances:", err);
             document.getElementById('balances-container').innerHTML = '<p style="color: red;">Error cargando balances</p>';
+        });
+    }
+
+    function renderBalances() {
+        const container = document.getElementById('balances-container');
+        const filtroVal = document.getElementById('filtro-balance').value;
+        container.innerHTML = '';
+        
+        let filtered = balancesData;
+        if (filtroVal !== 'todos') {
+            filtered = balancesData.filter(b => b.deudor_nombre === filtroVal || b.acreedor_nombre === filtroVal);
+        }
+
+        if (filtered.length === 0) {
+            container.innerHTML = '<p style="color: var(--success-color); font-size: 0.9rem; margin-top: 10px;">¡Todo al día para esta selección!</p>';
+            return;
+        }
+
+        filtered.forEach(b => {
+            const card = document.createElement('div');
+            card.style.minWidth = '220px';
+            card.style.flex = '0 0 auto';
+            card.style.background = 'var(--card-bg, #2a2d3e)';
+            card.style.border = '1px solid var(--border-color, #3e445e)';
+            card.style.borderRadius = '10px';
+            card.style.padding = '15px';
+            card.style.scrollSnapAlign = 'start';
+            card.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)';
+            
+            const isDeudor = b.deudor_nombre === filtroVal;
+            const isAcreedor = b.acreedor_nombre === filtroVal;
+            
+            // Si el usuario seleccionado debe, mostramos en rojo. Si le deben, en verde.
+            let accentColor = 'var(--text-primary)';
+            if (filtroVal !== 'todos') {
+                accentColor = isDeudor ? 'var(--danger-color)' : 'var(--success-color)';
+            }
+            
+            card.innerHTML = `
+                <div style="font-size: 0.8em; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">Deuda Activa</div>
+                <div style="display: flex; flex-direction: column; gap: 3px; font-size: 1.05em;">
+                    <div><strong style="color: var(--danger-color);">${escapeHTML(b.deudor_nombre)}</strong> debe a</div>
+                    <div><strong style="color: var(--success-color);">${escapeHTML(b.acreedor_nombre)}</strong></div>
+                    <div style="font-size: 1.3em; font-weight: 700; margin-top: 12px; color: ${accentColor};">$${b.monto.toFixed(2)}</div>
+                </div>
+            `;
+            container.appendChild(card);
         });
     }
 
@@ -192,11 +246,27 @@
             data.forEach((g, index) => {
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
-                    <td>${g.fecha}</td>
-                    <td>${g.descripcion}</td>
-                    <td>${g.pagador}</td>
-                    <td>$${g.monto.toFixed(2)}</td>
-                    <td><button class="btn btn-secondary btn-sm" onclick="verDetalleGasto(${index})">👁️ Ver Detalle</button></td>
+                    <td style="vertical-align: middle;">
+                        <span style="background: var(--card-bg, #2a2d3e); border: 1px solid var(--border-color, #3e445e); padding: 4px 8px; border-radius: 6px; font-size: 0.85em; color: var(--text-secondary); white-space: nowrap; display: inline-flex; align-items: center; gap: 4px;">
+                            📅 ${g.fecha}
+                        </span>
+                    </td>
+                    <td style="vertical-align: middle; font-weight: 500; color: var(--text-primary); font-size: 1.05em; letter-spacing: 0.3px;">
+                        ${escapeHTML(g.descripcion)}
+                    </td>
+                    <td style="vertical-align: middle;">
+                        <span style="color: var(--primary-color); font-weight: 500; background: rgba(52, 152, 219, 0.1); padding: 3px 8px; border-radius: 12px; font-size: 0.9em;">
+                            👤 ${escapeHTML(g.pagador)}
+                        </span>
+                    </td>
+                    <td style="vertical-align: middle; font-weight: 700; color: var(--success-color); font-size: 1.1em;">
+                        $${g.monto.toFixed(2)}
+                    </td>
+                    <td style="vertical-align: middle;">
+                        <button class="btn btn-secondary btn-sm" onclick="verDetalleGasto(${index})" style="border-radius: 6px; font-weight: 500; transition: all 0.2s;">
+                            👁️ Detalle
+                        </button>
+                    </td>
                 `;
                 tbody.appendChild(tr);
             });
@@ -213,16 +283,16 @@
         tbody.innerHTML = '';
         
         document.getElementById('detalle-gasto-info').innerHTML = `
-            <strong>Concepto:</strong> ${g.descripcion}<br>
+            <strong>Concepto:</strong> ${escapeHTML(g.descripcion)}<br>
             <strong>Fecha:</strong> ${g.fecha}<br>
-            <strong>Pagador:</strong> ${g.pagador}
+            <strong>Pagador:</strong> ${escapeHTML(g.pagador)}
         `;
         
         if (g.detalles && g.detalles.length > 0) {
             g.detalles.forEach(d => {
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
-                    <td>${d.descripcion}</td>
+                    <td>${escapeHTML(d.descripcion)}</td>
                     <td>${d.cantidad}</td>
                     <td>$${d.precio_unitario.toFixed(2)}</td>
                     <td>$${d.subtotal.toFixed(2)}</td>
@@ -234,6 +304,12 @@
         }
         
         document.getElementById('detalle-gasto-total').innerText = g.monto.toFixed(2);
+        
+        document.getElementById('detalle-gasto-acciones').innerHTML = `
+            <button class="btn btn-secondary" style="background: var(--primary-color);" onclick="editarGasto(${index}); document.getElementById('modal-detalle-gasto').style.display='none';">✏️ Editar</button>
+            <button class="btn btn-danger" onclick="eliminarGasto(${index}); document.getElementById('modal-detalle-gasto').style.display='none';">🗑️ Eliminar</button>
+        `;
+        
         document.getElementById('modal-detalle-gasto').style.display = 'block';
     }
 
@@ -429,7 +505,7 @@
 
     function eliminarGasto(index) {
         const g = window.gastosData[index];
-        if (!confirm(`¿Seguro que deseas eliminar el gasto "${g.descripcion}"?`)) return;
+        if (!confirm(`¿Seguro que deseas eliminar el gasto "${escapeHTML(g.descripcion)}"?`)) return;
 
         fetch(`/api/finanzas/gasto/${g.id}`, {
             method: 'DELETE'

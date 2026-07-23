@@ -1,3 +1,4 @@
+import logging
 import os
 import calendar
 import threading
@@ -8,6 +9,7 @@ import json
 import pytz
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 from apscheduler.schedulers.background import BackgroundScheduler
+from flask_wtf.csrf import CSRFProtect
 from flask import Flask, request, jsonify, render_template, redirect, url_for, flash
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import extract
@@ -37,6 +39,7 @@ modelo_whisper = whisper.load_model("base")
 load_dotenv()
 
 app = Flask(__name__)
+csrf = CSRFProtect(app)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'default-homestock-secret-key')
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///homestock.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
@@ -514,7 +517,7 @@ def extraer_datos_evento(texto):
         
         prompt = f"Eres un asistente de calendario. Hoy es {fecha_actual} (Hora de Buenos Aires). Analiza este mensaje y extrae los detalles del evento. Devuelve EXCLUSIVAMENTE un JSON con las claves: 'titulo' (resumen corto), 'fecha_inicio' (formato ISO 8601), 'fecha_fin' (formato ISO 8601, si aplica), y 'descripcion'. No uses markdown."
         
-        response = model.generate_content([prompt, texto])
+        response = model.generate_content([prompt, texto], request_options={"timeout": 60})
         resultado_str = response.text.strip()
         
         if resultado_str.startswith('```json'):
@@ -1188,8 +1191,9 @@ if bot:
         if not GEMINI_API_KEY:
             try:
                 bot.send_message(chat_id, '❌ Gemini no está configurado. Sube el gasto manualmente en la web.')
-            except Exception:
-                pass
+            except Exception as silent_e:
+                import logging
+                logging.error(f"Fallo enviando mensaje de error al usuario: {silent_e}")
             return
 
         try:
@@ -1294,8 +1298,9 @@ if bot:
             print(f'[handle_photo] Error: {e}')
             try:
                 bot.send_message(chat_id, f'❌ Falló la lectura: {str(e)}')
-            except Exception:
-                pass
+            except Exception as silent_e:
+                import logging
+                logging.error(f"Fallo enviando mensaje de error al usuario: {silent_e}")
 
     @bot.message_handler(commands=['comprado'])
     def handle_comprado(message):
@@ -2805,7 +2810,8 @@ def api_logistica_get():
                             ev_dict['end'] = (dt + duration).isoformat()
                         result.append(ev_dict)
                 except Exception as e:
-                    pass
+                    import logging
+                    logging.error(f"Error procesando rrule en evento iterativo: {e}")
                     
     return jsonify(result)
 
@@ -3343,7 +3349,7 @@ def api_menus_get():
             'title': f"[{m.tipo_comida}] {m.receta.nombre}",
             'start': m.fecha_asignada.isoformat(),
             'allDay': True,
-            'color': 'var(--success-color)' if m.tipo_comida == 'Almuerzo' else 'var(--primary-color)',
+            'color': '#f39c12' if m.tipo_comida == 'Desayuno' else ('var(--success-color)' if m.tipo_comida == 'Almuerzo' else ('#9b59b6' if m.tipo_comida == 'Merienda' else 'var(--primary-color)')),
             'extendedProps': {
                 'tipo_comida': m.tipo_comida,
                 'nombre': m.receta.nombre,

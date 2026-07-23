@@ -145,21 +145,34 @@
                 const lista = document.getElementById('agenda-comidas');
                 lista.innerHTML = '';
                 
-                const sortedEvents = events.sort((a, b) => a.start - b.start);
+                const hoy = new Date();
+                const diaSemana = hoy.getDay() === 0 ? 6 : hoy.getDay() - 1; // 0=Lunes
+                const inicioSemana = new Date(hoy);
+                inicioSemana.setDate(hoy.getDate() - diaSemana);
+                inicioSemana.setHours(0,0,0,0);
                 
-                if (sortedEvents.length === 0) {
-                    lista.innerHTML = '<li>No hay comidas en esta vista.</li>';
+                const finSemana = new Date(inicioSemana);
+                finSemana.setDate(inicioSemana.getDate() + 6);
+                finSemana.setHours(23,59,59,999);
+
+                const eventosSemana = events.filter(ev => {
+                    const d = ev.start;
+                    return d >= inicioSemana && d <= finSemana;
+                }).sort((a, b) => a.start - b.start);
+                
+                if (eventosSemana.length === 0) {
+                    lista.innerHTML = '<li>No hay comidas en la semana actual.</li>';
                     return;
                 }
                 
-                sortedEvents.slice(0, 7).forEach(ev => {
+                eventosSemana.forEach(ev => {
                     const li = document.createElement('li');
                     li.style.padding = '8px 0';
                     li.style.borderBottom = '1px solid var(--border-color)';
                     
-                    const dateStr = ev.start.toLocaleDateString('es-AR', {day: '2-digit', month: '2-digit'});
+                    const dateStr = ev.start.toLocaleDateString('es-AR', {weekday: 'short', day: '2-digit', month: '2-digit'});
                     
-                    li.innerHTML = `<strong>${dateStr}</strong> - ${ev.title}`;
+                    li.innerHTML = `<strong>${dateStr}</strong> - ${escapeHTML(ev.title)}`;
                     lista.appendChild(li);
                 });
             }

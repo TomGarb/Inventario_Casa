@@ -122,7 +122,7 @@
                     const dateStr = ev.start.toLocaleDateString('es-AR', {day: '2-digit', month: '2-digit'});
                     const timeStr = ev.start.toLocaleTimeString('es-AR', {hour: '2-digit', minute:'2-digit'});
                     
-                    li.innerHTML = `<strong>${dateStr} ${timeStr}</strong> - ${ev.title}`;
+                    li.innerHTML = `<strong>${dateStr} ${timeStr}</strong> - ${escapeHTML(ev.title)}`;
                     lista.appendChild(li);
                 });
             }

@@ -493,7 +493,7 @@ async function loadTareas() {
             
             tr.innerHTML = `
                 <td style="padding: 10px;">${t.id}</td>
-                <td style="padding: 10px;"><b>${t.nombre}</b> <br><small>${status}</small></td>
+                <td style="padding: 10px;"><b>${escapeHTML(t.nombre)}</b> <br><small>${status}</small></td>
                 <td style="padding: 10px;">
                     <span style="font-size: 0.8em; padding: 2px 6px; border-radius: 4px; color: white; background-color: ${t.prioridad === 'Urgente' ? 'var(--danger-color)' : t.prioridad === 'Secundaria' ? 'var(--text-secondary)' : 'var(--primary-color)'};">
                         ${t.prioridad || 'Esencial'}
@@ -503,7 +503,7 @@ async function loadTareas() {
                 <td style="padding: 10px;">${fecha_str}</td>
                 <td style="padding: 10px;">${asignados}</td>
                 <td style="padding: 10px;">
-                    <button class="btn-secundario" onclick="openSkipModal(${t.id}, '${t.nombre}')" title="Acciones">🚀</button>
+                    <button class="btn-secundario" onclick="openSkipModal(${t.id}, '${escapeHTML(t.nombre)}')" title="Acciones">🚀</button>
                     <button class="btn-delete-sm" onclick="deleteTarea(${t.id})" title="Eliminar">🗑️</button>
                 </td>
             `;
@@ -551,7 +551,7 @@ async function oldLoadTareas() {
             
             tr.innerHTML = `
                 <td style="padding: 10px;">${t.id}</td>
-                <td style="padding: 10px;"><b>${t.nombre}</b></td>
+                <td style="padding: 10px;"><b>${escapeHTML(t.nombre)}</b></td>
                 <td style="padding: 10px;">
                     <span style="font-size: 0.8em; padding: 2px 6px; border-radius: 4px; color: white; background-color: ${t.prioridad === 'Urgente' ? 'var(--danger-color)' : t.prioridad === 'Secundaria' ? 'var(--text-secondary)' : 'var(--primary-color)'};">
                         ${t.prioridad || 'Esencial'}
