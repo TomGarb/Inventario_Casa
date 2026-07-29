@@ -813,24 +813,77 @@ async function updateStock(id, newStock) {
     } catch (error) { console.error('Error:', error); }
 }
 
-window.updateStockBtn = function(e, id, op, currentStock, unidad) {
-    e.stopPropagation();
+window.updateStockBtn = async function(e, id, op, currentStock, unidad, btnElem) {
+    if (e) e.stopPropagation();
     let diff = 1.0;
-    if (unidad !== 'unidades') {
-        const input = window.prompt(`¿Cuánto deseas ${op === 'add' ? 'sumar' : 'restar'}? (ej. 0.1, 0.5, 1)`, "0.5");
-        if (input === null) return; // Cancelado
-        diff = parseFloat(input.replace(',', '.'));
-        if (isNaN(diff) || diff <= 0) {
-            alert("Cantidad inválida");
-            return;
-        }
+    if (unidad === 'kg' || unidad === 'L') {
+        diff = 0.5;
     }
-    
     let newVal = op === 'add' ? currentStock + diff : currentStock - diff;
     if (newVal < 0) newVal = 0.0;
-    
-    updateStock(id, newVal);
+    newVal = Math.round(newVal * 100) / 100;
+
+    // Actualización reactiva inmediata en DOM
+    let spanElem = null;
+    let oldSpanText = "";
+    if (btnElem && btnElem.parentElement) {
+        spanElem = btnElem.parentElement.querySelector('span');
+        if (spanElem) {
+            oldSpanText = spanElem.innerText;
+            spanElem.innerText = `${newVal} ${unidad}`;
+        }
+    }
+
+    try {
+        const response = await fetch(`/api/productos/${id}/stock`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ stock_actual: newVal })
+        });
+        if (response.ok) {
+            if (btnElem && btnElem.parentElement) {
+                const subBtn = btnElem.parentElement.querySelector('button:first-child');
+                const addBtn = btnElem.parentElement.querySelector('button:last-child');
+                if (subBtn) subBtn.setAttribute('onclick', `window.updateStockBtn(event, ${id}, 'sub', ${newVal}, '${unidad}', this)`);
+                if (addBtn) addBtn.setAttribute('onclick', `window.updateStockBtn(event, ${id}, 'add', ${newVal}, '${unidad}', this)`);
+            }
+            fetchProductsInventario();
+        } else {
+            if (spanElem) spanElem.innerText = oldSpanText;
+            showStockErrorUI(btnElem, "Error al actualizar stock");
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        if (spanElem) spanElem.innerText = oldSpanText;
+        showStockErrorUI(btnElem, "Error de red al actualizar stock");
+    }
 };
+
+function showStockErrorUI(btnElem, msg) {
+    if (btnElem) {
+        const oldBg = btnElem.style.backgroundColor;
+        btnElem.style.backgroundColor = '#dc3545';
+        btnElem.style.color = '#fff';
+        setTimeout(() => {
+            btnElem.style.backgroundColor = oldBg;
+            btnElem.style.color = '';
+        }, 1500);
+    }
+    const container = document.getElementById('alert-container') || document.body;
+    const toast = document.createElement('div');
+    toast.className = 'flash-msg flash-error';
+    toast.style.position = 'fixed';
+    toast.style.bottom = '20px';
+    toast.style.right = '20px';
+    toast.style.zIndex = '99999';
+    toast.style.padding = '10px 15px';
+    toast.style.background = '#dc3545';
+    toast.style.color = '#fff';
+    toast.style.borderRadius = '5px';
+    toast.innerText = msg;
+    container.appendChild(toast);
+    setTimeout(() => toast.remove(), 3000);
+}
 
 async function forzarAlCarrito(id) {
     try {
@@ -1977,3 +2030,139 @@ function showConfirm(message, callback) {
         callback();
     };
 }
+
+// ==========================================
+// MODAL EDICIÓN/ELIMINACIÓN DE TAREAS EN CALENDARIO
+// ==========================================
+window.abrirModalEdicionTareaCal = function(info) {
+    const props = info.event.extendedProps || {};
+    const tareaId = props.tarea_id || info.event.id;
+    if (!tareaId) return;
+
+    const modal = document.getElementById('modal-tarea-calendario');
+    if (!modal) return;
+
+    document.getElementById('modal-tarea-cal-id').value = tareaId;
+    document.getElementById('modal-tarea-cal-nombre').value = props.nombre_tarea || info.event.title || '';
+    
+    let fechaStr = '';
+    if (props.fecha_programada) {
+        fechaStr = props.fecha_programada.substring(0, 10);
+    } else if (info.event.startStr) {
+        fechaStr = info.event.startStr.substring(0, 10);
+    } else if (info.event.start) {
+        fechaStr = info.event.start.toISOString().substring(0, 10);
+    }
+    document.getElementById('modal-tarea-cal-fecha').value = fechaStr;
+    document.getElementById('modal-tarea-cal-frec-tipo').value = props.tipo_frecuencia || '';
+    document.getElementById('modal-tarea-cal-frec-val').value = props.valor_frecuencia || '';
+
+    modal.classList.remove('oculto');
+    modal.style.display = 'block';
+};
+
+document.addEventListener("DOMContentLoaded", function() {
+    const modalTareaCal = document.getElementById('modal-tarea-calendario');
+    if (modalTareaCal) {
+        const btnCancel = document.getElementById('btn-cancel-tarea-cal');
+        if (btnCancel) {
+            btnCancel.onclick = function(e) {
+                if (e) e.preventDefault();
+                modalTareaCal.classList.add('oculto');
+                modalTareaCal.style.display = 'none';
+            };
+        }
+
+        const btnSave = document.getElementById('btn-save-tarea-cal');
+        if (btnSave) {
+            btnSave.onclick = async function(e) {
+                if (e) e.preventDefault();
+                const id = document.getElementById('modal-tarea-cal-id').value;
+                if (!id) return;
+                const nombre = document.getElementById('modal-tarea-cal-nombre').value;
+                const fecha = document.getElementById('modal-tarea-cal-fecha').value;
+                const frecTipo = document.getElementById('modal-tarea-cal-frec-tipo').value;
+                const frecVal = document.getElementById('modal-tarea-cal-frec-val').value;
+
+                const payload = {
+                    nombre: nombre,
+                    fecha: fecha
+                };
+                if (frecTipo) payload.tipo_frecuencia = frecTipo;
+                if (frecVal) payload.valor_frecuencia = frecVal;
+
+                try {
+                    const res = await fetch(`/api/tareas/${id}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    if (res.ok) {
+                        modalTareaCal.classList.add('oculto');
+                        modalTareaCal.style.display = 'none';
+                        if (typeof calendar !== 'undefined' && calendar) calendar.refetchEvents();
+                        if (typeof calendarMenus !== 'undefined' && calendarMenus) calendarMenus.refetchEvents();
+                        if (typeof loadTareas === 'function') loadTareas();
+                    } else {
+                        showStockErrorUI(btnSave, "Error al guardar tarea");
+                    }
+                } catch (err) {
+                    console.error("Error al guardar tarea:", err);
+                    showStockErrorUI(btnSave, "Error de red");
+                }
+            };
+        }
+
+        const btnDelete = document.getElementById('btn-delete-tarea-cal');
+        if (btnDelete) {
+            btnDelete.onclick = async function(e) {
+                if (e) e.preventDefault();
+                const id = document.getElementById('modal-tarea-cal-id').value;
+                if (!id) return;
+                try {
+                    const res = await fetch(`/api/tareas/${id}`, { method: 'DELETE' });
+                    if (res.ok) {
+                        modalTareaCal.classList.add('oculto');
+                        modalTareaCal.style.display = 'none';
+                        if (typeof calendar !== 'undefined' && calendar) calendar.refetchEvents();
+                        if (typeof calendarMenus !== 'undefined' && calendarMenus) calendarMenus.refetchEvents();
+                        if (typeof loadTareas === 'function') loadTareas();
+                    } else {
+                        showStockErrorUI(btnDelete, "Error al eliminar tarea");
+                    }
+                } catch (err) {
+                    console.error("Error al eliminar tarea:", err);
+                    showStockErrorUI(btnDelete, "Error de red");
+                }
+            };
+        }
+
+        const btnSkip = document.getElementById('btn-skip-tarea-cal');
+        if (btnSkip) {
+            btnSkip.onclick = async function(e) {
+                if (e) e.preventDefault();
+                const id = document.getElementById('modal-tarea-cal-id').value;
+                const nombre = document.getElementById('modal-tarea-cal-nombre').value;
+                modalTareaCal.classList.add('oculto');
+                modalTareaCal.style.display = 'none';
+                if (typeof openSkipModal === 'function') {
+                    openSkipModal(id, nombre);
+                } else {
+                    try {
+                        const res = await fetch(`/api/tareas/${id}/skip`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ motivo: "Salteada desde calendario" })
+                        });
+                        if (res.ok) {
+                            if (typeof calendar !== 'undefined' && calendar) calendar.refetchEvents();
+                            if (typeof loadTareas === 'function') loadTareas();
+                        }
+                    } catch (err) {
+                        console.error("Error al saltear tarea:", err);
+                    }
+                }
+            };
+        }
+    }
+});

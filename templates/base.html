@@ -29,7 +29,7 @@
             const originalFetch = window.fetch;
             window.fetch = async function() {
                 let [resource, config] = arguments;
-                if (config && ['POST', 'PUT', 'DELETE'].includes(config.method.toUpperCase())) {
+                if (config && config.method && ['POST', 'PUT', 'DELETE', 'PATCH'].includes(config.method.toUpperCase())) {
                     config.headers = {
                         ...config.headers,
                         'X-CSRFToken': csrfToken

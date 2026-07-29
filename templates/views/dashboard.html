@@ -263,8 +263,12 @@ document.addEventListener("DOMContentLoaded", function() {
                 }
             ],
             eventClick: function(info) {
-                // Previene navegacion si es link pero aca abrimos los modals si existieran
-                if (info.event.url) {
+                if (info.event.extendedProps && info.event.extendedProps.tarea_id) {
+                    info.jsEvent.preventDefault();
+                    if (typeof abrirModalEdicionTareaCal === 'function') {
+                        abrirModalEdicionTareaCal(info);
+                    }
+                } else if (info.event.url) {
                     info.jsEvent.preventDefault();
                     window.open(info.event.url);
                 }

@@ -234,11 +234,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             return { domNodes: [wrapper] };
         },
         eventClick: function(info) {
-            const props = info.event.extendedProps;
-            if (props.usuario_asignado === CURRENT_USER_ID) {
-                openSkipModal(props.tarea_id, props.nombre_tarea);
-            } else {
-                alert("Esta tarea le toca a otro usuario. (Puedes verla pero no delegarla)");
+            if (typeof abrirModalEdicionTareaCal === 'function') {
+                abrirModalEdicionTareaCal(info);
             }
         }
     });

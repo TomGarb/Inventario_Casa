@@ -29,6 +29,13 @@ from functools import wraps
 # ==========================================
 # 1. CONFIGURACIÓN E INICIALIZACIÓN
 # ==========================================
+import sys
+import logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] [%(threadName)s] %(message)s',
+    handlers=[logging.StreamHandler(sys.stdout)]
+)
 
 # Configuración global de PATH para que ffmpeg sea encontrado por whisper sin errores
 ffmpeg_dir = r"C:\Users\tomga\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-8.1.2-full_build\bin"
@@ -65,11 +72,717 @@ apihelper.READ_TIMEOUT = 120
 apihelper.CONNECT_TIMEOUT = 120
 
 bot = telebot.TeleBot(TELEGRAM_TOKEN) if TELEGRAM_TOKEN else None
+
+if bot:
+    # 1. COMANDOS
+    @bot.message_handler(commands=['desvincular'])
+    def cmd_desvincular(message):
+        try:
+            with app.app_context():
+                user = Usuario.query.filter_by(telegram_chat_id=str(message.chat.id)).first()
+                if user:
+                    user.telegram_chat_id = None
+                    db.session.commit()
+                    safe_telegram_send(message.chat.id, "✅ Tu cuenta ha sido desvinculada de este dispositivo. Puedes usar /vincular desde otro número para reconectar.")
+                else:
+                    safe_telegram_send(message.chat.id, "❌ No hay ninguna cuenta vinculada a este chat.")
+        except Exception as e:
+            print(f"Error en /desvincular: {e}")
+
+    @bot.message_handler(commands=['ayuda', 'comandos'])
+    def cmd_ayuda(message):
+        texto = '''🤖 *Comandos de HomeStock*:
+• /start - Inicia el bot y verifica el estado.
+• /vincular - Conecta tu cuenta de HomeStock con este chat.
+• /desvincular - Desconecta este chat de tu cuenta.
+• /menu - Despliega el menú interactivo para gestionar las comidas y otras opciones.
+• /compras - Muestra la lista de compras pendiente.
+• /ping - Verifica si el bot está en línea.
+• /ayuda - Muestra este mensaje.
+
+💡 *Recuerda*: ¡También puedes hablarme normalmente! Pídeme recetas, dime qué compraste o pregúntame qué hay en el inventario y yo me encargo del resto.'''
+        safe_telegram_send(message.chat.id, texto, parse_mode="Markdown")
+    @bot.message_handler(commands=['compras'])
+    def cmd_compras(message):
+        if not is_authorized(message.from_user.id): return
+        enviar_listas_agrupadas(message.chat.id)
+    @bot.message_handler(commands=['ping'])
+    def test_ping(message):
+        print("🏓 PING RECIBIDO!")
+        bot.reply_to(message, "¡Pong! El bot está vivo y escuchando.")
+
+    @bot.message_handler(commands=['menus', 'menu'])
+    def handle_menus_command(message):
+        try:
+            print(f"📩 COMANDO RECIBIDO: {message.text}")
+            if not is_authorized(message.from_user.id): return
+            procesar_menu_config(message)
+        except Exception as e:
+            print(f"🔴 ERROR INTERNO EN HANDLER DE MENU: {e}")
+            bot.reply_to(message, "Hubo un error interno. Revisa la consola.")
+
+    @bot.message_handler(commands=['start'])
+    def cmd_start(message):
+        safe_telegram_reply(message, "¡Hola! Bienvenido a Homestock. Para vincular tu cuenta, ingresa a la aplicación web, ve a tu Perfil, genera un token y envíalo aquí con el comando:\n/vincular <Tu Token>")
+
+    @bot.message_handler(commands=['vincular'])
+    def cmd_vincular(message):
+        import logging
+        from sqlalchemy.exc import IntegrityError
+        try:
+            partes = message.text.split(maxsplit=1)
+            
+            if len(partes) < 2:
+                safe_telegram_send(message.chat.id, "⚠️ Formato incorrecto. Debes usar: /vincular TU_CODIGO")
+                return
+                
+            codigo_ingresado = partes[1].strip()
+            print(f"🔗 Intento de vinculación - Chat ID: {message.chat.id} - Código: {codigo_ingresado}")
+            
+            with app.app_context():
+                try:
+                    # Buscar al usuario por su código
+                    usuario = db.session.query(Usuario).filter_by(telegram_link_token=codigo_ingresado).first()
+                    
+                    if not usuario:
+                        safe_telegram_send(message.chat.id, "❌ Código de vinculación inválido o no existe.")
+                        return
+                        
+                    # Verificar si ya tiene un ID asignado (y no es el mismo)
+                    if usuario.telegram_chat_id and str(usuario.telegram_chat_id).strip() != "":
+                        if str(usuario.telegram_chat_id) == str(message.chat.id):
+                            safe_telegram_send(message.chat.id, "✅ Este dispositivo ya está vinculado a esta cuenta.")
+                        else:
+                            safe_telegram_send(message.chat.id, "⚠️ Este código ya está en uso por otro dispositivo. Desvincúlalo primero.")
+                        return
+
+                    # Prevención de Unique Constraint: desvincular el dispositivo de cualquier otro usuario previo
+                    old_user = db.session.query(Usuario).filter_by(telegram_chat_id=str(message.chat.id)).first()
+                    if old_user and old_user.id != usuario.id:
+                        old_user.telegram_chat_id = None
+                        print(f"⚠️ Se desvinculó automáticamente la cuenta '{old_user.username}' del dispositivo {message.chat.id} por conflicto de unicidad.")
+
+                    # Asignar el nuevo ID
+                    usuario.telegram_chat_id = str(message.chat.id)
+                    usuario.telegram_link_token = None
+                    db.session.commit() # ¡CRÍTICO!
+                    
+                    rol_str = "(Admin)" if usuario.is_admin else ""
+                    safe_telegram_send(message.chat.id, f"✅ ¡Vinculación exitosa! Bienvenido/a, {usuario.username} {rol_str}.")
+                    print(f"✅ ÉXITO: Chat {message.chat.id} vinculado al usuario {usuario.username}")
+                    
+                except IntegrityError as e:
+                    db.session.rollback()
+                    print(f"🔴 ERROR DE INTEGRIDAD (PostgreSQL): {e}")
+                    safe_telegram_send(message.chat.id, "Error en la base de datos (Unique Constraint). Revisa la consola.")
+                except Exception as e:
+                    db.session.rollback()
+                    print(f"🔴 ERROR GENERAL EN VINCULAR: {e}")
+                    safe_telegram_send(message.chat.id, "Ocurrió un error interno.")
+        except Exception as e:
+            print(f"🔴 ERROR FUERA DEL CONTEXTO EN VINCULAR: {e}")
+            safe_telegram_send(message.chat.id, "❌ Ocurrió un error general.")
+
+    @bot.message_handler(commands=['balance'])
+    def handle_balance(message):
+        if not is_authorized(message.from_user.id): return
+        balances = calcular_balances_globales()
+        if not balances:
+            safe_telegram_reply(message, "🎉 ¡Todo está al día! Nadie le debe dinero a nadie en la casa.")
+            return
+        
+        respuesta = "⚖️ <b>Balances Actuales de la Casa:</b>\n\n"
+        for b in balances:
+            respuesta += f"🔹 <b>{b['deudor_nombre']}</b> le debe a <b>{b['acreedor_nombre']}</b>: ${b['monto']}\n"
+        
+        safe_telegram_reply(message, respuesta, parse_mode='HTML')
+
+    @bot.message_handler(commands=['comprado'])
+    def handle_comprado(message):
+        if not is_authorized(message.from_user.id): return
+        texto = message.text.replace('/comprado', '').strip()
+        if not texto:
+            safe_telegram_reply(message, "⚠️ Usa: /comprado <producto> [cantidad]")
+            return
+            
+        partes = texto.split()
+        cantidad = 1
+        nombre_producto = texto
+        
+        if partes[-1].isdigit():
+            cantidad = int(partes[-1])
+            nombre_producto = " ".join(partes[:-1])
+
+        with app.app_context():
+            producto = Producto.query.filter(Producto.nombre.ilike(f"%{nombre_producto}%")).first()
+            if not producto:
+                safe_telegram_reply(message, f"❌ No encontré '{nombre_producto}' en la base de datos.")
+                return
+                
+            producto.stock_actual += cantidad
+            producto.en_lista = False
+            db.session.commit()
+            safe_telegram_reply(message, f"✅ '{producto.nombre}' actualizada. Nuevo stock: {producto.stock_actual}")
+
+    @bot.message_handler(commands=['test_lista'])
+    def cmd_test_lista(message):
+        if not is_authorized(message.from_user.id): return
+        enviar_listas_agrupadas(message.chat.id)
+
+    @bot.message_handler(commands=['sugerir_compra'])
+    def sugerir_compra(message):
+        if not is_authorized(message.from_user.id): return
+        with app.app_context():
+            sugerencias = Producto.query.filter(Producto.stock_actual < Producto.stock_minimo, Producto.en_lista == False).all()
+            
+            if not sugerencias:
+                safe_telegram_reply(message, "✅ Todo en orden, tienes buen stock de todos tus productos.")
+                return
+                
+            grupos = defaultdict(list)
+            for p in sugerencias:
+                comercio = p.rel_comercio.nombre if p.rel_comercio else "Sin Comercio"
+                grupos[comercio].append(p)
+                
+            for comercio, productos in grupos.items():
+                mensaje = f"Tienes {len(productos)} productos en **{comercio}** por debajo del mínimo. ¿Deseas agregarlos a la lista de compras?\n\n"
+                for p in productos:
+                    mensaje += f"- {p.nombre} (Stock: {p.stock_actual}/{p.stock_minimo})\n"
+                
+                ids_str = ",".join([str(p.id) for p in productos][:10])
+                markup = telebot.types.InlineKeyboardMarkup()
+                markup.add(
+                    telebot.types.InlineKeyboardButton(text="✅ Agregar a la lista", callback_data=f"sugerir_add_{comercio}_{ids_str}"),
+                    telebot.types.InlineKeyboardButton(text="❌ Ignorar", callback_data=f"sugerir_ignorar")
+                )
+                
+                safe_telegram_send(message.chat.id, mensaje, reply_markup=markup, parse_mode='Markdown')
+
+    @bot.message_handler(commands=['añadir', 'add'])
+    def cmd_anadir(message):
+        if not is_authorized(message.from_user.id): return
+        texto = message.text.replace('/añadir', '').replace('/add', '').strip()
+        if not texto:
+            safe_telegram_reply(message, "Uso: /añadir <nombre> <stock> <ubicacion>")
+            return
+            
+        partes = texto.split()
+        stock = None
+        stock_idx = -1
+        
+        for i, part in enumerate(partes):
+            try:
+                stock = float(part)
+                stock_idx = i
+                break
+            except ValueError:
+                pass
+                
+        if stock_idx == -1 or stock_idx == 0:
+            safe_telegram_reply(message, "No se pudo interpretar el formato. Asegúrate de incluir el stock.\nEjemplo: /añadir Leche 2 Heladera")
+            return
+            
+        nombre = " ".join(partes[:stock_idx]).strip()
+        ubicacion_nombre = " ".join(partes[stock_idx+1:]).strip()
+        
+        with app.app_context():
+            ubi_id = None
+            if ubicacion_nombre:
+                ubi = Ubicacion.query.filter(Ubicacion.nombre.ilike(f"%{ubicacion_nombre}%")).first()
+                if ubi:
+                    ubi_id = ubi.id
+                else:
+                    safe_telegram_reply(message, f"⚠️ No se encontró la ubicación '{ubicacion_nombre}'. El producto quedará Sin Asignar.")
+                    
+            nuevo_prod = Producto(
+                nombre=nombre.capitalize(),
+                stock_actual=stock,
+                stock_minimo=1.0,
+                ubicacion_id=ubi_id,
+                unidad_medida='unidades'
+            )
+            db.session.add(nuevo_prod)
+            
+            mov = Movimiento(
+                descripcion=f"Añadido vía Telegram",
+                producto_id=nuevo_prod.id,
+                tipo="add",
+                cantidad=stock
+            )
+            db.session.add(mov)
+            db.session.commit()
+            
+            mov.producto_id = nuevo_prod.id
+            db.session.commit()
+            
+            msg = f"✅ Producto '{nuevo_prod.nombre}' creado con éxito con {stock} unidades."
+            if ubi_id:
+                msg += f" (Ubicado en {ubi.nombre})"
+            safe_telegram_reply(message, msg)
+
+    @bot.message_handler(commands=['cancelar'])
+    def cmd_cancelar(message):
+        bot.clear_step_handler_by_chat_id(message.chat.id)
+        bot.reply_to(message, '🛑 Operación cancelada. Puedes continuar con normalidad.')
+
+    # 2. CALLBACKS
+    @bot.callback_query_handler(func=lambda call: call.data == 'ver_compras')
+    def callback_ver_compras(call):
+        bot.answer_callback_query(call.id)
+        if not is_authorized(call.from_user.id): return
+        enviar_listas_agrupadas(call.message.chat.id)
+    @bot.callback_query_handler(func=lambda call: call.data.startswith('ocr_div_'))
+    def handle_ocr_division(call):
+        chat_id = call.message.chat.id
+        if chat_id not in pending_ocr_confirmations:
+            bot.answer_callback_query(call.id, "Solicitud expirada.")
+            return
+            
+        data = pending_ocr_confirmations.pop(chat_id)
+        if call.data == 'ocr_div_no':
+            bot.edit_message_text("Carga de ticket cancelada.", chat_id, call.message.message_id)
+            return
+            
+        # ocr_div_si: Dividir entre todos los activos
+        with app.app_context():
+            comprador = db.session.get(Usuario, data['usuario_id'])
+            if call.data == 'ocr_div_mio':
+                todos_usuarios = [comprador]
+            else:
+                todos_usuarios = Usuario.query.all()
+            
+            nuevo_gasto = Gasto(
+                usuario_id=comprador.id,
+                monto=data['monto_total'],
+                descripcion=data['descripcion']
+            )
+            db.session.add(nuevo_gasto)
+            db.session.flush() # Para tener el ID
+            
+            monto_por_persona = data['monto_total'] / len(todos_usuarios)
+            
+            for u in todos_usuarios:
+                # El comprador ya esta pagado consigo mismo
+                esta_pagado = (u.id == comprador.id)
+                div = DivisionGasto(
+                    gasto_id=nuevo_gasto.id,
+                    usuario_id=u.id,
+                    monto_adeudado=monto_por_persona,
+                    esta_pagado=esta_pagado
+                )
+                db.session.add(div)
+                
+            db.session.commit()
+            
+            items = data.get('items', [])
+            if items:
+                items_agregados = []
+                for it in items:
+                    if not isinstance(it, dict): continue
+                    nombre_prod = str(it.get('nombre', '')).strip().capitalize()
+                    try:
+                        cantidad_prod = float(it.get('cantidad', 1.0))
+                    except:
+                        cantidad_prod = 1.0
+                    if not nombre_prod: continue
+
+                    prod_db = Producto.query.filter(Producto.nombre.ilike(f"%{nombre_prod}%")).first()
+                    if prod_db:
+                        prod_db.stock_actual += cantidad_prod
+                        mov = Movimiento(descripcion="Añadido por compra/gasto", producto_id=prod_db.id, tipo="add", cantidad=cantidad_prod)
+                        db.session.add(mov)
+                    else:
+                        nuevo_prod = Producto(
+                            nombre=nombre_prod,
+                            stock_actual=cantidad_prod,
+                            stock_minimo=1.0
+                        )
+                        db.session.add(nuevo_prod)
+                        db.session.flush()
+                        mov = Movimiento(descripcion="Creado por compra/gasto", producto_id=nuevo_prod.id, tipo="add", cantidad=cantidad_prod)
+                        db.session.add(mov)
+                    items_agregados.append(f"{round(cantidad_prod, 2)}x {nombre_prod}")
+                db.session.commit()
+                if items_agregados:
+                    safe_telegram_send(chat_id, "📦 **Inventario actualizado automáticamente:**\n- " + "\n- ".join(items_agregados), parse_mode="Markdown")
+
+            bot.edit_message_text(f"✅ ¡Gasto registrado exitosamente!\nConcepto: {data['descripcion']}\nCada usuario debe: ${round(monto_por_persona, 2)}", chat_id, call.message.message_id)
+
+    @bot.callback_query_handler(func=lambda call: call.data in ['dedup_yes', 'dedup_no'])
+    def handle_dedup_callback(call):
+        if not is_authorized(call.from_user.id): return
+        chat_id = call.message.chat.id
+        data = pending_dedup.pop(chat_id, None)
+        if not data:
+            bot.edit_message_text(" La solicitud de confirmacin ha expirado.", chat_id, call.message.message_id)
+            return
+        with app.app_context():
+            if call.data == 'dedup_yes':
+                prod = db.session.get(Producto, data['sim_id'])
+                if prod:
+                    prod.stock_actual += data['cantidad']
+                    mov = Movimiento(descripcion="Aadido (coincidencia confirmada)", producto_id=prod.id, tipo="add", cantidad=data['cantidad'])
+                    db.session.add(mov)
+                    db.session.commit()
+                    bot.edit_message_text(f" Sumado {data['cantidad']}x a '{prod.nombre}'. Stock actual: {prod.stock_actual}", chat_id, call.message.message_id)
+                    return
+            nuevo_prod = Producto(
+                nombre=data['new_nombre'],
+                stock_actual=data['cantidad'],
+                stock_minimo=1.0,
+                ubicacion_id=data['ubicacion_id']
+            )
+            db.session.add(nuevo_prod)
+            db.session.flush()
+            mov = Movimiento(descripcion="Creado por Voz", producto_id=nuevo_prod.id, tipo="add", cantidad=data['cantidad'])
+            db.session.add(mov)
+            db.session.commit()
+            bot.edit_message_text(f" Creado nuevo producto: {data['cantidad']}x '{nuevo_prod.nombre}'.", chat_id, call.message.message_id)
+
+    @bot.callback_query_handler(func=lambda call: True)
+    def callback_inline(call):
+        if not is_authorized(call.from_user.id): return
+        if call.data in ['confirm_voice', 'cancel_voice']:
+            callback_voice(call)
+            return
+        if call.data in ['confirm_logistica', 'cancel_logistica']:
+            handle_logistica_callback(call)
+            return
+        if call.data in ['confirm_menu', 'cancel_menu'] or call.data.startswith('menu_dia_') or call.data.startswith('menu_tipo_'):
+            handle_menu_callback(call)
+            return
+
+    @bot.callback_query_handler(func=lambda call: call.data.startswith('undo_'))
+    def callback_undo(call):
+        tx_id = call.data.replace('undo_', '')
+        if tx_id not in recent_transactions:
+            bot.answer_callback_query(call.id, "⚠️ Esta acción ya expiró o fue deshecha.")
+            return
+            
+        operaciones = recent_transactions.pop(tx_id)
+        try:
+            with app.app_context():
+                for op in operaciones:
+                    prod = db.session.get(Producto, op['producto_id'])
+                    if not prod: continue
+                    
+                    
+                    if op.get('is_tarea'):
+                        if 'historial_id' in op:
+                            h = db.session.get(HistorialTarea, op['historial_id'])
+                            if h: db.session.delete(h)
+                        if 'tarea_id' in op:
+                            t = db.session.get(Tarea, op['tarea_id'])
+                            if t and 'old_date' in op:
+                                t.fecha_ultima_ejecucion = op['old_date']
+                        continue
+
+                    if op.get('is_new'):
+                        if 'movimiento_id' in op:
+                            mov = db.session.get(Movimiento, op['movimiento_id'])
+                            if mov: db.session.delete(mov)
+                        db.session.delete(prod)
+                    else:
+                        if 'added' in op:
+                            prod.stock_actual = max(0, prod.stock_actual - op['added'])
+                        if 'removed' in op:
+                            prod.stock_actual += op['removed']
+                        if 'was_en_lista' in op:
+                            prod.en_lista = op['was_en_lista']
+                            
+                        if 'movimiento_id' in op:
+                            mov = db.session.get(Movimiento, op['movimiento_id'])
+                            if mov: db.session.delete(mov)
+                db.session.commit()
+            bot.edit_message_text("↩️ Acción deshecha correctamente.", call.message.chat.id, call.message.message_id)
+        except Exception as e:
+            safe_telegram_send(call.message.chat.id, f"❌ Error al deshacer: {str(e)}")
+
+    @bot.callback_query_handler(func=lambda call: call.data == 'add_low_stock')
+    def callback_add_low_stock(call):
+        try:
+            with app.app_context():
+                productos_bajos = Producto.query.filter(Producto.stock_actual <= Producto.stock_minimo, Producto.en_lista == False).all()
+                for p in productos_bajos:
+                    p.en_lista = True
+                db.session.commit()
+            bot.edit_message_text("✅ Productos agregados a la lista de compras.", call.message.chat.id, call.message.message_id)
+        except Exception as e:
+            safe_telegram_send(call.message.chat.id, f"❌ Error: {str(e)}")
+
+    @bot.callback_query_handler(func=lambda call: call.data.startswith('comprar_'))
+    def callback_comprar(call):
+        if not is_authorized(call.from_user.id): return
+        producto_id = int(call.data.split('_')[1])
+        with app.app_context():
+            producto = db.session.get(Producto, producto_id)
+            if not producto:
+                return
+
+            producto.en_lista = False
+            comercio_id = producto.comercio_id
+            nombre_comercio = producto.rel_comercio.nombre if producto.rel_comercio else "Sin Comercio"
+            db.session.commit()
+            
+            try:
+                bot.delete_message(call.message.chat.id, call.message.message_id)
+            except:
+                pass
+                
+            if comercio_id is not None:
+                productos_restantes = Producto.query.filter_by(en_lista=True, comercio_id=comercio_id).all()
+            else:
+                productos_restantes = Producto.query.filter(Producto.en_lista==True, Producto.comercio_id.is_(None)).all()
+                
+            if productos_restantes:
+                markup = telebot.types.InlineKeyboardMarkup()
+                for p in productos_restantes:
+                    boton = telebot.types.InlineKeyboardButton(
+                        text=f"⬜ {p.nombre} (Stock: {p.stock_actual})", 
+                        callback_data=f"comprar_{p.id}"
+                    )
+                    markup.add(boton)
+                safe_telegram_send(call.message.chat.id, f"📍 **{nombre_comercio}:**", parse_mode='Markdown', reply_markup=markup)
+            else:
+                safe_telegram_send(call.message.chat.id, f"✅ ¡Lista de {nombre_comercio} completada!")
+
+    @bot.callback_query_handler(func=lambda call: call.data.startswith('sugerir_'))
+    def callback_sugerir(call):
+        if not is_authorized(call.from_user.id): return
+        if call.data == 'sugerir_ignorar':
+            try:
+                bot.delete_message(call.message.chat.id, call.message.message_id)
+            except:
+                pass
+            return
+            
+        partes = call.data.split('_')
+        if len(partes) >= 4 and partes[1] == 'add':
+            ids_str = partes[-1]
+            ids = [int(id_str) for id_str in ids_str.split(',')]
+            
+            with app.app_context():
+                for p_id in ids:
+                    producto = db.session.get(Producto, p_id)
+                    if producto:
+                        producto.en_lista = True
+                db.session.commit()
+                
+            try:
+                bot.edit_message_text("✅ Productos agregados a tu lista de compras.", chat_id=call.message.chat.id, message_id=call.message.message_id)
+            except:
+                pass
+
+    # 3. TEXTO / CATCH-ALL
+    @bot.message_handler(content_types=['photo', 'document'])
+    def handle_photo(message):
+        chat_id = message.chat.id
+
+        # Feedback inmediato ANTES de cualquier proceso pesado
+        try:
+            bot.send_message(chat_id, '📸 Recibí el ticket. Analizando con IA, dame unos segundos...')
+        except Exception as send_err:
+            print(f'[handle_photo] No pude enviar ACK: {send_err}')
+
+        if not GEMINI_API_KEY:
+            try:
+                bot.send_message(chat_id, '❌ Gemini no está configurado. Sube el gasto manualmente en la web.')
+            except Exception as silent_e:
+                import logging
+                logging.error(f"Fallo enviando mensaje de error al usuario: {silent_e}")
+            return
+
+        try:
+            with app.app_context():
+                # Buscar usuario (reemplaza la función inexistente get_usuario_por_chat)
+                usuario = Usuario.query.filter_by(telegram_chat_id=str(message.from_user.id)).first()
+                if not usuario:
+                    bot.send_message(chat_id, '❌ Tu cuenta no está vinculada. Usá /vincular <token> para conectarla.')
+                    return
+
+                # Descargar la imagen de Telegram
+                if message.content_type == 'photo':
+                    file_id = message.photo[-1].file_id
+                else:
+                    file_id = message.document.file_id
+
+                file_info = bot.get_file(file_id)
+                downloaded_file = bot.download_file(file_info.file_path)
+
+                import tempfile
+                import os
+
+                with tempfile.NamedTemporaryFile(delete=False, suffix='.jpg') as temp_file:
+                    temp_file.write(downloaded_file)
+                    temp_file_path = temp_file.name
+
+                try:
+                    # Enviar la imagen directamente en linea (bypass de la API de archivos que causa timeout)
+                    with open(temp_file_path, 'rb') as img_f:
+                        img_data = img_f.read()
+                        
+                    imagen_gemini = {
+                        'mime_type': 'image/jpeg',
+                        'data': img_data
+                    }
+                    
+                    model = genai.GenerativeModel('gemini-3.6-flash')
+
+                    prompt = (
+                        "Eres un asistente contable. Analiza este ticket/factura y devuelve "
+                        "EXCLUSIVAMENTE un JSON con tres claves: 'descripcion' (resumen de la "
+                        "compra en 3-4 palabras), 'monto_total' (numero float, el total final "
+                        "pagado), e 'items' (un array de objetos donde cada objeto tiene 'nombre', 'cantidad' y 'precio_unitario'). "
+                        "No uses markdown ni texto adicional."
+                    )
+                    response = model.generate_content(
+                        [prompt, imagen_gemini],
+                        request_options={"timeout": 120}
+                    )
+
+                    resultado_str = response.text.strip()
+                    if resultado_str.startswith('```json'):
+                        resultado_str = resultado_str.replace('```json', '').replace('```', '').strip()
+                    elif resultado_str.startswith('```'):
+                        resultado_str = resultado_str.replace('```', '').strip()
+
+                    resultado = json.loads(resultado_str)
+                    monto_total = float(resultado.get('monto_total', 0))
+                    descripcion = resultado.get('descripcion', 'Ticket')
+
+                    if monto_total <= 0:
+                        bot.send_message(chat_id, '❌ No pude detectar un monto válido. Verificá la foto e intentá de nuevo.')
+                        return
+
+                    pending_ocr_confirmations[chat_id] = {
+                        'usuario_id': usuario.id,
+                        'monto_total': monto_total,
+                        'descripcion': descripcion
+                    }
+
+                    # Formatear el detalle de items
+                    items_str = ""
+                    items_list = resultado.get('items', [])
+                    if items_list and isinstance(items_list, list):
+                        for item in items_list:
+                            cant = item.get('cantidad', 1)
+                            nombre = item.get('nombre', 'Producto')
+                            precio = item.get('precio_unitario', 0)
+                            items_str += f"- {cant}x {nombre} (${precio})\n"
+                    else:
+                        items_str = "(No se detectaron items individuales)\n"
+
+                    markup = InlineKeyboardMarkup()
+                    markup.row(InlineKeyboardButton('👥 Dividir entre todos', callback_data='ocr_div_todos'))
+                    markup.row(InlineKeyboardButton('🙋‍♂️ Solo mío (no dividir)', callback_data='ocr_div_mio'))
+                    markup.row(InlineKeyboardButton('❌ Cancelar', callback_data='ocr_div_no'))
+                    
+                    bot.send_message(
+                        chat_id,
+                        f'🧾 <b>Detalle del Ticket</b>\n\n{items_str}\n<b>Total a pagar: ${monto_total}</b>\n\n¿Cómo querés registrar este gasto?',
+                        reply_markup=markup,
+                        parse_mode='HTML'
+                    )
+
+                finally:
+                    if os.path.exists(temp_file_path):
+                        os.remove(temp_file_path)
+
+        except Exception as e:
+            if check_api_quota_error(e, chat_id):
+                return
+            import traceback
+            traceback.print_exc()
+            print(f'[handle_photo] Error: {e}')
+            try:
+                bot.send_message(chat_id, f'❌ Falló la lectura: {str(e)}')
+            except Exception as silent_e:
+                import logging
+                logging.error(f"Fallo enviando mensaje de error al usuario: {silent_e}")
+
+    @bot.message_handler(content_types=['text', 'voice'])
+    def handle_voice_and_text(message):
+        try:
+            print(f"📩 MENSAJE RECIBIDO DE TELEGRAM: {message.text}")
+            import logging
+            logging.info(f"[Bot Telemetría] Mensaje entrante recibido en servidor. Chat ID: {message.chat.id}, Tipo: {message.content_type}")
+            if not is_authorized(message.from_user.id):
+                logging.warning(f"[Bot Telemetría] Chat ID {message.chat.id} no está autorizado. Ignorando mensaje.")
+                return
+
+            texto_transcrito = ''
+
+            if message.content_type == 'voice':
+                ogg_path = None
+                try:
+                    safe_telegram_reply(message, "Procesando audio... 🎙️")
+                    file_info = bot.get_file(message.voice.file_id)
+                    downloaded_file = bot.download_file(file_info.file_path)
+
+                    temp_id = str(uuid.uuid4())
+                    base_dir = os.path.dirname(os.path.abspath(__file__))
+                    ogg_path = os.path.join(base_dir, f"{temp_id}.ogg")
+
+                    with open(ogg_path, 'wb') as new_file:
+                        new_file.write(downloaded_file)
+
+                    resultado = modelo_whisper.transcribe(ogg_path, language="es")
+                    texto_transcrito = resultado["text"].strip()
+                except Exception as e:
+                    safe_telegram_send(message.chat.id, f"❌ Error interno: {str(e)}")
+                    return
+                finally:
+                    if ogg_path and os.path.exists(ogg_path):
+                        try:
+                            os.remove(ogg_path)
+                        except:
+                            pass
+            else:
+                if message.text.startswith('/'): return
+                texto_transcrito = message.text.strip()
+
+            if not texto_transcrito:
+                return
+
+            if message.chat.id in pending_menu_config:
+                dia, tipo = pending_menu_config.pop(message.chat.id)
+                guardar_menu_desde_bot(message.chat.id, dia, tipo, texto_transcrito)
+                return
+
+            # --- ENRUTADOR INTELIGENTE HÍBRIDO (PALABRAS CLAVE + GEMINI) ---
+            intencion = clasificar_intencion(texto_transcrito, message.chat.id)
+            if intencion == "ERROR_CUOTA":
+                return
+            import logging
+            logging.info(f"[Enrutador Bot] Mensaje: '{texto_transcrito}' -> Intención final: {intencion}")
+
+            if intencion in ["FINANZAS", "GASTO"]:
+                procesar_gasto_texto(texto_transcrito, message)
+            elif intencion == "COMPRAS":
+                procesar_compras_texto(texto_transcrito, message)
+            elif intencion in ["LOGISTICA", "EVENTO"]:
+                procesar_evento_texto(texto_transcrito, message)
+            elif intencion == "TAREAS":
+                procesar_tareas_texto(texto_transcrito, message)
+            elif intencion == "MENU":
+                procesar_menu_config(message)
+            elif intencion in ["RECETA", "RECETAS"]:
+                procesar_recetas_texto(texto_transcrito, message)
+            else:  # INVENTARIO (Fallback por defecto)
+                procesar_inventario_texto(texto_transcrito, message)
+
+        except Exception as e:
+            print(f"🔴 ERROR INTERNO EN HANDLER DE TEXTO: {e}")
+            bot.reply_to(message, "Hubo un error interno. Revisa la consola.")
+
+
 CHAT_ID = TELEGRAM_CHAT_ID
 
 pending_voice_commands = {}
 recent_transactions = {}
 pending_ocr_confirmations = {}  # {chat_id: {usuario_id, monto_total, descripcion}}
+pending_menu_config = {}  # {chat_id: (dia, tipo)}
+pending_dedup = {}  # {chat_id: {sim_id, sim_nombre, new_nombre, cantidad, ubicacion_id}}
 
 # ==========================================
 # 2. MODELOS DE BASE DE DATOS
@@ -99,7 +812,7 @@ class Usuario(UserMixin, db.Model):
 
 @login_manager.user_loader
 def load_user(user_id):
-    return Usuario.query.get(int(user_id))
+    return db.session.get(Usuario, int(user_id))
 
 
 usuario_tarea = db.Table('usuario_tarea',
@@ -351,8 +1064,11 @@ class EventoLogistico(db.Model):
     fecha_inicio = db.Column(db.DateTime, nullable=False)
     fecha_fin = db.Column(db.DateTime, nullable=True)
     creador_id = db.Column(db.Integer, db.ForeignKey('usuarios.id'), nullable=False)
+    asignado_id = db.Column(db.Integer, db.ForeignKey('usuarios.id'), nullable=True)
+    frecuencia = db.Column(db.String(20), default='none')
     
-    creador = db.relationship('Usuario', backref='eventos_creados')
+    creador = db.relationship('Usuario', foreign_keys=[creador_id], backref='eventos_creados')
+    asignado = db.relationship('Usuario', foreign_keys=[asignado_id], backref='eventos_asignados')
 
 # Modulo Menus
 class HorarioComidas(db.Model):
@@ -431,8 +1147,8 @@ def calcular_balances_globales():
         resultado = []
         for deudor_id, deudores_dict in deudas.items():
             for acreedor_id, monto in deudores_dict.items():
-                u_deudor = Usuario.query.get(deudor_id)
-                u_acreedor = Usuario.query.get(acreedor_id)
+                u_deudor = db.session.get(Usuario, deudor_id)
+                u_acreedor = db.session.get(Usuario, acreedor_id)
                 if u_deudor and u_acreedor and monto > 0:
                     resultado.append({
                         'deudor_id': deudor_id,
@@ -475,7 +1191,7 @@ def crud_create(modelo, requeridos, campos_adicionales=None):
         return jsonify({'error': str(e)}), 500
 
 def crud_update(modelo, id_entidad, requeridos, campos_adicionales=None):
-    entidad = modelo.query.get_or_404(id_entidad)
+    entidad = db.get_or_404(modelo, id_entidad)
     data = request.get_json()
     if not data:
         return jsonify({'error': 'Datos faltantes'}), 400
@@ -500,18 +1216,56 @@ def crud_update(modelo, id_entidad, requeridos, campos_adicionales=None):
 def safe_telegram_send(chat_id, mensaje, reply_markup=None, parse_mode='HTML'):
     if not bot:
         return False
+    if parse_mode == 'Markdown':
+        mensaje = mensaje.replace('**', '*')
     try:
         bot.send_message(chat_id, mensaje, reply_markup=reply_markup, parse_mode=parse_mode)
         return True
     except Exception as e:
+        err_str = str(e).lower()
+        if "can't parse entities" in err_str and parse_mode:
+            print(f"⚠️ Aviso: Falló el parseo {parse_mode}, enviando como texto plano. Error: {e}")
+            try:
+                bot.send_message(chat_id, mensaje, reply_markup=reply_markup, parse_mode=None)
+                return True
+            except Exception as e2:
+                print(f"Error enviando mensaje plano a {chat_id}: {e2}")
+                return False
         print(f"Error enviando mensaje a {chat_id}: {e}")
         return False
 
-def extraer_datos_evento(texto):
+def formatear_fecha_amigable(f_val):
+    if not f_val: return ""
+    try:
+        if isinstance(f_val, str):
+            clean_str = re.sub(r'([+-]\d{2}:?\d{2}|Z)$', '', f_val.strip())
+            dt = None
+            for fmt in ["%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d"]:
+                try:
+                    dt = datetime.strptime(clean_str[:len("2026-08-15T15:00:00")[:len(clean_str)]], fmt)
+                    break
+                except:
+                    continue
+            if not dt:
+                try:
+                    dt = datetime.fromisoformat(clean_str)
+                except:
+                    return str(f_val)
+        elif isinstance(f_val, datetime):
+            dt = f_val
+        elif isinstance(f_val, date):
+            return f_val.strftime('%d/%m/%Y')
+        else:
+            return str(f_val)
+        return dt.strftime('%d/%m/%Y a las %H:%M hs.')
+    except Exception:
+        return str(f_val)
+
+def extraer_datos_evento(texto, chat_id=None):
     if not GEMINI_API_KEY:
         return None
     try:
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        model = genai.GenerativeModel('gemini-3.6-flash')
         tz = pytz.timezone('America/Argentina/Buenos_Aires')
         fecha_actual = datetime.now(tz).strftime('%Y-%m-%d %H:%M:%S')
         
@@ -527,16 +1281,30 @@ def extraer_datos_evento(texto):
             
         return json.loads(resultado_str)
     except Exception as e:
-        print(f"Error NLP Gemini: {e}")
-        return None
+        if check_api_quota_error(e, chat_id):
+            return "ERROR_CUOTA"
+        import logging
+        logging.error(f"Error al procesar el evento con la IA: {e}", exc_info=True)
+        raise e
 
 def safe_telegram_reply(message, texto, reply_markup=None, parse_mode=None):
     if not bot:
         return False
+    if parse_mode == 'Markdown':
+        texto = texto.replace('**', '*')
     try:
         bot.reply_to(message, texto, reply_markup=reply_markup, parse_mode=parse_mode)
         return True
     except Exception as e:
+        err_str = str(e).lower()
+        if "can't parse entities" in err_str and parse_mode:
+            print(f"⚠️ Aviso: Falló el parseo {parse_mode} en reply, enviando como texto plano. Error: {e}")
+            try:
+                bot.reply_to(message, texto, reply_markup=reply_markup, parse_mode=None)
+                return True
+            except Exception as e2:
+                print(f"Error enviando reply plano a {message.chat.id}: {e2}")
+                return False
         print(f"Error respondiendo a {message.chat.id}: {e}")
         return False
 
@@ -554,7 +1322,7 @@ def enviar_al_grupo(mensaje, parse_mode='HTML'):
 
 def _enviar_al_usuario_sync(usuario_id, mensaje, parse_mode):
     with app.app_context():
-        u = Usuario.query.get(usuario_id)
+        u = db.session.get(Usuario, usuario_id)
         if u and u.telegram_chat_id:
             safe_telegram_send(u.telegram_chat_id, mensaje, parse_mode=parse_mode)
         else:
@@ -603,890 +1371,649 @@ def enviar_listas_agrupadas(chat_id, comercio_objetivo=None):
             safe_telegram_send(chat_id, f"📍 **{comercio}:**", reply_markup=markup, parse_mode='Markdown')
 
 if bot:
-    def is_authorized(chat_id):
+    def is_authorized(user_id):
         with app.app_context():
-            user = Usuario.query.filter_by(telegram_chat_id=str(chat_id)).first()
+            user = Usuario.query.filter_by(telegram_chat_id=str(user_id)).first()
             return user is not None
 
-    @bot.message_handler(content_types=['voice', 'text'])
-    def handle_voice_and_text(message):
-        if not is_authorized(message.chat.id): return
-        
-        texto_transcrito = ''
-        
-        if message.content_type == 'voice':
-            ogg_path = None
+def check_api_quota_error(e, chat_id=None):
+    try:
+        from google.api_core.exceptions import ResourceExhausted, GoogleAPICallError
+    except ImportError:
+        ResourceExhausted = type('ResourceExhausted', (Exception,), {})
+    err_str = str(e).lower()
+    if isinstance(e, (ResourceExhausted,)) or '429' in err_str or 'resourceexhausted' in err_str or 'quota' in err_str or 'exhausted' in err_str:
+        if chat_id:
             try:
-                safe_telegram_reply(message, "Procesando audio... 🎙️")
-                
-                file_info = bot.get_file(message.voice.file_id)
-                downloaded_file = bot.download_file(file_info.file_path)
-                
-                temp_id = str(uuid.uuid4())
-                base_dir = os.path.dirname(os.path.abspath(__file__))
-                ogg_path = os.path.join(base_dir, f"{temp_id}.ogg")
-                
-                with open(ogg_path, 'wb') as new_file:
-                    new_file.write(downloaded_file)
-                    
-                resultado = modelo_whisper.transcribe(ogg_path, language="es")
-                texto_transcrito = resultado["text"].strip()
-            except Exception as e:
-                safe_telegram_send(message.chat.id, f"❌ Error interno: {str(e)}")
-                return
-            finally:
-                if ogg_path and os.path.exists(ogg_path):
-                    try:
-                        os.remove(ogg_path)
-                    except:
-                        pass
-        else:
-            if message.text.startswith('/'): return
-            texto_transcrito = message.text.strip()
-            
-        texto_lower = texto_transcrito.lower()
-        if texto_lower.startswith('agendar') or texto_lower.startswith('aviso') or texto_lower.startswith('visita'):
-            datos_evento = extraer_datos_evento(texto_transcrito)
-            if datos_evento and 'titulo' in datos_evento and 'fecha_inicio' in datos_evento:
-                pending_voice_commands[message.chat.id] = (datos_evento, datetime.now(), 'logistica')
-                markup = InlineKeyboardMarkup()
-                markup.row_width = 2
-                markup.add(
-                    InlineKeyboardButton("✅ Sí", callback_data="confirm_logistica"),
-                    InlineKeyboardButton("❌ No", callback_data="cancel_logistica")
-                )
-                safe_telegram_send(message.chat.id, f"📅 Entendido. Agendaré: *{datos_evento['titulo']}* para el {datos_evento['fecha_inicio']}. ¿Confírmas?", reply_markup=markup, parse_mode="Markdown")
-            else:
-                safe_telegram_send(message.chat.id, "❌ No pude extraer los detalles del evento.")
-            return
+                safe_telegram_send(chat_id, "⏳ ¡Me quedé sin aliento! (Límite de la API gratuita). Por favor, espera unos 30 segundos y vuelve a intentarlo.")
+            except Exception:
+                pass
+        return True
+    return False
 
-        if texto_lower.startswith('sug') or 'qué comemos' in texto_lower or 'que comemos' in texto_lower or 'comida' in texto_lower or 'cena' in texto_lower or 'almuerzo' in texto_lower:
-            es_rapida = 'rápid' in texto_lower or 'rapid' in texto_lower
-            with app.app_context():
-                if es_rapida:
-                    rapidas = Receta.query.filter_by(es_rapida=True).all()
-                    if not rapidas:
-                        safe_telegram_send(message.chat.id, "❌ No hay recetas rápidas cargadas.")
-                        return
-                    import random
-                    sug = random.choice(rapidas)
-                    safe_telegram_send(message.chat.id, f"⚡ Sugerencia rápida: *{sug.nombre}*. (No desconto inventario)", parse_mode="Markdown")
-                else:
-                    todas = Receta.query.all()
-                    posibles = []
-                    for rec in todas:
-                        puede = True
-                        for ing in rec.ingredientes:
-                            if ing.producto.stock_actual < ing.cantidad_requerida:
-                                puede = False
-                                break
-                        if puede: posibles.append(rec)
-                    if not posibles:
-                        safe_telegram_send(message.chat.id, "❌ No tienes ingredientes completos para ninguna receta de la base de datos.")
-                        return
-                    import random
-                    sug = random.choice(posibles)
-                    
-                    pending_voice_commands[message.chat.id] = (sug.id, datetime.now(), 'menu')
-                    markup = InlineKeyboardMarkup()
-                    markup.row_width = 2
-                    markup.add(
-                        InlineKeyboardButton("✅ Sí, preparar", callback_data="confirm_menu"),
-                        InlineKeyboardButton("❌ No", callback_data="cancel_menu")
-                    )
-                    safe_telegram_send(message.chat.id, f"🍽️ Puedes hacer *{sug.nombre}*. Tienes todos los ingredientes. ¿Lo preparas hoy?", reply_markup=markup, parse_mode="Markdown")
-            return
+def clasificar_intencion(texto, chat_id=None):
+    import json
+    import logging
+    texto_lower = texto.lower()
 
+    # 1. Diccionarios de Palabras Clave (Paso Local - determinista y rápido)
+    keywords_map = {
+        "FINANZAS": ['gasto', 'gasté', 'pagué', 'compré', 'precio', '$', 'pesos', 'tarjeta', 'mercadopago'],
+        "COMPRAS": ['falta', 'anotar', 'comprar', 'lista', 'supermercado', 'súper', 'quedamos sin'],
+        "LOGISTICA": ['turno', 'agendar', 'recordatorio', 'cita', 'médico', 'mecánico', 'plomero', 'electricista', 'envío', 'entrega', 'paquete', 'visita', 'servicios'],
+        "TAREAS": ['limpiar', 'arreglar', 'revisar', 'ordenar', 'quehaceres'],
+        "MENU": ['menú', 'comida', 'cenar', 'almorzar', 'almuerzo', 'cena', 'desayuno', 'desayunar', 'merienda', 'merendar']
+    }
 
-        # Para inventario / compras / tareas 
-        pending_voice_commands[message.chat.id] = (texto_transcrito, datetime.now(), 'inventario')
-        
-        markup = InlineKeyboardMarkup()
-        markup.row_width = 2
-        markup.add(
-            InlineKeyboardButton("✅ Confirmar", callback_data="confirm_voice"),
-            InlineKeyboardButton("❌ Cancelar", callback_data="cancel_voice")
+    for categoria, kw_list in keywords_map.items():
+        for kw in kw_list:
+            if kw in texto_lower:
+                logging.info(f"[Enrutador] Vía: KEYWORD -> {categoria} (kw: '{kw}')")
+                return categoria
+
+    # 2. Fallback con IA (Gemini - JSON Estricto)
+    if not GEMINI_API_KEY:
+        logging.warning("[Enrutador] API Key de Gemini no disponible. Fallback -> INVENTARIO")
+        return "INVENTARIO"
+
+    try:
+        model = genai.GenerativeModel(
+            'gemini-3.6-flash',
+            generation_config={"response_mime_type": "application/json"}
         )
-        
-        tipo_msg = "🎙️ Escuché" if message.content_type == 'voice' else "📝 Recibí"
-        safe_telegram_send(message.chat.id, f"{tipo_msg}:\n\n_{texto_transcrito}_\n\n¿Procesar esta instrucción?", reply_markup=markup, parse_mode="Markdown")
+        prompt = (
+            "Clasifica este mensaje en una de estas categorías: FINANZAS, COMPRAS, INVENTARIO, TAREAS, LOGISTICA, MENU, RECETA.\n"
+            "Reglas de clasificación:\n"
+            "- LOGISTICA: citas, visitas de servicios (ej. plomero, electricista), envíos, entregas de paquetes y turnos.\n"
+            "- TAREAS: solo acciones o quehaceres internos que deben realizar los miembros de la casa (ej. limpiar, ordenar, arreglar algo internamente).\n"
+            "- MENU: consultas o configuración sobre comidas, desayuno, almuerzo, merienda, cena, menú semanal.\n"
+            "- RECETA: Usa 'RECETA' para CUALQUIER pregunta sobre qué cocinar, sugerencias de comida, o cómo preparar platos, incluso si el usuario menciona palabras como 'casa' o 'ingredientes'.\n"
+            "- INVENTARIO: SOLO para ingresar compras, gastar unidades o contar stock físico.\n"
+            "- FINANZAS: gastos, pagos, precios, compras con monto o dinero.\n"
+            f"Devuelve ÚNICAMENTE un JSON con este formato: {{'intencion': 'CATEGORIA'}}. Mensaje: {texto}"
+        )
+        response = model.generate_content(prompt, request_options={"timeout": 15})
+        data = json.loads(response.text.strip())
+        intencion = data.get("intencion", "INVENTARIO").upper()
 
-    @bot.callback_query_handler(func=lambda call: call.data.startswith('ocr_div_'))
-    def handle_ocr_division(call):
-        chat_id = call.message.chat.id
-        if chat_id not in pending_ocr_confirmations:
-            bot.answer_callback_query(call.id, "Solicitud expirada.")
-            return
-            
-        data = pending_ocr_confirmations.pop(chat_id)
-        if call.data == 'ocr_div_no':
-            bot.edit_message_text("Carga de ticket cancelada.", chat_id, call.message.message_id)
-            return
-            
-        # ocr_div_si: Dividir entre todos los activos
-        with app.app_context():
-            comprador = Usuario.query.get(data['usuario_id'])
-            todos_usuarios = Usuario.query.all() # Asumimos todos activos
-            
-            nuevo_gasto = Gasto(
-                usuario_id=comprador.id,
-                monto=data['monto_total'],
-                descripcion=data['descripcion']
-            )
-            db.session.add(nuevo_gasto)
-            db.session.flush() # Para tener el ID
-            
-            monto_por_persona = data['monto_total'] / len(todos_usuarios)
-            
-            for u in todos_usuarios:
-                # El comprador ya esta pagado consigo mismo
-                esta_pagado = (u.id == comprador.id)
-                div = DivisionGasto(
-                    gasto_id=nuevo_gasto.id,
-                    usuario_id=u.id,
-                    monto_adeudado=monto_por_persona,
-                    esta_pagado=esta_pagado
-                )
-                db.session.add(div)
-                
-            db.session.commit()
-            
-            bot.edit_message_text(f"✅ ¡Gasto registrado exitosamente!\nConcepto: {data['descripcion']}\nCada usuario debe: ${round(monto_por_persona, 2)}", chat_id, call.message.message_id)
+        if intencion in ["FINANZAS", "COMPRAS", "INVENTARIO", "TAREAS", "LOGISTICA", "MENU", "RECETA"]:
+            logging.info(f"[Enrutador] Vía: GEMINI -> {intencion}")
+            return intencion
+        else:
+            logging.warning(f"[Enrutador] Vía: GEMINI -> Categoría desconocida '{intencion}', usando fallback -> INVENTARIO")
+            return "INVENTARIO"
+    except Exception as e:
+        if check_api_quota_error(e, chat_id):
+            return "ERROR_CUOTA"
+        logging.error(f"[Enrutador] Error de clasificación con Gemini: {e}", exc_info=True)
+        return "INVENTARIO"
 
-    @bot.callback_query_handler(func=lambda call: True)
-    def callback_inline(call):
-        if call.data in ['confirm_voice', 'cancel_voice']:
-            callback_voice(call)
-            return
-        if call.data in ['confirm_logistica', 'cancel_logistica']:
-            handle_logistica_callback(call)
-            return
-        if call.data in ['confirm_menu', 'cancel_menu']:
-            handle_menu_callback(call)
-            return
-
-    def handle_logistica_callback(call):
-        bot.edit_message_reply_markup(call.message.chat.id, call.message.message_id, reply_markup=None)
-        
-        if call.data == 'cancel_logistica':
-            pending_voice_commands.pop(call.message.chat.id, None)
-            safe_telegram_send(call.message.chat.id, "❌ Agendamiento cancelado.")
-            return
-            
-        pending_data = pending_voice_commands.pop(call.message.chat.id, None)
-        if not pending_data or len(pending_data) != 3 or pending_data[2] != 'logistica':
-            safe_telegram_send(call.message.chat.id, "⚠️ La solicitud ha expirado o ya fue procesada.")
-            return
-            
-        datos_evento = pending_data[0]
-        
+def procesar_gasto_texto(texto, message):
+    import re
+    import json
+    import logging
+    if re.search(r'\d+', texto):
         try:
-            with app.app_context():
-                user = Usuario.query.filter_by(telegram_chat_id=str(call.message.chat.id)).first()
-                if not user:
-                    safe_telegram_send(call.message.chat.id, "❌ Usuario no autorizado.")
-                    return
-                
-                # Parsear ISO 8601 a DateTime. Gemini a veces da YYYY-MM-DD o YYYY-MM-DDTHH:MM:SS
-                def parse_fecha(f_str):
-                    if not f_str: return None
+            model = genai.GenerativeModel(
+                'gemini-3.6-flash',
+                generation_config={"response_mime_type": "application/json"}
+            )
+            prompt = (
+                f"Analiza este texto de gasto: '{texto}'. "
+                "Extrae el monto numérico (como float), el comercio/concepto, la categoría del gasto (ej. 'Supermercado', 'Alimentos', 'Servicios', 'Otros') "
+                "y, SI detectas que se compraron productos físicos o alimentos (ej. arroz, leche, pan, jabón, detergente), extrae una lista de esos ítems con su nombre en singular y la cantidad numérica "
+                "(o 1 si no se especifica). "
+                "Devuelve ÚNICAMENTE un JSON con el formato exacto: {'monto': float, 'concepto': 'string', 'categoria': 'string', 'items': [{'nombre': 'string', 'cantidad': float}]}."
+            )
+            response = model.generate_content(prompt, request_options={"timeout": 15})
+            data = json.loads(response.text.strip())
+            monto = float(data.get('monto', 0))
+            concepto = str(data.get('concepto', 'Gasto en general')).strip()
+            items = data.get('items', [])
+
+            if monto > 0:
+                with app.app_context():
+                    user = Usuario.query.filter_by(telegram_chat_id=str(message.from_user.id)).first()
+                    if not user:
+                        safe_telegram_send(message.chat.id, "⚠️ No estás registrado o vinculado para guardar gastos.")
+                        return
+
+                pending_ocr_confirmations[message.chat.id] = {
+                    'usuario_id': user.id,
+                    'monto_total': monto,
+                    'descripcion': concepto,
+                    'items': items
+                }
+
+                markup = InlineKeyboardMarkup(row_width=2)
+                markup.add(
+                    InlineKeyboardButton("✅ Confirmar Gasto", callback_data="ocr_div_todos"),
+                    InlineKeyboardButton("❌ Cancelar", callback_data="ocr_div_no")
+                )
+                safe_telegram_send(
+                    message.chat.id,
+                    f"💳 **Resumen de Gasto**\n\n📌 **Concepto:** {concepto}\n💰 **Monto:** ${monto}\n\n¿Deseas registrar este gasto?",
+                    reply_markup=markup,
+                    parse_mode="Markdown"
+                )
+                return
+        except Exception as e:
+            if check_api_quota_error(e, message.chat.id):
+                return
+            logging.error(f"[Módulo Finanzas] Error extrayendo gasto con Gemini: {e}", exc_info=True)
+
+    safe_telegram_send(message.chat.id, f"💳 [Módulo Finanzas] Has indicado un gasto: '{texto}'. Por favor, adjunta la foto del ticket o regístralo manualmente en la web mientras conectamos el guardado por texto.")
+
+def procesar_compras_texto(texto, message):
+    pending_voice_commands[message.chat.id] = (texto, datetime.now(), 'compras')
+    markup = InlineKeyboardMarkup(row_width=2)
+    markup.add(
+        InlineKeyboardButton("✅ Confirmar", callback_data="confirm_voice"),
+        InlineKeyboardButton("❌ Cancelar", callback_data="cancel_voice")
+    )
+    tipo_msg = "🎙️ Escuché" if message.content_type == 'voice' else "📩 Recibí"
+    safe_telegram_send(message.chat.id, f"{tipo_msg}:\n\n_{texto}_\n\n¿Añadir a la **Lista de Compras**?", reply_markup=markup, parse_mode="Markdown")
+
+def procesar_tareas_texto(texto, message):
+    pending_voice_commands[message.chat.id] = (texto, datetime.now(), 'tarea')
+    markup = InlineKeyboardMarkup(row_width=2)
+    markup.add(
+        InlineKeyboardButton("✅ Confirmar", callback_data="confirm_voice"),
+        InlineKeyboardButton("❌ Cancelar", callback_data="cancel_voice")
+    )
+    tipo_msg = "🎙️ Escuché" if message.content_type == 'voice' else "📩 Recibí"
+    safe_telegram_send(message.chat.id, f"{tipo_msg}:\n\n_{texto}_\n\n¿Registrar **Tarea** completada?", reply_markup=markup, parse_mode="Markdown")
+
+def guardar_menu_desde_bot(chat_id, dia_semana, tipo_comida, nombre):
+    try:
+        with app.app_context():
+            receta = Receta.query.filter(Receta.nombre.ilike(f"%{nombre}%")).first()
+            if not receta:
+                receta = Receta(nombre=nombre, tipo=tipo_comida, es_rapida=True)
+                db.session.add(receta)
+                db.session.flush()
+
+            dias_es = {'Lunes':0, 'Martes':1, 'Miércoles':2, 'Jueves':3, 'Viernes':4, 'Sábado':5, 'Domingo':6,
+                       'LUNES':0, 'MARTES':1, 'MIÉRCOLES':2, 'MIERCOLES':2, 'JUEVES':3, 'VIERNES':4, 'SÁBADO':5, 'SABADO':5, 'DOMINGO':6}
+            dia_clean = dia_semana.capitalize()
+            if dia_clean == 'Miercoles': dia_clean = 'Miércoles'
+            if dia_clean == 'Sabado': dia_clean = 'Sábado'
+
+            hoy = date.today()
+            dia_actual_idx = hoy.weekday()
+            target_idx = dias_es.get(dia_clean, 0)
+            delta = target_idx - dia_actual_idx
+            fecha_asignada = hoy + timedelta(days=delta)
+
+            existente = MenuSemanal.query.filter_by(
+                dia_semana=dia_clean,
+                tipo_comida=tipo_comida,
+                fecha_asignada=fecha_asignada
+            ).first()
+
+            if existente:
+                db.session.delete(existente)
+                db.session.flush()
+
+            nuevo_menu = MenuSemanal(
+                dia_semana=dia_clean,
+                tipo_comida=tipo_comida,
+                receta_id=receta.id,
+                fecha_asignada=fecha_asignada
+            )
+            db.session.add(nuevo_menu)
+            db.session.commit()
+            safe_telegram_send(chat_id, f"✅ ¡Listo! Guardé **{nombre}** para el **{tipo_comida}** del **{dia_clean}**.", parse_mode="Markdown")
+    except Exception as e:
+        logging.error(f"[Menú Bot] Error al guardar menú: {e}", exc_info=True)
+        safe_telegram_send(chat_id, f"❌ Error al guardar en el menú: {e}")
+
+def procesar_menu_config(message):
+    markup = InlineKeyboardMarkup(row_width=2)
+    dias = [
+        ("Lunes", "menu_dia_lunes"),
+        ("Martes", "menu_dia_martes"),
+        ("Miércoles", "menu_dia_miercoles"),
+        ("Jueves", "menu_dia_jueves"),
+        ("Viernes", "menu_dia_viernes"),
+        ("Sábado", "menu_dia_sabado"),
+        ("Domingo", "menu_dia_domingo")
+    ]
+    botones = [InlineKeyboardButton(nombre, callback_data=cb) for nombre, cb in dias]
+    markup.add(*botones)
+    markup.add(InlineKeyboardButton("🛒 Ver Lista de Compras", callback_data="ver_compras"))
+    safe_telegram_send(message.chat.id, "📅 Configuración de Menús.\nSelecciona el día que deseas planificar:", reply_markup=markup)
+
+def procesar_evento_texto(texto, message):
+    import logging
+    try:
+        datos_evento = extraer_datos_evento(texto, message.chat.id)
+        if datos_evento == "ERROR_CUOTA":
+            return
+        if datos_evento and 'titulo' in datos_evento and 'fecha_inicio' in datos_evento:
+            pending_voice_commands[message.chat.id] = (datos_evento, datetime.now(), 'logistica')
+            markup = InlineKeyboardMarkup(row_width=2)
+            markup.add(
+                InlineKeyboardButton("✅ Sí", callback_data="confirm_logistica"),
+                InlineKeyboardButton("❌ No", callback_data="cancel_logistica")
+            )
+            safe_telegram_send(message.chat.id, f"📅 Entendido. Agendar: *{datos_evento['titulo']}* para el {formatear_fecha_amigable(datos_evento['fecha_inicio'])}. ¿Confirmas?", reply_markup=markup, parse_mode="Markdown")
+        else:
+            logging.error(f"[Módulo Logística] Datos extraídos incompletos o nulos: {datos_evento}")
+            safe_telegram_send(message.chat.id, "❌ Error al procesar el evento con la IA")
+    except Exception as e:
+        logging.error(f"[Módulo Logística] Error al procesar el evento con la IA: {e}", exc_info=True)
+        safe_telegram_send(message.chat.id, "❌ Error al procesar el evento con la IA")
+
+def procesar_recetas_texto(texto, message):
+    import logging
+    safe_telegram_reply(message, " Consultando inventario y pensando una receta...")
+    try:
+        with app.app_context():
+            productos = Producto.query.filter(Producto.stock_actual > 0).all()
+            ingredientes = [f"{p.nombre} ({p.stock_actual})" for p in productos]
+            inv_str = ", ".join(ingredientes) if ingredientes else "No hay ingredientes registrados en inventario actualmente."
+            
+            model = genai.GenerativeModel('gemini-3.6-flash')
+            prompt = f"""Eres un chef experto en cocina casera y prctica.
+Inventario actual disponible en la casa: {inv_str}.
+
+El usuario pregunta o solicita: "{texto}"
+
+Reglas:
+1. Si el usuario pregunta qu puede cocinar o pide una sugerencia general, propn una receta sabrosa y realista que utilice principalmente los ingredientes disponibles en el inventario. Explica brevemente por qu la sugieres y da los pasos de preparacin en formato claro.
+2. Si el usuario pide una receta especfica (ej. "cmo hago flan?" o "receta de pizza"), simplemente dale la receta clara paso a paso con los ingredientes necesarios (mencionando cules tiene en casa si aplica).
+3. Responde en espaol, con un tono amable, claro y en formato amigable para Telegram (puedes usar emojis y negritas con *texto*)."""
+            response = model.generate_content(prompt, request_options={"timeout": 60})
+            safe_telegram_send(message.chat.id, response.text.strip(), parse_mode="Markdown")
+    except Exception as e:
+        logging.error(f"[Mdulo Recetas] Error generando receta: {e}", exc_info=True)
+        safe_telegram_send(message.chat.id, " Error al generar la receta. Intenta nuevamente.")
+
+def procesar_inventario_texto(texto, message):
+    pending_voice_commands[message.chat.id] = (texto, datetime.now(), 'inventario')
+    markup = InlineKeyboardMarkup(row_width=2)
+    markup.add(
+        InlineKeyboardButton("✅ Confirmar", callback_data="confirm_voice"),
+        InlineKeyboardButton("❌ Cancelar", callback_data="cancel_voice")
+    )
+    tipo_msg = "🎙️ Escuché" if message.content_type == 'voice' else "📩 Recibí"
+    safe_telegram_send(message.chat.id, f"{tipo_msg}:\n\n_{texto}_\n\n¿Procesar esta instrucción?", reply_markup=markup, parse_mode="Markdown")
+
+
+
+
+
+def handle_logistica_callback(call):
+    bot.edit_message_reply_markup(call.message.chat.id, call.message.message_id, reply_markup=None)
+    
+    if call.data == 'cancel_logistica':
+        pending_voice_commands.pop(call.message.chat.id, None)
+        safe_telegram_send(call.message.chat.id, "❌ Agendamiento cancelado.")
+        return
+        
+    pending_data = pending_voice_commands.pop(call.message.chat.id, None)
+    if not pending_data or len(pending_data) != 3 or pending_data[2] != 'logistica':
+        safe_telegram_send(call.message.chat.id, "⚠️ La solicitud ha expirado o ya fue procesada.")
+        return
+        
+    datos_evento = pending_data[0]
+    
+    try:
+        with app.app_context():
+            user = Usuario.query.filter_by(telegram_chat_id=str(call.from_user.id)).first()
+            if not user:
+                safe_telegram_send(call.message.chat.id, "❌ Usuario no autorizado.")
+                return
+            
+            # Parsear ISO 8601 a DateTime. Gemini a veces da YYYY-MM-DD o YYYY-MM-DDTHH:MM:SS
+            def parse_fecha(f_str):
+                if not f_str: return None
+                try:
+                    return datetime.fromisoformat(f_str.replace('Z', '+00:00'))
+                except:
                     try:
-                        return datetime.fromisoformat(f_str.replace('Z', '+00:00'))
+                        # Intento extra manual si falla fromisoformat
+                        return datetime.strptime(f_str[:19], "%Y-%m-%dT%H:%M:%S")
                     except:
                         try:
-                            # Intento extra manual si falla fromisoformat
-                            return datetime.strptime(f_str[:19], "%Y-%m-%dT%H:%M:%S")
+                            return datetime.strptime(f_str[:10], "%Y-%m-%d")
                         except:
-                            try:
-                                return datetime.strptime(f_str[:10], "%Y-%m-%d")
-                            except:
-                                return None
-                                
-                f_inicio = parse_fecha(datos_evento.get('fecha_inicio'))
-                f_fin = parse_fecha(datos_evento.get('fecha_fin'))
-                if not f_inicio:
-                    safe_telegram_send(call.message.chat.id, "❌ Error parseando la fecha de inicio del evento.")
-                    return
-                    
-                nuevo_evento = EventoLogistico(
-                    titulo=datos_evento.get('titulo'),
-                    descripcion=datos_evento.get('descripcion', ''),
-                    fecha_inicio=f_inicio,
-                    fecha_fin=f_fin,
-                    creador_id=user.id
+                            return None
+                            
+            f_inicio = parse_fecha(datos_evento.get('fecha_inicio'))
+            f_fin = parse_fecha(datos_evento.get('fecha_fin'))
+            if not f_inicio:
+                safe_telegram_send(call.message.chat.id, "❌ Error parseando la fecha de inicio del evento.")
+                return
+                
+            nuevo_evento = EventoLogistico(
+                titulo=datos_evento.get('titulo'),
+                descripcion=datos_evento.get('descripcion', ''),
+                fecha_inicio=f_inicio,
+                fecha_fin=f_fin,
+                creador_id=user.id
+            )
+            db.session.add(nuevo_evento)
+            db.session.commit()
+            
+            safe_telegram_send(call.message.chat.id, f"✅ Agendado para el {formatear_fecha_amigable(f_inicio)}:\n*{datos_evento.get('titulo')}*", parse_mode="Markdown")
+    except Exception as e:
+        print(f"Error guardando evento: {e}")
+        safe_telegram_send(call.message.chat.id, f"❌ Error interno al guardar: {e}")
+
+def handle_menu_callback(call):
+    bot.edit_message_reply_markup(call.message.chat.id, call.message.message_id, reply_markup=None)
+
+    if call.data.startswith('menu_dia_'):
+        dia = call.data.split('_')[-1].capitalize()
+        markup = InlineKeyboardMarkup(row_width=2)
+        markup.add(
+            InlineKeyboardButton(f"☕ Desayuno ({dia})", callback_data=f"menu_tipo_{dia}_Desayuno"),
+            InlineKeyboardButton(f"☀️ Almuerzo ({dia})", callback_data=f"menu_tipo_{dia}_Almuerzo"),
+            InlineKeyboardButton(f"🥞 Merienda ({dia})", callback_data=f"menu_tipo_{dia}_Merienda"),
+            InlineKeyboardButton(f"🌙 Cena ({dia})", callback_data=f"menu_tipo_{dia}_Cena")
+        )
+        safe_telegram_send(call.message.chat.id, f"🍽️ Planificando para el **{dia}**.\n¿Qué comida deseas configurar?", reply_markup=markup, parse_mode="Markdown")
+        return
+
+    if call.data.startswith('menu_tipo_'):
+        partes = call.data.split('_')
+        dia, tipo = partes[2], partes[3]
+        pending_menu_config[call.message.chat.id] = (dia, tipo)
+        safe_telegram_send(call.message.chat.id, f"✍️ Ingresa el nombre de la receta o plato para el **{tipo}** del **{dia}** (ej. 'Milanesas con puré'):", parse_mode="Markdown")
+        return
+    
+    if call.data == 'cancel_menu':
+        pending_voice_commands.pop(call.message.chat.id, None)
+        pending_menu_config.pop(call.message.chat.id, None)
+        safe_telegram_send(call.message.chat.id, "❌ Sugerencia cancelada.")
+        return
+        
+    pending_data = pending_voice_commands.pop(call.message.chat.id, None)
+    if not pending_data or len(pending_data) != 3 or pending_data[2] != 'menu':
+        safe_telegram_send(call.message.chat.id, "⚠️ La solicitud ha expirado o ya fue procesada.")
+        return
+        
+    receta_id = pending_data[0]
+    
+    try:
+        with app.app_context():
+            receta = db.session.get(Receta, receta_id)
+            if not receta:
+                safe_telegram_send(call.message.chat.id, "❌ No se encontró la receta.")
+                return
+            
+            # Infer meal type based on current time
+            tz = pytz.timezone('America/Argentina/Buenos_Aires')
+            ahora = datetime.now(tz).time()
+            
+            horarios = HorarioComidas.query.all()
+            tipo_inferido = "Cena" # Default
+            for h in horarios:
+                if h.hora_inicio <= ahora <= h.hora_fin:
+                    tipo_inferido = h.tipo_comida
+                    break
+            
+            # Consume ingredients
+            if consumir_receta(receta_id):
+                # Guardar en menu semanal
+                nuevo_menu = MenuSemanal(
+                    dia_semana=datetime.now(tz).strftime('%A'), # Not perfectly mapped to Spanish but ok for model
+                    tipo_comida=tipo_inferido,
+                    receta_id=receta.id,
+                    fecha_asignada=datetime.now(tz).date()
                 )
-                db.session.add(nuevo_evento)
+                db.session.add(nuevo_menu)
                 db.session.commit()
-                
-                safe_telegram_send(call.message.chat.id, f"✅ Evento guardado correctamente:\n*{datos_evento['titulo']}*", parse_mode="Markdown")
-        except Exception as e:
-            print(f"Error guardando evento: {e}")
-            safe_telegram_send(call.message.chat.id, f"❌ Error interno al guardar: {e}")
+                safe_telegram_send(call.message.chat.id, f"✅ ¡Excelente! He descontado los ingredientes de *{receta.nombre}* y la registré como tu {tipo_inferido} de hoy.", parse_mode="Markdown")
+            else:
+                safe_telegram_send(call.message.chat.id, "❌ Error consumiendo receta.")
+    except Exception as e:
+        print(f"Error procesando menu: {e}")
+        safe_telegram_send(call.message.chat.id, f"❌ Error interno: {e}")
 
-    def handle_menu_callback(call):
-        bot.edit_message_reply_markup(call.message.chat.id, call.message.message_id, reply_markup=None)
+def callback_voice(call):
+    bot.edit_message_reply_markup(call.message.chat.id, call.message.message_id, reply_markup=None)
+    
+    if call.data == 'cancel_voice':
+        pending_voice_commands.pop(call.message.chat.id, None)
+        safe_telegram_send(call.message.chat.id, "❌ Operación cancelada.")
+        return
         
-        if call.data == 'cancel_menu':
-            pending_voice_commands.pop(call.message.chat.id, None)
-            safe_telegram_send(call.message.chat.id, "❌ Sugerencia cancelada.")
-            return
-            
-        pending_data = pending_voice_commands.pop(call.message.chat.id, None)
-        if not pending_data or len(pending_data) != 3 or pending_data[2] != 'menu':
-            safe_telegram_send(call.message.chat.id, "⚠️ La solicitud ha expirado o ya fue procesada.")
-            return
-            
-        receta_id = pending_data[0]
+    pending_data = pending_voice_commands.pop(call.message.chat.id, None)
+    if not pending_data:
+        safe_telegram_send(call.message.chat.id, "⚠️ La solicitud ha expirado o ya fue procesada.")
+        return
         
-        try:
-            with app.app_context():
-                receta = Receta.query.get(receta_id)
-                if not receta:
-                    safe_telegram_send(call.message.chat.id, "❌ No se encontró la receta.")
-                    return
-                
-                # Infer meal type based on current time
-                tz = pytz.timezone('America/Argentina/Buenos_Aires')
-                ahora = datetime.now(tz).time()
-                
-                horarios = HorarioComidas.query.all()
-                tipo_inferido = "Cena" # Default
-                for h in horarios:
-                    if h.hora_inicio <= ahora <= h.hora_fin:
-                        tipo_inferido = h.tipo_comida
-                        break
-                
-                # Consume ingredients
-                if consumir_receta(receta_id):
-                    # Guardar en menu semanal
-                    nuevo_menu = MenuSemanal(
-                        dia_semana=datetime.now(tz).strftime('%A'), # Not perfectly mapped to Spanish but ok for model
-                        tipo_comida=tipo_inferido,
-                        receta_id=receta.id,
-                        fecha_asignada=datetime.now(tz).date()
-                    )
-                    db.session.add(nuevo_menu)
-                    db.session.commit()
-                    safe_telegram_send(call.message.chat.id, f"✅ ¡Excelente! He descontado los ingredientes de *{receta.nombre}* y la registré como tu {tipo_inferido} de hoy.", parse_mode="Markdown")
-                else:
-                    safe_telegram_send(call.message.chat.id, "❌ Error consumiendo receta.")
-        except Exception as e:
-            print(f"Error procesando menu: {e}")
-            safe_telegram_send(call.message.chat.id, f"❌ Error interno: {e}")
-
-    def callback_voice(call):
-        bot.edit_message_reply_markup(call.message.chat.id, call.message.message_id, reply_markup=None)
+    intencion_previa = None
+    if isinstance(pending_data, tuple):
+        texto_transcrito = pending_data[0]
+        if len(pending_data) >= 3:
+            intencion_previa = pending_data[2]
+    else:
+        texto_transcrito = pending_data
+    texto_lower = texto_transcrito.lower()
+    
+    num_map = {
+        'un': 1, 'una': 1, 'uno': 1, 'dos': 2, 'tres': 3, 'cuatro': 4,
+        'cinco': 5, 'seis': 6, 'siete': 7, 'ocho': 8, 'nueve': 9,
+        'diez': 10, 'once': 11, 'doce': 12, 'media': 0.5, 'medio': 0.5,
+        'quince': 15, 'veinte': 20, 'treinta': 30
+    }
+    
+    rama = None
+    texto_sin_accion = texto_lower
+    
+    match_inv = re.search(r'(agregar|añadir|compré|compre|comprado|sumar|meté|mete)\s+(.*)', texto_lower)
+    match_comp = re.search(r'(comprar|falta|faltan|necesito|necesitamos)\s+(.*)', texto_lower)
+    match_resta = re.search(r'(gasté|gaste|consumí|consumi|usé|use|comí|comi|saqué|saque|quité|quite)\s+(.*)', texto_lower)
+    match_tarea = re.search(r'(hice|terminé|termine|limpié|limpie|saqué|saque)\s+(.*)', texto_lower)
+    
+    if match_inv:
+        rama = "inventario"
+        texto_sin_accion = match_inv.group(2)
+    elif match_comp:
+        rama = "compras"
+        texto_sin_accion = match_comp.group(2)
+    elif match_resta:
+        rama = "restar"
+        texto_sin_accion = match_resta.group(2)
+    elif match_tarea:
+        rama = "tarea"
+        texto_sin_accion = match_tarea.group(2)
         
-        if call.data == 'cancel_voice':
-            pending_voice_commands.pop(call.message.chat.id, None)
-            safe_telegram_send(call.message.chat.id, "❌ Operación cancelada.")
-            return
-            
-        pending_data = pending_voice_commands.pop(call.message.chat.id, None)
-        if not pending_data:
-            safe_telegram_send(call.message.chat.id, "⚠️ La solicitud ha expirado o ya fue procesada.")
-            return
-            
-        texto_transcrito = pending_data[0] if isinstance(pending_data, tuple) else pending_data
-        texto_lower = texto_transcrito.lower()
-        
-        num_map = {
-            'un': 1, 'una': 1, 'uno': 1, 'dos': 2, 'tres': 3, 'cuatro': 4,
-            'cinco': 5, 'seis': 6, 'siete': 7, 'ocho': 8, 'nueve': 9,
-            'diez': 10, 'once': 11, 'doce': 12, 'media': 0.5, 'medio': 0.5,
-            'quince': 15, 'veinte': 20, 'treinta': 30
-        }
-        
-        rama = None
+    if not rama:
+        if intencion_previa in ["compras", "tarea"]:
+            rama = intencion_previa
+        else:
+            rama = "inventario"
         texto_sin_accion = texto_lower
         
-        match_inv = re.search(r'(agregar|añadir|compré|compre|comprado|sumar|meté|mete)\s+(.*)', texto_lower)
-        match_comp = re.search(r'(comprar|falta|faltan|necesito|necesitamos)\s+(.*)', texto_lower)
-        match_resta = re.search(r'(gasté|gaste|consumí|consumi|usé|use|comí|comi|saqué|saque|quité|quite)\s+(.*)', texto_lower)
-        match_tarea = re.search(r'(hice|terminé|termine|limpié|limpie|saqué|saque)\s+(.*)', texto_lower)
-        
-        if match_inv:
-            rama = "inventario"
-            texto_sin_accion = match_inv.group(2)
-        elif match_comp:
-            rama = "compras"
-            texto_sin_accion = match_comp.group(2)
-        elif match_resta:
-            rama = "restar"
-            texto_sin_accion = match_resta.group(2)
-        elif match_tarea:
-            rama = "tarea"
-            texto_sin_accion = match_tarea.group(2)
-            
-        if not rama:
-            safe_telegram_send(call.message.chat.id, "❌ No pude entender la orden. Intenta decir: 'Agregar 2 de leche...' o 'Gasté 1 pan'.")
-            return
-            
-        texto_limpio = texto_sin_accion.replace(" y ", ",").replace(" e ", ",")
-        articulos_raw = [a.strip() for a in texto_limpio.split(",") if a.strip()]
-        
-        if not articulos_raw:
-            safe_telegram_send(call.message.chat.id, "❌ No logré detectar qué artículos quieres procesar.")
-            return
+    texto_limpio = texto_sin_accion.replace(" y ", ",").replace(" e ", ",")
+    articulos_raw = [a.strip() for a in texto_limpio.split(",") if a.strip()]
+    
+    if not articulos_raw:
+        safe_telegram_send(call.message.chat.id, "❌ No logré detectar qué artículos quieres procesar.")
+        return
 
-        respuestas = []
-        tx_id = str(uuid.uuid4())
-        recent_transactions[tx_id] = []
+    respuestas = []
+    tx_id = str(uuid.uuid4())
+    recent_transactions[tx_id] = []
 
-        try:
-            with app.app_context():
-                try:
-                    for item_texto in articulos_raw:
-                        match_item = re.search(r'^(?:(\d+(?:\.\d+)?|un|una|uno|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce|media|medio|quince|veinte|treinta)\s+)?(?:(?:de|kilos? de|litros? de|paquetes? de|gramos? de)\s+)?(.*)$', item_texto)
-                        
-                        if not match_item:
+    try:
+        with app.app_context():
+            try:
+                for item_texto in articulos_raw:
+                    match_item = re.search(r'^(?:(\d+(?:\.\d+)?|un|una|uno|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce|media|medio|quince|veinte|treinta)\s+)?(?:(?:de|kilos? de|litros? de|paquetes? de|gramos? de)\s+)?(.*)$', item_texto)
+                    
+                    if not match_item:
+                        cantidad = 1.0
+                        resto_texto = item_texto
+                    else:
+                        cantidad_str = match_item.group(1)
+                        if cantidad_str:
+                            if cantidad_str.isdigit() or '.' in cantidad_str:
+                                cantidad = float(cantidad_str)
+                            else:
+                                cantidad = float(num_map.get(cantidad_str, 1.0))
+                        else:
                             cantidad = 1.0
-                            resto_texto = item_texto
+                        resto_texto = match_item.group(2).strip()
+                    
+                    partes = re.split(r'\s+en\s+', resto_texto, maxsplit=1)
+                    producto_texto = partes[0].strip()
+                    nombre_ubicacion = partes[1].strip() if len(partes) > 1 else None
+                    
+                    if producto_texto.endswith('s') and len(producto_texto) > 3:
+                        producto_texto_limpio = producto_texto[:-1]
+                    else:
+                        producto_texto_limpio = producto_texto
+                        
+                    ubicacion_obj = None
+                    if nombre_ubicacion:
+                        nombre_ubicacion_limpio = re.sub(r'^(el|la|los|las)\s+', '', nombre_ubicacion, flags=re.IGNORECASE).strip()
+                        
+                        ubicaciones_db = Ubicacion.query.all()
+                        nombres = [u.nombre for u in ubicaciones_db]
+                        coincidencias = difflib.get_close_matches(nombre_ubicacion_limpio, nombres, n=1, cutoff=0.65)
+                        if coincidencias:
+                            ubicacion_obj = next(u for u in ubicaciones_db if u.nombre == coincidencias[0])
                         else:
-                            cantidad_str = match_item.group(1)
-                            if cantidad_str:
-                                if cantidad_str.isdigit() or '.' in cantidad_str:
-                                    cantidad = float(cantidad_str)
-                                else:
-                                    cantidad = float(num_map.get(cantidad_str, 1.0))
-                            else:
-                                cantidad = 1.0
-                            resto_texto = match_item.group(2).strip()
-                        
-                        partes = re.split(r'\s+en\s+', resto_texto, maxsplit=1)
-                        producto_texto = partes[0].strip()
-                        nombre_ubicacion = partes[1].strip() if len(partes) > 1 else None
-                        
-                        if producto_texto.endswith('s') and len(producto_texto) > 3:
-                            producto_texto_limpio = producto_texto[:-1]
-                        else:
-                            producto_texto_limpio = producto_texto
-                            
-                        ubicacion_obj = None
-                        if nombre_ubicacion:
-                            nombre_ubicacion_limpio = re.sub(r'^(el|la|los|las)\s+', '', nombre_ubicacion, flags=re.IGNORECASE).strip()
-                            
-                            ubicaciones_db = Ubicacion.query.all()
-                            nombres = [u.nombre for u in ubicaciones_db]
-                            coincidencias = difflib.get_close_matches(nombre_ubicacion_limpio, nombres, n=1, cutoff=0.65)
-                            if coincidencias:
-                                ubicacion_obj = next(u for u in ubicaciones_db if u.nombre == coincidencias[0])
-                            else:
-                                ubicacion_obj = Ubicacion(nombre=nombre_ubicacion_limpio.capitalize(), sala_id=None)
-                                db.session.add(ubicacion_obj)
-                                db.session.flush()
-                                
-                        producto = Producto.query.filter(
-                            (Producto.nombre.ilike(f"%{producto_texto}%")) | 
-                            (Producto.nombre.ilike(f"%{producto_texto_limpio}%"))
-                        ).first()
-                        
-                        ubi_nombre_mostrar = ubicacion_obj.nombre if ubicacion_obj else (nombre_ubicacion if nombre_ubicacion else "")
-                        ubi_msg = f" en {ubi_nombre_mostrar}" if ubi_nombre_mostrar else ""
-                        
-                        if rama == "inventario":
-                            if producto:
-                                producto.stock_actual += cantidad
-                                if ubicacion_obj:
-                                    producto.ubicacion_id = ubicacion_obj.id
-                                mov = Movimiento(descripcion="Añadido por Voz", producto_id=producto.id, tipo="add", cantidad=cantidad)
-                                db.session.add(mov)
-                                db.session.flush()
-                                recent_transactions[tx_id].append({"producto_id": producto.id, "added": cantidad, "movimiento_id": mov.id, "is_new": False})
-                                respuestas.append(f"{cantidad}x {producto.nombre}{ubi_msg}")
-                            else:
-                                nuevo_prod = Producto(
-                                    nombre=producto_texto.capitalize(), 
-                                    stock_actual=cantidad, 
-                                    stock_minimo=1.0,
-                                    ubicacion_id=ubicacion_obj.id if ubicacion_obj else None
-                                )
-                                db.session.add(nuevo_prod)
-                                db.session.flush()
-                                mov = Movimiento(descripcion="Creado por Voz", producto_id=nuevo_prod.id, tipo="add", cantidad=cantidad)
-                                db.session.add(mov)
-                                db.session.flush()
-                                recent_transactions[tx_id].append({"producto_id": nuevo_prod.id, "added": cantidad, "movimiento_id": mov.id, "is_new": True})
-                                respuestas.append(f"{cantidad}x {nuevo_prod.nombre}{ubi_msg}")
-                                
-                        elif rama == "compras":
-                            if producto:
-                                was_en_lista = producto.en_lista
-                                producto.en_lista = True
-                                db.session.flush()
-                                recent_transactions[tx_id].append({"producto_id": producto.id, "was_en_lista": was_en_lista, "is_new": False})
-                                respuestas.append(f"{producto.nombre}{ubi_msg}")
-                            else:
-                                nuevo_prod = Producto(
-                                    nombre=producto_texto.capitalize(),
-                                    stock_actual=0,
-                                    stock_minimo=1.0,
-                                    en_lista=True,
-                                    es_temporal=True,
-                                    ubicacion_id=ubicacion_obj.id if ubicacion_obj else None
-                                )
-                                db.session.add(nuevo_prod)
-                                db.session.flush()
-                                recent_transactions[tx_id].append({"producto_id": nuevo_prod.id, "is_new": True})
-                                respuestas.append(f"{nuevo_prod.nombre}{ubi_msg} (temporal)")
-
-                        elif rama == "restar":
-                            if producto:
-                                cantidad_restada = min(producto.stock_actual, cantidad)
-                                producto.stock_actual = max(0, producto.stock_actual - cantidad)
-                                mov = Movimiento(descripcion="Consumido por Voz", producto_id=producto.id, tipo="remove", cantidad=cantidad_restada)
-                                db.session.add(mov)
-                                db.session.flush()
-                                recent_transactions[tx_id].append({"producto_id": producto.id, "removed": cantidad_restada, "movimiento_id": mov.id, "is_new": False})
-                                respuestas.append(f"{cantidad_restada}x {producto.nombre}{ubi_msg}")
-                            else:
-                                respuestas.append(f"⚠️ {producto_texto.capitalize()} no existe, omitido.")
-                        elif rama == "tarea":
-                            tarea_nombre = producto_texto.strip()
-                            tarea_db = Tarea.query.filter(Tarea.nombre.ilike(f"%{tarea_nombre}%")).first()
-                            if tarea_db:
-                                user = Usuario.query.filter_by(telegram_chat_id=str(call.message.chat.id)).first()
-                                if user:
-                                    # Registrar historial y actualizar fecha
-                                    old_date = tarea_db.fecha_ultima_ejecucion
-                                    historial = HistorialTarea(tarea_id=tarea_db.id, usuario_id=user.id)
-                                    db.session.add(historial)
-                                    tarea_db.fecha_ultima_ejecucion = datetime.now().date()
+                            try:
+                                sala_def = Sala.query.first()
+                                if sala_def:
+                                    ubicacion_obj = Ubicacion(nombre=nombre_ubicacion_limpio.capitalize(), sala_id=sala_def.id)
+                                    db.session.add(ubicacion_obj)
                                     db.session.flush()
-                                    recent_transactions[tx_id].append({
-                                        "is_tarea": True, 
-                                        "tarea_id": tarea_db.id, 
-                                        "historial_id": historial.id, 
-                                        "old_date": old_date
-                                    })
-                                    respuestas.append(f"✨ Tarea '{tarea_db.nombre}' completada por {user.username}.")
-                            else:
-                                respuestas.append(f"⚠️ No se encontró la tarea '{tarea_nombre}'.")
-
-
-                    db.session.commit()
-                    
-                    if respuestas:
-                        markup_undo = InlineKeyboardMarkup()
-                        markup_undo.add(InlineKeyboardButton("↩️ Deshacer", callback_data=f"undo_{tx_id}"))
-                        
-                        if rama == "inventario":
-                            safe_telegram_send(call.message.chat.id, "✅ Procesado:\n- " + "\n- ".join(respuestas), reply_markup=markup_undo)
-                        elif rama == "compras":
-                            safe_telegram_send(call.message.chat.id, "🛒 Añadido a compras:\n- " + "\n- ".join(respuestas), reply_markup=markup_undo)
-                        elif rama == "restar":
-                            safe_telegram_send(call.message.chat.id, "➖ Descontado del inventario:\n- " + "\n- ".join(respuestas), reply_markup=markup_undo)
-                    else:
-                        safe_telegram_send(call.message.chat.id, "⚠️ No se procesó ningún artículo.")
-                except Exception as e:
-                    db.session.rollback()
-                    safe_telegram_send(call.message.chat.id, f"❌ Error guardando datos, transacción revertida: {str(e)}")
-                    recent_transactions.pop(tx_id, None)
-        except Exception as e:
-            safe_telegram_send(call.message.chat.id, f"❌ Error interno: {str(e)}")
-
-    @bot.callback_query_handler(func=lambda call: call.data.startswith('undo_'))
-    def callback_undo(call):
-        tx_id = call.data.replace('undo_', '')
-        if tx_id not in recent_transactions:
-            bot.answer_callback_query(call.id, "⚠️ Esta acción ya expiró o fue deshecha.")
-            return
-            
-        operaciones = recent_transactions.pop(tx_id)
-        try:
-            with app.app_context():
-                for op in operaciones:
-                    prod = Producto.query.get(op['producto_id'])
-                    if not prod: continue
-                    
-                    
-                    if op.get('is_tarea'):
-                        if 'historial_id' in op:
-                            h = HistorialTarea.query.get(op['historial_id'])
-                            if h: db.session.delete(h)
-                        if 'tarea_id' in op:
-                            t = Tarea.query.get(op['tarea_id'])
-                            if t and 'old_date' in op:
-                                t.fecha_ultima_ejecucion = op['old_date']
-                        continue
-
-                    if op.get('is_new'):
-                        if 'movimiento_id' in op:
-                            mov = Movimiento.query.get(op['movimiento_id'])
-                            if mov: db.session.delete(mov)
-                        db.session.delete(prod)
-                    else:
-                        if 'added' in op:
-                            prod.stock_actual = max(0, prod.stock_actual - op['added'])
-                        if 'removed' in op:
-                            prod.stock_actual += op['removed']
-                        if 'was_en_lista' in op:
-                            prod.en_lista = op['was_en_lista']
+                                else:
+                                    ubicacion_obj = None
+                            except Exception as e_ubi:
+                                db.session.rollback()
+                                ubicacion_obj = None
                             
-                        if 'movimiento_id' in op:
-                            mov = Movimiento.query.get(op['movimiento_id'])
-                            if mov: db.session.delete(mov)
+                    producto = Producto.query.filter(
+                        (Producto.nombre.ilike(f"%{producto_texto}%")) | 
+                        (Producto.nombre.ilike(f"%{producto_texto_limpio}%"))
+                    ).first()
+                    
+                    ubi_nombre_mostrar = ubicacion_obj.nombre if ubicacion_obj else (nombre_ubicacion if nombre_ubicacion else "")
+                    ubi_msg = f" en {ubi_nombre_mostrar}" if ubi_nombre_mostrar else ""
+                    
+                    if rama == "inventario":
+                        if producto:
+                            producto.stock_actual += cantidad
+                            if ubicacion_obj:
+                                producto.ubicacion_id = ubicacion_obj.id
+                            mov = Movimiento(descripcion="Añadido por Voz", producto_id=producto.id, tipo="add", cantidad=cantidad)
+                            db.session.add(mov)
+                            db.session.flush()
+                            recent_transactions[tx_id].append({"producto_id": producto.id, "added": cantidad, "movimiento_id": mov.id, "is_new": False})
+                            respuestas.append(f"{cantidad}x {producto.nombre}{ubi_msg}")
+                        else:
+                            nuevo_prod = Producto(
+                                nombre=producto_texto.capitalize(), 
+                                stock_actual=cantidad, 
+                                stock_minimo=1.0,
+                                ubicacion_id=ubicacion_obj.id if ubicacion_obj else None
+                            )
+                            db.session.add(nuevo_prod)
+                            db.session.flush()
+                            mov = Movimiento(descripcion="Creado por Voz", producto_id=nuevo_prod.id, tipo="add", cantidad=cantidad)
+                            db.session.add(mov)
+                            db.session.flush()
+                            recent_transactions[tx_id].append({"producto_id": nuevo_prod.id, "added": cantidad, "movimiento_id": mov.id, "is_new": True})
+                            respuestas.append(f"{cantidad}x {nuevo_prod.nombre}{ubi_msg}")
+                            
+                    elif rama == "compras":
+                        if producto:
+                            was_en_lista = producto.en_lista
+                            producto.en_lista = True
+                            db.session.flush()
+                            recent_transactions[tx_id].append({"producto_id": producto.id, "was_en_lista": was_en_lista, "is_new": False})
+                            respuestas.append(f"{producto.nombre}{ubi_msg}")
+                        else:
+                            nuevo_prod = Producto(
+                                nombre=producto_texto.capitalize(),
+                                stock_actual=0,
+                                stock_minimo=1.0,
+                                en_lista=True,
+                                es_temporal=True,
+                                ubicacion_id=ubicacion_obj.id if ubicacion_obj else None
+                            )
+                            db.session.add(nuevo_prod)
+                            db.session.flush()
+                            recent_transactions[tx_id].append({"producto_id": nuevo_prod.id, "is_new": True})
+                            respuestas.append(f"{nuevo_prod.nombre}{ubi_msg} (temporal)")
+
+                    elif rama == "restar":
+                        if producto:
+                            cantidad_restada = min(producto.stock_actual, cantidad)
+                            producto.stock_actual = max(0, producto.stock_actual - cantidad)
+                            mov = Movimiento(descripcion="Consumido por Voz", producto_id=producto.id, tipo="remove", cantidad=cantidad_restada)
+                            db.session.add(mov)
+                            db.session.flush()
+                            recent_transactions[tx_id].append({"producto_id": producto.id, "removed": cantidad_restada, "movimiento_id": mov.id, "is_new": False})
+                            respuestas.append(f"{cantidad_restada}x {producto.nombre}{ubi_msg}")
+                        else:
+                            respuestas.append(f"⚠️ {producto_texto.capitalize()} no existe, omitido.")
+                    elif rama == "tarea":
+                        tarea_nombre = producto_texto.strip()
+                        tarea_db = Tarea.query.filter(Tarea.nombre.ilike(f"%{tarea_nombre}%")).first()
+                        if tarea_db:
+                            user = Usuario.query.filter_by(telegram_chat_id=str(call.from_user.id)).first()
+                            if user:
+                                # Registrar historial y actualizar fecha
+                                old_date = tarea_db.fecha_ultima_ejecucion
+                                historial = HistorialTarea(tarea_id=tarea_db.id, usuario_id=user.id)
+                                db.session.add(historial)
+                                tarea_db.fecha_ultima_ejecucion = datetime.now().date()
+                                db.session.flush()
+                                recent_transactions[tx_id].append({
+                                    "is_tarea": True, 
+                                    "tarea_id": tarea_db.id, 
+                                    "historial_id": historial.id, 
+                                    "old_date": old_date
+                                })
+                                respuestas.append(f"✨ Tarea '{tarea_db.nombre}' completada por {user.username}.")
+                        else:
+                            respuestas.append(f"⚠️ No se encontró la tarea '{tarea_nombre}'.")
+
+
                 db.session.commit()
-            bot.edit_message_text("↩️ Acción deshecha correctamente.", call.message.chat.id, call.message.message_id)
-        except Exception as e:
-            safe_telegram_send(call.message.chat.id, f"❌ Error al deshacer: {str(e)}")
-
-    @bot.callback_query_handler(func=lambda call: call.data == 'add_low_stock')
-    def callback_add_low_stock(call):
-        try:
-            with app.app_context():
-                productos_bajos = Producto.query.filter(Producto.stock_actual <= Producto.stock_minimo, Producto.en_lista == False).all()
-                for p in productos_bajos:
-                    p.en_lista = True
-                db.session.commit()
-            bot.edit_message_text("✅ Productos agregados a la lista de compras.", call.message.chat.id, call.message.message_id)
-        except Exception as e:
-            safe_telegram_send(call.message.chat.id, f"❌ Error: {str(e)}")
-
-    @bot.message_handler(commands=['start'])
-    def cmd_start(message):
-        safe_telegram_reply(message, "¡Hola! Bienvenido a Homestock. Para vincular tu cuenta, ingresa a la aplicación web, ve a tu Perfil, genera un token y envíalo aquí con el comando:\n/vincular <Tu Token>")
-
-    @bot.message_handler(commands=['vincular'])
-    def cmd_vincular(message):
-        texto = message.text.replace('/vincular', '').strip()
-        if not texto:
-            safe_telegram_reply(message, "Por favor, envía tu token. Ejemplo: /vincular ABC123")
-            return
-            
-        with app.app_context():
-            user = Usuario.query.filter_by(telegram_link_token=texto).first()
-            if user:
-                user.telegram_chat_id = str(message.chat.id)
-                user.telegram_link_token = None
-                db.session.commit()
-                safe_telegram_reply(message, f"¡Cuenta vinculada con éxito! Hola, {user.username}. Ya recibirás notificaciones aquí.")
-            else:
-                safe_telegram_reply(message, "Token inválido o expirado. Genera uno nuevo en la web.")
-
-    @bot.message_handler(commands=['balance'])
-    def handle_balance(message):
-        if not is_authorized(message.chat.id): return
-        balances = calcular_balances_globales()
-        if not balances:
-            safe_telegram_reply(message, "🎉 ¡Todo está al día! Nadie le debe dinero a nadie en la casa.")
-            return
-        
-        respuesta = "⚖️ <b>Balances Actuales de la Casa:</b>\n\n"
-        for b in balances:
-            respuesta += f"🔹 <b>{b['deudor_nombre']}</b> le debe a <b>{b['acreedor_nombre']}</b>: ${b['monto']}\n"
-        
-        safe_telegram_reply(message, respuesta, parse_mode='HTML')
-
-    @bot.message_handler(content_types=['photo', 'document'])
-    def handle_photo(message):
-        chat_id = message.chat.id
-
-        # Feedback inmediato ANTES de cualquier proceso pesado
-        try:
-            bot.send_message(chat_id, '📸 Recibí el ticket. Analizando con IA, dame unos segundos...')
-        except Exception as send_err:
-            print(f'[handle_photo] No pude enviar ACK: {send_err}')
-
-        if not GEMINI_API_KEY:
-            try:
-                bot.send_message(chat_id, '❌ Gemini no está configurado. Sube el gasto manualmente en la web.')
-            except Exception as silent_e:
-                import logging
-                logging.error(f"Fallo enviando mensaje de error al usuario: {silent_e}")
-            return
-
-        try:
-            with app.app_context():
-                # Buscar usuario (reemplaza la función inexistente get_usuario_por_chat)
-                usuario = Usuario.query.filter_by(telegram_chat_id=str(chat_id)).first()
-                if not usuario:
-                    bot.send_message(chat_id, '❌ Tu cuenta no está vinculada. Usá /vincular <token> para conectarla.')
-                    return
-
-                # Descargar la imagen de Telegram
-                if message.content_type == 'photo':
-                    file_id = message.photo[-1].file_id
+                
+                if respuestas:
+                    markup_undo = InlineKeyboardMarkup()
+                    markup_undo.add(InlineKeyboardButton("↩️ Deshacer", callback_data=f"undo_{tx_id}"))
+                    
+                    if rama == "inventario":
+                        safe_telegram_send(call.message.chat.id, "✅ Procesado:\n- " + "\n- ".join(respuestas), reply_markup=markup_undo)
+                    elif rama == "compras":
+                        safe_telegram_send(call.message.chat.id, "🛒 Añadido a compras:\n- " + "\n- ".join(respuestas), reply_markup=markup_undo)
+                    elif rama == "restar":
+                        safe_telegram_send(call.message.chat.id, "➖ Descontado del inventario:\n- " + "\n- ".join(respuestas), reply_markup=markup_undo)
                 else:
-                    file_id = message.document.file_id
+                    safe_telegram_send(call.message.chat.id, "⚠️ No se procesó ningún artículo.")
+            except Exception as e:
+                db.session.rollback()
+                safe_telegram_send(call.message.chat.id, f"❌ Error guardando datos, transacción revertida: {str(e)}")
+                recent_transactions.pop(tx_id, None)
+    except Exception as e:
+        safe_telegram_send(call.message.chat.id, f"❌ Error interno: {str(e)}")
 
-                file_info = bot.get_file(file_id)
-                downloaded_file = bot.download_file(file_info.file_path)
 
-                import tempfile
-                import os
 
-                with tempfile.NamedTemporaryFile(delete=False, suffix='.jpg') as temp_file:
-                    temp_file.write(downloaded_file)
-                    temp_file_path = temp_file.name
 
-                try:
-                    # Enviar la imagen directamente en linea (bypass de la API de archivos que causa timeout)
-                    with open(temp_file_path, 'rb') as img_f:
-                        img_data = img_f.read()
-                        
-                    imagen_gemini = {
-                        'mime_type': 'image/jpeg',
-                        'data': img_data
-                    }
-                    
-                    model = genai.GenerativeModel('gemini-3.5-flash')
 
-                    prompt = (
-                        "Eres un asistente contable. Analiza este ticket/factura y devuelve "
-                        "EXCLUSIVAMENTE un JSON con tres claves: 'descripcion' (resumen de la "
-                        "compra en 3-4 palabras), 'monto_total' (numero float, el total final "
-                        "pagado), e 'items' (un array de objetos donde cada objeto tiene 'nombre', 'cantidad' y 'precio_unitario'). "
-                        "No uses markdown ni texto adicional."
-                    )
-                    response = model.generate_content(
-                        [prompt, imagen_gemini],
-                        request_options={"timeout": 120}
-                    )
 
-                    resultado_str = response.text.strip()
-                    if resultado_str.startswith('```json'):
-                        resultado_str = resultado_str.replace('```json', '').replace('```', '').strip()
-                    elif resultado_str.startswith('```'):
-                        resultado_str = resultado_str.replace('```', '').strip()
 
-                    resultado = json.loads(resultado_str)
-                    monto_total = float(resultado.get('monto_total', 0))
-                    descripcion = resultado.get('descripcion', 'Ticket')
 
-                    if monto_total <= 0:
-                        bot.send_message(chat_id, '❌ No pude detectar un monto válido. Verificá la foto e intentá de nuevo.')
-                        return
 
-                    pending_ocr_confirmations[chat_id] = {
-                        'usuario_id': usuario.id,
-                        'monto_total': monto_total,
-                        'descripcion': descripcion
-                    }
 
-                    # Formatear el detalle de items
-                    items_str = ""
-                    items_list = resultado.get('items', [])
-                    if items_list and isinstance(items_list, list):
-                        for item in items_list:
-                            cant = item.get('cantidad', 1)
-                            nombre = item.get('nombre', 'Producto')
-                            precio = item.get('precio_unitario', 0)
-                            items_str += f"- {cant}x {nombre} (${precio})\n"
-                    else:
-                        items_str = "(No se detectaron items individuales)\n"
 
-                    markup = InlineKeyboardMarkup()
-                    markup.row(InlineKeyboardButton('👥 Dividir entre todos', callback_data='ocr_div_todos'))
-                    markup.row(InlineKeyboardButton('🙋‍♂️ Solo mío (no dividir)', callback_data='ocr_div_mio'))
-                    markup.row(InlineKeyboardButton('❌ Cancelar', callback_data='ocr_div_no'))
-                    
-                    bot.send_message(
-                        chat_id,
-                        f'🧾 <b>Detalle del Ticket</b>\n\n{items_str}\n<b>Total a pagar: ${monto_total}</b>\n\n¿Cómo querés registrar este gasto?',
-                        reply_markup=markup,
-                        parse_mode='HTML'
-                    )
 
-                finally:
-                    if os.path.exists(temp_file_path):
-                        os.remove(temp_file_path)
 
-        except Exception as e:
-            import traceback
-            traceback.print_exc()
-            print(f'[handle_photo] Error: {e}')
-            try:
-                bot.send_message(chat_id, f'❌ Falló la lectura: {str(e)}')
-            except Exception as silent_e:
-                import logging
-                logging.error(f"Fallo enviando mensaje de error al usuario: {silent_e}")
 
-    @bot.message_handler(commands=['comprado'])
-    def handle_comprado(message):
-        if not is_authorized(message.chat.id): return
-        texto = message.text.replace('/comprado', '').strip()
-        if not texto:
-            safe_telegram_reply(message, "⚠️ Usa: /comprado <producto> [cantidad]")
-            return
-            
-        partes = texto.split()
-        cantidad = 1
-        nombre_producto = texto
-        
-        if partes[-1].isdigit():
-            cantidad = int(partes[-1])
-            nombre_producto = " ".join(partes[:-1])
-
-        with app.app_context():
-            producto = Producto.query.filter(Producto.nombre.ilike(f"%{nombre_producto}%")).first()
-            if not producto:
-                safe_telegram_reply(message, f"❌ No encontré '{nombre_producto}' en la base de datos.")
-                return
-                
-            producto.stock_actual += cantidad
-            producto.en_lista = False
-            db.session.commit()
-            safe_telegram_reply(message, f"✅ '{producto.nombre}' actualizada. Nuevo stock: {producto.stock_actual}")
-
-    @bot.callback_query_handler(func=lambda call: call.data.startswith('comprar_'))
-    def callback_comprar(call):
-        if not is_authorized(call.message.chat.id): return
-        producto_id = int(call.data.split('_')[1])
-        with app.app_context():
-            producto = Producto.query.get(producto_id)
-            if not producto:
-                return
-
-            producto.en_lista = False
-            comercio_id = producto.comercio_id
-            nombre_comercio = producto.rel_comercio.nombre if producto.rel_comercio else "Sin Comercio"
-            db.session.commit()
-            
-            try:
-                bot.delete_message(call.message.chat.id, call.message.message_id)
-            except:
-                pass
-                
-            if comercio_id is not None:
-                productos_restantes = Producto.query.filter_by(en_lista=True, comercio_id=comercio_id).all()
-            else:
-                productos_restantes = Producto.query.filter(Producto.en_lista==True, Producto.comercio_id.is_(None)).all()
-                
-            if productos_restantes:
-                markup = telebot.types.InlineKeyboardMarkup()
-                for p in productos_restantes:
-                    boton = telebot.types.InlineKeyboardButton(
-                        text=f"⬜ {p.nombre} (Stock: {p.stock_actual})", 
-                        callback_data=f"comprar_{p.id}"
-                    )
-                    markup.add(boton)
-                safe_telegram_send(call.message.chat.id, f"📍 **{nombre_comercio}:**", parse_mode='Markdown', reply_markup=markup)
-            else:
-                safe_telegram_send(call.message.chat.id, f"✅ ¡Lista de {nombre_comercio} completada!")
-
-    @bot.message_handler(commands=['test_lista'])
-    def cmd_test_lista(message):
-        if not is_authorized(message.chat.id): return
-        enviar_listas_agrupadas(message.chat.id)
-
-    @bot.message_handler(commands=['sugerir_compra'])
-    def sugerir_compra(message):
-        if not is_authorized(message.chat.id): return
-        with app.app_context():
-            sugerencias = Producto.query.filter(Producto.stock_actual < Producto.stock_minimo, Producto.en_lista == False).all()
-            
-            if not sugerencias:
-                safe_telegram_reply(message, "✅ Todo en orden, tienes buen stock de todos tus productos.")
-                return
-                
-            grupos = defaultdict(list)
-            for p in sugerencias:
-                comercio = p.rel_comercio.nombre if p.rel_comercio else "Sin Comercio"
-                grupos[comercio].append(p)
-                
-            for comercio, productos in grupos.items():
-                mensaje = f"Tienes {len(productos)} productos en **{comercio}** por debajo del mínimo. ¿Deseas agregarlos a la lista de compras?\n\n"
-                for p in productos:
-                    mensaje += f"- {p.nombre} (Stock: {p.stock_actual}/{p.stock_minimo})\n"
-                
-                ids_str = ",".join([str(p.id) for p in productos][:10])
-                markup = telebot.types.InlineKeyboardMarkup()
-                markup.add(
-                    telebot.types.InlineKeyboardButton(text="✅ Agregar a la lista", callback_data=f"sugerir_add_{comercio}_{ids_str}"),
-                    telebot.types.InlineKeyboardButton(text="❌ Ignorar", callback_data=f"sugerir_ignorar")
-                )
-                
-                safe_telegram_send(message.chat.id, mensaje, reply_markup=markup, parse_mode='Markdown')
-
-    @bot.message_handler(commands=['añadir', 'add'])
-    def cmd_anadir(message):
-        if not is_authorized(message.chat.id): return
-        texto = message.text.replace('/añadir', '').replace('/add', '').strip()
-        if not texto:
-            safe_telegram_reply(message, "Uso: /añadir <nombre> <stock> <ubicacion>")
-            return
-            
-        partes = texto.split()
-        stock = None
-        stock_idx = -1
-        
-        for i, part in enumerate(partes):
-            try:
-                stock = float(part)
-                stock_idx = i
-                break
-            except ValueError:
-                pass
-                
-        if stock_idx == -1 or stock_idx == 0:
-            safe_telegram_reply(message, "No se pudo interpretar el formato. Asegúrate de incluir el stock.\nEjemplo: /añadir Leche 2 Heladera")
-            return
-            
-        nombre = " ".join(partes[:stock_idx]).strip()
-        ubicacion_nombre = " ".join(partes[stock_idx+1:]).strip()
-        
-        with app.app_context():
-            ubi_id = None
-            if ubicacion_nombre:
-                ubi = Ubicacion.query.filter(Ubicacion.nombre.ilike(f"%{ubicacion_nombre}%")).first()
-                if ubi:
-                    ubi_id = ubi.id
-                else:
-                    safe_telegram_reply(message, f"⚠️ No se encontró la ubicación '{ubicacion_nombre}'. El producto quedará Sin Asignar.")
-                    
-            nuevo_prod = Producto(
-                nombre=nombre.capitalize(),
-                stock_actual=stock,
-                stock_minimo=1.0,
-                ubicacion_id=ubi_id,
-                unidad_medida='unidades'
-            )
-            db.session.add(nuevo_prod)
-            
-            mov = Movimiento(
-                descripcion=f"Añadido vía Telegram",
-                producto_id=nuevo_prod.id,
-                tipo="add",
-                cantidad=stock
-            )
-            db.session.add(mov)
-            db.session.commit()
-            
-            mov.producto_id = nuevo_prod.id
-            db.session.commit()
-            
-            msg = f"✅ Producto '{nuevo_prod.nombre}' creado con éxito con {stock} unidades."
-            if ubi_id:
-                msg += f" (Ubicado en {ubi.nombre})"
-            safe_telegram_reply(message, msg)
-
-    @bot.callback_query_handler(func=lambda call: call.data.startswith('sugerir_'))
-    def callback_sugerir(call):
-        if not is_authorized(call.message.chat.id): return
-        if call.data == 'sugerir_ignorar':
-            try:
-                bot.delete_message(call.message.chat.id, call.message.message_id)
-            except:
-                pass
-            return
-            
-        partes = call.data.split('_')
-        if len(partes) >= 4 and partes[1] == 'add':
-            ids_str = partes[-1]
-            ids = [int(id_str) for id_str in ids_str.split(',')]
-            
-            with app.app_context():
-                for p_id in ids:
-                    producto = Producto.query.get(p_id)
-                    if producto:
-                        producto.en_lista = True
-                db.session.commit()
-                
-            try:
-                bot.edit_message_text("✅ Productos agregados a tu lista de compras.", chat_id=call.message.chat.id, message_id=call.message.message_id)
-            except:
-                pass
 
 
 # ==========================================
@@ -1585,7 +2112,7 @@ def dashboard():
                 prox_user_id = calcular_proximo_turno(t)
                 
                 if prox_user_id == current_user.id or es_admin:
-                    prox_user = Usuario.query.get(prox_user_id) if prox_user_id else None
+                    prox_user = db.session.get(Usuario, prox_user_id) if prox_user_id else None
                     nombre_asignado = prox_user.username if prox_user else "Todos/Nadie"
                     
                     if prox_user_id == current_user.id:
@@ -1635,13 +2162,13 @@ def dashboard():
     saltos = SaltoTarea.query.order_by(SaltoTarea.fecha.desc()).limit(5).all()
     
     for h in historiales:
-        u = Usuario.query.get(h.usuario_id)
-        t = Tarea.query.get(h.tarea_id)
+        u = db.session.get(Usuario, h.usuario_id)
+        t = db.session.get(Tarea, h.tarea_id)
         actividad.append({'tipo': 'completada', 'fecha': h.fecha, 'texto': f"{u.username} completó: {t.nombre}"})
         
     for s in saltos:
-        u = Usuario.query.get(s.usuario_id)
-        t = Tarea.query.get(s.tarea_id)
+        u = db.session.get(Usuario, s.usuario_id)
+        t = db.session.get(Tarea, s.tarea_id)
         actividad.append({'tipo': 'skip', 'fecha': s.fecha, 'texto': f"{u.username} saltó: {t.nombre}"})
         
     actividad.sort(key=lambda x: x['fecha'], reverse=True)
@@ -1718,7 +2245,7 @@ def crear_usuario():
 def delete_usuario(id_user):
     if current_user.id == id_user:
         return jsonify({'error': 'No puedes eliminarte a ti mismo'}), 400
-    u = Usuario.query.get_or_404(id_user)
+    u = db.get_or_404(Usuario, id_user)
     db.session.delete(u)
     db.session.commit()
     return jsonify({'mensaje': 'Usuario eliminado'})
@@ -1727,7 +2254,7 @@ def delete_usuario(id_user):
 @admin_required
 def update_usuario(id_user):
     data = request.get_json()
-    u = Usuario.query.get_or_404(id_user)
+    u = db.get_or_404(Usuario, id_user)
     
     if 'is_admin' in data:
         if current_user.id == id_user and not data['is_admin']:
@@ -1750,7 +2277,7 @@ def change_password(id):
     if not data or 'nueva_password' not in data:
         return jsonify({'error': 'Falta la nueva contraseña'}), 400
         
-    u = Usuario.query.get_or_404(id)
+    u = db.get_or_404(Usuario, id)
     u.set_password(data['nueva_password'])
     db.session.commit()
     return jsonify({'mensaje': 'Contraseña actualizada correctamente'})
@@ -1771,7 +2298,7 @@ def editar_sala(id):
 
 @app.route('/api/salas/<int:id_sala>', methods=['DELETE'])
 def eliminar_sala(id_sala):
-    s = Sala.query.get_or_404(id_sala)
+    s = db.get_or_404(Sala, id_sala)
     for u in s.ubicaciones:
         for su in u.sub_ubicaciones:
             for p in su.productos:
@@ -1794,7 +2321,7 @@ def editar_ubicacion(id):
 
 @app.route('/api/ubicaciones/<int:id_ubi>', methods=['DELETE'])
 def eliminar_ubicacion(id_ubi):
-    u = Ubicacion.query.get_or_404(id_ubi)
+    u = db.get_or_404(Ubicacion, id_ubi)
     for su in u.sub_ubicaciones:
         for p in su.productos:
             p.sub_ubicacion_id = None
@@ -1816,7 +2343,7 @@ def editar_sububicacion(id):
 
 @app.route('/api/sub_ubicaciones/<int:id_sub>', methods=['DELETE'])
 def eliminar_sububicacion(id_sub):
-    su = SubUbicacion.query.get_or_404(id_sub)
+    su = db.get_or_404(SubUbicacion, id_sub)
     for p in su.productos:
         p.sub_ubicacion_id = None
     db.session.delete(su)
@@ -1838,7 +2365,7 @@ def editar_comercio(id_comercio):
 
 @app.route('/api/comercios/<int:id_comercio>', methods=['DELETE'])
 def eliminar_comercio(id_comercio):
-    c = Comercio.query.get_or_404(id_comercio)
+    c = db.get_or_404(Comercio, id_comercio)
     for p in c.productos:
         p.comercio_id = None
     db.session.delete(c)
@@ -1893,7 +2420,7 @@ def crear_modelo():
         
     if 'usuarios_ids' in data and isinstance(data['usuarios_ids'], list):
         for uid in data['usuarios_ids']:
-            u = Usuario.query.get(uid)
+            u = db.session.get(Usuario, uid)
             if u: nueva.usuarios.append(u)
             
     db.session.add(nueva)
@@ -1904,7 +2431,7 @@ def crear_modelo():
 @login_required
 def editar_modelo(id_modelo):
     data = request.json
-    modelo = ModeloTarea.query.get_or_404(id_modelo)
+    modelo = db.get_or_404(ModeloTarea, id_modelo)
     if 'nombre' in data:
         modelo.nombre = data['nombre']
     if 'tipo_frecuencia' in data:
@@ -1918,7 +2445,7 @@ def editar_modelo(id_modelo):
     if 'usuarios_ids' in data and isinstance(data['usuarios_ids'], list):
         modelo.usuarios.clear()
         for uid in data['usuarios_ids']:
-            u = Usuario.query.get(uid)
+            u = db.session.get(Usuario, uid)
             if u: modelo.usuarios.append(u)
     db.session.commit()
     return jsonify(modelo.to_dict())
@@ -1926,7 +2453,7 @@ def editar_modelo(id_modelo):
 @app.route('/api/modelos/<int:id_modelo>', methods=['DELETE'])
 @login_required
 def eliminar_modelo(id_modelo):
-    modelo = ModeloTarea.query.get_or_404(id_modelo)
+    modelo = db.get_or_404(ModeloTarea, id_modelo)
     
     # Unlink instantiated tasks instead of deleting them
     # Eliminar las tareas futuras (no completadas)
@@ -1943,10 +2470,47 @@ def eliminar_modelo(id_modelo):
     db.session.commit()
     return jsonify({'mensaje': 'Modelo Eliminado'})
 
+@app.route('/api/tareas/<int:id_tarea>', methods=['PUT'])
+@login_required
+def editar_tarea_instancia(id_tarea):
+    data = request.json
+    tarea = db.get_or_404(Tarea, id_tarea)
+    if 'nombre' in data and data['nombre']:
+        tarea.nombre = data['nombre']
+    if 'prioridad' in data and data['prioridad']:
+        tarea.prioridad = data['prioridad']
+    if 'estado' in data:
+        tarea.completada = (data['estado'] == 'completada' or data['estado'] is True)
+    if 'completada' in data:
+        tarea.completada = bool(data['completada'])
+    
+    # Manejo de fecha programada
+    f_str = data.get('fecha') or data.get('fecha_programada') or data.get('fecha_inicio')
+    if f_str:
+        try:
+            tarea.fecha_programada = datetime.strptime(str(f_str)[:10], "%Y-%m-%d").date()
+        except Exception:
+            pass
+
+    if 'tipo_frecuencia' in data and data['tipo_frecuencia']:
+        tarea.tipo_frecuencia = data['tipo_frecuencia']
+    if 'valor_frecuencia' in data and data['valor_frecuencia']:
+        tarea.valor_frecuencia = str(data['valor_frecuencia'])
+
+    if tarea.modelo_id:
+        mod = db.session.get(ModeloTarea, tarea.modelo_id)
+        if mod:
+            if 'nombre' in data and data['nombre']: mod.nombre = data['nombre']
+            if 'prioridad' in data and data['prioridad']: mod.prioridad = data['prioridad']
+            if 'tipo_frecuencia' in data and data['tipo_frecuencia']: mod.tipo_frecuencia = data['tipo_frecuencia']
+            if 'valor_frecuencia' in data and data['valor_frecuencia']: mod.valor_frecuencia = str(data['valor_frecuencia'])
+    db.session.commit()
+    return jsonify(tarea.to_dict()), 200
+
 @app.route('/api/tareas/<int:id_tarea>', methods=['DELETE'])
 @login_required
 def eliminar_tarea(id_tarea):
-    tarea = Tarea.query.get_or_404(id_tarea)
+    tarea = db.get_or_404(Tarea, id_tarea)
     HistorialTarea.query.filter_by(tarea_id=tarea.id).delete()
     SaltoTarea.query.filter_by(tarea_id=tarea.id).delete()
     db.session.delete(tarea)
@@ -1961,7 +2525,7 @@ def skip_tarea(id_tarea):
     if not data or 'motivo' not in data:
         return jsonify({'error': 'Falta el motivo'}), 400
         
-    tarea = Tarea.query.get_or_404(id_tarea)
+    tarea = db.get_or_404(Tarea, id_tarea)
     
     now = datetime.now()
     saltos_mes = SaltoTarea.query.filter(
@@ -1988,7 +2552,7 @@ def skip_tarea(id_tarea):
     nuevo_encargado_nombre = "Nadie"
     nuevo_encargado = None
     if nuevo_encargado_id:
-        nuevo_encargado = Usuario.query.get(nuevo_encargado_id)
+        nuevo_encargado = db.session.get(Usuario, nuevo_encargado_id)
         if nuevo_encargado: nuevo_encargado_nombre = nuevo_encargado.username
         
     db.session.commit()
@@ -2044,6 +2608,7 @@ def calendario_tareas():
         if not proxima: continue
         
         eventos.append({
+            'id': t.id,
             'title': f"{prioridad_emoji} {t.nombre} ({label_asignados})",
             'start': proxima.isoformat(),
             'backgroundColor': color,
@@ -2054,6 +2619,7 @@ def calendario_tareas():
                 'nombre_tarea': t.nombre,
                 'tipo_frecuencia': t.tipo_frecuencia,
                 'valor_frecuencia': t.valor_frecuencia,
+                'fecha_programada': proxima.isoformat()[:10],
                 'completada': getattr(t, 'completada', False)
             }
         })
@@ -2096,7 +2662,7 @@ def editar_producto(id_producto):
     if not data:
         return jsonify({'error': 'Faltan datos'}), 400
         
-    producto = Producto.query.get_or_404(id_producto)
+    producto = db.get_or_404(Producto, id_producto)
     
     if 'nombre' in data:
         producto.nombre = data['nombre']
@@ -2127,7 +2693,7 @@ def editar_producto(id_producto):
 
 @app.route('/api/productos/<int:id_producto>', methods=['DELETE'])
 def eliminar_producto(id_producto):
-    producto = Producto.query.get_or_404(id_producto)
+    producto = db.get_or_404(Producto, id_producto)
     db.session.delete(producto)
     db.session.commit()
     return jsonify({'mensaje': 'Producto eliminado exitosamente'})
@@ -2138,7 +2704,7 @@ def mover_producto(id_producto):
     if not data:
         return jsonify({'error': 'No se enviaron datos'}), 400
         
-    producto = Producto.query.get_or_404(id_producto)
+    producto = db.get_or_404(Producto, id_producto)
     if 'ubicacion_id' in data:
         producto.ubicacion_id = data['ubicacion_id'] if data['ubicacion_id'] else None
     if 'sub_ubicacion_id' in data:
@@ -2240,7 +2806,7 @@ def actualizar_stock(id_producto):
     if not data or 'stock_actual' not in data:
         return jsonify({'error': 'Se requiere el campo stock_actual'}), 400
         
-    producto = Producto.query.get_or_404(id_producto)
+    producto = db.get_or_404(Producto, id_producto)
     diff = float(data['stock_actual']) - producto.stock_actual
     
     if abs(diff) > 0.001:
@@ -2281,7 +2847,7 @@ def actualizar_estado_lista(id_producto):
     data = request.get_json()
     if not data or 'en_lista' not in data:
         return jsonify({'error': 'Se requiere el campo en_lista'}), 400
-    producto = Producto.query.get_or_404(id_producto)
+    producto = db.get_or_404(Producto, id_producto)
     producto.en_lista = data['en_lista']
     db.session.commit()
     return jsonify({'mensaje': 'Estado en la lista actualizado', 'producto': producto.to_dict()})
@@ -2359,7 +2925,7 @@ def añadir_rapido():
 
 @app.route('/api/producto/consumir_rapido/<int:id_producto>', methods=['POST'])
 def consumir_rapido(id_producto):
-    producto = Producto.query.get_or_404(id_producto)
+    producto = db.get_or_404(Producto, id_producto)
     if producto.stock_actual > 0:
         producto.stock_actual -= 1
         m = Movimiento(descripcion=f"Consumo rápido: se descontó 1 {producto.nombre}", producto_id=producto.id, tipo="consumo", cantidad=-1)
@@ -2388,7 +2954,7 @@ def consumir_rapido(id_producto):
 
 @app.route('/api/marcar_comprado/<int:id_producto>', methods=['POST'])
 def marcar_comprado(id_producto):
-    producto = Producto.query.get_or_404(id_producto)
+    producto = db.get_or_404(Producto, id_producto)
     if producto.es_temporal:
         db.session.delete(producto)
         accion = "eliminado_completamente"
@@ -2552,13 +3118,7 @@ def check_low_stock():
             markup.add(InlineKeyboardButton("✅ Agregar todos a la lista", callback_data="add_low_stock"))
             safe_telegram_send(ADMIN_CHAT_ID, mensaje, reply_markup=markup)
 
-def iniciar_bot():
-    if bot:
-        print("Iniciando bot de Telegram en segundo plano...")
-        try:
-            bot.polling(none_stop=True)
-        except Exception as e:
-            print(f"Error en polling de Telegram: {e}")
+# (Legacy iniciar_bot removed)
 
 # ================= WSGI ARRANQUE SEGURO =================
 # Usar un archivo de bloqueo para asegurar que solo un worker en Gunicorn/Waitress 
@@ -2569,7 +3129,7 @@ LOCK_FILE = "bot_scheduler.lock"
 @app.route('/api/tareas/<int:id_tarea>/completar', methods=['POST'])
 @login_required
 def completar_tarea(id_tarea):
-    tarea = Tarea.query.get_or_404(id_tarea)
+    tarea = db.get_or_404(Tarea, id_tarea)
     tarea.completada = True
     
     # Register in Historial
@@ -2578,7 +3138,7 @@ def completar_tarea(id_tarea):
     
     # Update model's last execution date if applicable
     if tarea.modelo_id:
-        mod = ModeloTarea.query.get(tarea.modelo_id)
+        mod = db.session.get(ModeloTarea, tarea.modelo_id)
         if mod:
             mod.fecha_ultima_ejecucion = datetime.now().date()
             
@@ -2633,12 +3193,12 @@ def generar_mes():
                 
                 # Assign users
                 if m.alternar:
-                    u = Usuario.query.get(usuarios_ids[idx])
+                    u = db.session.get(Usuario, usuarios_ids[idx])
                     if u: nueva_tarea.usuarios.append(u)
                     idx = (idx + 1) % len(usuarios_ids)
                 else:
                     for uid in usuarios_ids:
-                        u = Usuario.query.get(uid)
+                        u = db.session.get(Usuario, uid)
                         if u: nueva_tarea.usuarios.append(u)
                         
                 db.session.add(nueva_tarea)
@@ -2677,10 +3237,13 @@ def enviar_resumen_matutino():
         enviar_al_grupo(mensaje, reply_markup=markup)
 
 def _pid_vivo(pid):
-    """Devuelve True si el PID todavia esta corriendo en este sistema."""
+    """Devuelve True si el PID todavia esta corriendo en este sistema Y no es un archivo stale."""
     try:
+        pid_int = int(pid)
+        if pid_int == os.getpid():
+            return True
         import ctypes
-        handle = ctypes.windll.kernel32.OpenProcess(0x0400, False, int(pid))
+        handle = ctypes.windll.kernel32.OpenProcess(0x0400, False, pid_int)
         if handle == 0:
             return False
         ctypes.windll.kernel32.CloseHandle(handle)
@@ -2691,34 +3254,79 @@ def _pid_vivo(pid):
 def cleanup_pending_commands():
     """Limpia los comandos pendientes que quedaron huerfanos."""
     global pending_voice_commands, pending_ocr_confirmations
-    # Como no guardamos timestamp, limpiamos de forma general
     pending_voice_commands.clear()
+    pending_menu_config.clear()
     pending_ocr_confirmations.clear()
+    pending_dedup.clear()
+
+def iniciar_bot():
+    if bot:
+        logging.info("[Bot Telemetría] Iniciando bot de Telegram en segundo plano...")
+        try:
+            from telebot.types import BotCommand
+            comandos = [
+                BotCommand("start", "Inicia el bot y verifica el estado"),
+                BotCommand("vincular", "Conecta tu cuenta de HomeStock"),
+                BotCommand("desvincular", "Desconecta este chat de tu cuenta"),
+                BotCommand("menu", "Abre el menú interactivo"),
+                BotCommand("compras", "Muestra la lista de compras pendiente"),
+                BotCommand("ayuda", "Muestra los comandos disponibles")
+            ]
+            bot.set_my_commands(comandos)
+        except Exception as ec:
+            print(f"Error configurando comandos en Telegram: {ec}")
+            
+        try:
+            print("🟢 INICIANDO POLLING DE TELEGRAM...")
+            bot.remove_webhook()
+            logging.info("[Bot Telemetría] Webhook removido con éxito. Arrancando infinity_polling en hilo daemon...")
+            bot.infinity_polling(timeout=60, long_polling_timeout=60, logger_level=logging.INFO)
+        except Exception as e:
+            print(f"🔴 ERROR FATAL EN EL HILO DEL BOT: {e}")
+            logging.error(f"[Bot Telemetría] Error crítico en polling de Telegram: {e}", exc_info=True)
+
+# ================= WSGI ARRANQUE SEGURO =================
+LOCK_FILE = "bot_scheduler.lock"
+
+import atexit
+def _limpiar_lock():
+    if os.path.exists(LOCK_FILE):
+        try:
+            pid = open(LOCK_FILE).read().strip()
+            if int(pid) == os.getpid():
+                os.remove(LOCK_FILE)
+        except Exception:
+            pass
+atexit.register(_limpiar_lock)
 
 def start_background_tasks():
-    # Previene ejecuciones multiples usando un archivo de bloqueo con PID
     lock_activo = False
     if os.path.exists(LOCK_FILE):
         try:
             pid_guardado = open(LOCK_FILE).read().strip()
-            if _pid_vivo(pid_guardado):
+            if _pid_vivo(pid_guardado) and int(pid_guardado) != os.getpid():
                 lock_activo = True
             else:
-                # Lock stale (proceso muerto): lo borramos
-                print(f"[Bot] Lock stale (PID {pid_guardado} no existe). Limpiando y reiniciando...")
+                logging.info(f"[Bot] Lock stale o PID reciclado ({pid_guardado}). Limpiando y reiniciando...")
                 os.remove(LOCK_FILE)
-        except Exception:
-            os.remove(LOCK_FILE)
+        except Exception as e_lock:
+            logging.warning(f"[Bot] Error comprobando lock: {e_lock}")
+            if os.path.exists(LOCK_FILE):
+                try:
+                    os.remove(LOCK_FILE)
+                except Exception:
+                    pass
 
     if not lock_activo:
         try:
             with open(LOCK_FILE, "w") as f:
                 f.write(str(os.getpid()))
 
-            print(f"Worker {os.getpid()} esta iniciando hilos de fondo...")
-            threading.Thread(target=iniciar_bot, daemon=True).start()
+            logging.info(f"Worker {os.getpid()} está iniciando hilos de fondo para bot y scheduler...")
+            bot_thread = threading.Thread(target=iniciar_bot, name="TelegramBotThread", daemon=True)
+            print(f"🛠️ Diagnóstico: El bot tiene {len(bot.message_handlers)} handlers de mensajes registrados antes de iniciar.")
+            bot_thread.start()
 
-            # APScheduler con zona horaria America/Argentina/Buenos_Aires
             tz = pytz.timezone('America/Argentina/Buenos_Aires')
             scheduler = BackgroundScheduler(timezone=tz)
             scheduler.add_job(func=check_low_stock, trigger="cron", hour=10, minute=0)
@@ -2726,8 +3334,9 @@ def start_background_tasks():
             scheduler.add_job(func=enviar_resumen_matutino, trigger="cron", hour=8, minute=0)
             scheduler.add_job(func=cleanup_pending_commands, trigger="interval", hours=1)
             scheduler.start()
-        except IOError:
-            pass
+            logging.info("[Scheduler] Tareas cron de fondo iniciadas correctamente.")
+        except Exception as e:
+            logging.error(f"[Scheduler/Bot] Error al iniciar tareas de fondo: {e}", exc_info=True)
 
 # Intentar arrancar tareas de fondo solo una vez (compatible con WSGI)
 start_background_tasks()
@@ -2767,7 +3376,10 @@ def api_logistica_get():
         # Build base event
         base_event = {
             'id': ev.id,
-            'title': ev.titulo if not ev.asignado else f"{ev.titulo} ({ev.asignado.username})",
+            'title': f"{ev.titulo} ({ev.asignado.username})" if getattr(ev, 'asignado', None) else (f"{ev.titulo} ({ev.creador.username})" if getattr(ev, 'creador', None) else ev.titulo),
+            'raw_title': ev.titulo,
+            'frecuencia': ev.frecuencia,
+            'asignado_id': ev.asignado_id,
             'backgroundColor': color,
             'borderColor': color
         }
@@ -2814,6 +3426,41 @@ def api_logistica_get():
                     logging.error(f"Error procesando rrule en evento iterativo: {e}")
                     
     return jsonify(result)
+
+@app.route('/api/logistica/eventos/<int:id_evento>', methods=['PUT', 'DELETE'])
+@login_required
+def api_logistica_evento_item(id_evento):
+    ev = db.get_or_404(EventoLogistico, id_evento)
+    if request.method == 'DELETE':
+        db.session.delete(ev)
+        db.session.commit()
+        return jsonify({'success': True, 'mensaje': 'Evento eliminado'})
+    
+    data = request.json
+    tz = pytz.timezone('America/Argentina/Buenos_Aires')
+    if 'title' in data and data['title']:
+        ev.titulo = data['title']
+    if 'start' in data and data['start']:
+        try:
+            dt_inicio_naive = datetime.strptime(data['start'][:16], "%Y-%m-%dT%H:%M")
+            ev.fecha_inicio = tz.localize(dt_inicio_naive)
+        except Exception as e:
+            pass
+    if 'end' in data:
+        if data['end']:
+            try:
+                dt_fin_naive = datetime.strptime(data['end'][:16], "%Y-%m-%dT%H:%M")
+                ev.fecha_fin = tz.localize(dt_fin_naive)
+            except Exception as e:
+                pass
+        else:
+            ev.fecha_fin = None
+    if 'frecuencia' in data:
+        ev.frecuencia = data['frecuencia']
+    if 'asignado_id' in data:
+        ev.asignado_id = int(data['asignado_id']) if data['asignado_id'] else None
+    db.session.commit()
+    return jsonify({'success': True, 'id': ev.id})
 
 @app.route('/api/logistica/eventos', methods=['POST'])
 @login_required
@@ -2872,7 +3519,7 @@ def finanzas_ocr():
             temp_file_path = temp_file.name
 
         try:
-            model = genai.GenerativeModel('gemini-1.5-flash')
+            model = genai.GenerativeModel('gemini-3.6-flash')
             # Gemini python sdk admite subir el archivo local
             imagen_gemini = genai.upload_file(temp_file_path)
             
@@ -2991,7 +3638,7 @@ def obtener_gastos_api():
 @login_required
 def eliminar_gasto_api(gasto_id):
     try:
-        gasto = Gasto.query.get(gasto_id)
+        gasto = db.session.get(Gasto, gasto_id)
         if not gasto:
             return jsonify({'success': False, 'error': 'Gasto no encontrado'}), 404
         
@@ -3006,7 +3653,7 @@ def eliminar_gasto_api(gasto_id):
 @login_required
 def editar_gasto_api(gasto_id):
     try:
-        gasto = Gasto.query.get(gasto_id)
+        gasto = db.session.get(Gasto, gasto_id)
         if not gasto:
             return jsonify({'success': False, 'error': 'Gasto no encontrado'}), 404
 
@@ -3149,8 +3796,8 @@ def exportar_finanzas():
         divisiones = DivisionGasto.query.join(Gasto).order_by(Gasto.fecha.desc()).all()
         for div in divisiones:
             gasto = div.rel_gasto
-            comprador = Usuario.query.get(gasto.usuario_id)
-            deudor = Usuario.query.get(div.usuario_id)
+            comprador = db.session.get(Usuario, gasto.usuario_id)
+            deudor = db.session.get(Usuario, div.usuario_id)
             
             writer.writerow([
                 gasto.id,
@@ -3176,7 +3823,7 @@ def exportar_finanzas():
         return jsonify({'error': str(e)}), 500
 def consumir_receta(receta_id):
     with app.app_context():
-        receta = Receta.query.get(receta_id)
+        receta = db.session.get(Receta, receta_id)
         if not receta: return False
         
         for ing in receta.ingredientes:
@@ -3212,7 +3859,7 @@ def api_horarios_post():
     data = request.json
     try:
         for item in data:
-            h = HorarioComidas.query.get(item['id'])
+            h = db.session.get(HorarioComidas, item['id'])
             if h:
                 h.hora_inicio = datetime.strptime(item['hora_inicio'], '%H:%M').time()
                 h.hora_fin = datetime.strptime(item['hora_fin'], '%H:%M').time()
@@ -3254,7 +3901,7 @@ def menus_sugerir_rapida():
 @login_required
 def eliminar_menu_api(menu_id):
     try:
-        menu = MenuSemanal.query.get(menu_id)
+        menu = db.session.get(MenuSemanal, menu_id)
         if not menu:
             return jsonify({'success': False, 'error': 'Menú no encontrado'}), 404
         
@@ -3269,7 +3916,7 @@ def eliminar_menu_api(menu_id):
 @login_required
 def editar_menu_api(menu_id):
     try:
-        menu = MenuSemanal.query.get(menu_id)
+        menu = db.session.get(MenuSemanal, menu_id)
         if not menu:
             return jsonify({'success': False, 'error': 'Menú no encontrado'}), 404
 
@@ -3361,4 +4008,7 @@ def api_menus_get():
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    logging.info("============================================")
+    logging.info("  Iniciando servidor HomeOS en 0.0.0.0:5000  ")
+    logging.info("============================================")
+    app.run(host='0.0.0.0', port=5000, debug=True, use_reloader=False)
