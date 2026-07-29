@@ -4006,9 +4006,10 @@ def api_menus_get():
     return jsonify(result)
 
 if __name__ == '__main__':
-    with app.app_context():
-        db.create_all()
-    logging.info("============================================")
-    logging.info("  Iniciando servidor HomeOS en 0.0.0.0:5000  ")
-    logging.info("============================================")
-    app.run(host='0.0.0.0', port=5000, debug=True, use_reloader=False)
+# 1. Iniciar el bot en un hilo separado
+    bot_thread = threading.Thread(target=bot.infinity_polling, kwargs={'timeout': 10, 'logger_level': logging.ERROR})
+    bot_thread.start()
+    
+    # 2. Iniciar Flask escuchando el puerto de Render
+    puerto = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=puerto)
