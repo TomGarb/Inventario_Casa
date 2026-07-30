@@ -1074,11 +1074,15 @@ if bot:
     registrar_handlers(bot, app)
 
 if __name__ == '__main__':
-    import threading
-    # 1. Arrancar el bot en un hilo separado
-    if bot:
-        bot_thread = threading.Thread(target=bot.infinity_polling)
-        bot_thread.start()
+    # 1. Forzar a Telegram a limpiar conexiones viejas
+    try:
+        bot.remove_webhook()
+    except Exception:
+        pass
+        
+    # 2. Arrancar el bot ignorando mensajes acumulados (skip_pending=True)
+    bot_thread = threading.Thread(target=bot.infinity_polling, kwargs={'skip_pending': True})
+    bot_thread.start()
     
-    # 2. Arrancar Flask SIN el vigilante duplicado
+    # 3. Arrancar Flask de forma segura
     app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False)
