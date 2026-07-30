@@ -50,7 +50,7 @@ from flask_migrate import Migrate
 migrate.init_app(app, db)
 
 login_manager.init_app(app)
-login_manager.login_view = 'login_page'
+login_manager.login_view = 'auth.login_page'
 
 # Asegúrate de importar el modelo de tu usuario si no está en este mismo archivo
 # from models.database import Usuario 
@@ -803,11 +803,11 @@ def callback_voice(call):
 
 @app.before_request
 def require_login():
-    allowed_routes = ['login_page', 'register_page', 'static']
+    allowed_routes = ['auth.login_page', 'auth.register_page', 'static']
     if request.endpoint not in allowed_routes and not current_user.is_authenticated:
         if request.path.startswith('/api/'):
             return jsonify({'error': 'Unauthorized'}), 401
-        return redirect(url_for('login_page'))
+        return redirect(url_for('auth.login_page'))
 
 # ==========================================
 # 6. TAREAS PROGRAMADAS Y ARRANQUE

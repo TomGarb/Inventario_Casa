@@ -45,7 +45,7 @@ def register_page():
 
 def logout():
     logout_user()
-    return redirect(url_for('login_page'))
+    return redirect(url_for('auth.login_page'))
 
 def perfil():
     return render_template('views/perfil.html', active_page='perfil')

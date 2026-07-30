@@ -60,9 +60,9 @@
                 <a href="{{ url_for('logistica_page') }}" class="nav-btn {% if active_page == 'logistica' %}active{% endif %}"><span>📅</span> Logística</a>
                 <a href="{{ url_for('menus_page') }}" class="nav-btn {% if active_page == 'menus' %}active{% endif %}"><span>🍽️</span> Menús</a>
                 <a href="{{ url_for('perfil') }}" class="nav-btn {% if active_page == 'perfil' %}active{% endif %}"><span>👤</span> Perfil</a>
-                <a href="{{ url_for('logout') }}" class="nav-btn"><span>🚪</span> Salir</a>
+                <a href="{{ url_for('auth.logout') }}" class="nav-btn"><span>🚪</span> Salir</a>
                 {% else %}
-                <a href="{{ url_for('login_page') }}" class="nav-btn {% if active_page == 'login' %}active{% endif %}"><span>🔑</span> Login</a>
+                <a href="{{ url_for('auth.login_page') }}" class="nav-btn {% if active_page == 'login' %}active{% endif %}"><span>🔑</span> Login</a>
                 {% endif %}
             </div>
         </nav>

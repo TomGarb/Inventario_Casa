@@ -4,7 +4,7 @@
 <div class="auth-container">
     <div class="auth-card">
         <h2>Crear Cuenta</h2>
-        <form class="auth-form" method="POST" action="{{ url_for('register_page') }}">
+        <form class="auth-form" method="POST" action="{{ url_for('auth.register_page') }}">
             <div class="form-group">
                 <label for="username">Usuario</label>
                 <input type="text" id="username" name="username" class="form-control" required autocomplete="username">
@@ -16,7 +16,7 @@
             <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 15px;">Registrarse</button>
         </form>
         <p style="margin-top: 15px; text-align: center; color: var(--text-color);">
-            ¿Ya tienes cuenta? <a href="{{ url_for('login_page') }}" style="color: var(--primary-color);">Inicia sesión aquí</a>
+            ¿Ya tienes cuenta? <a href="{{ url_for('auth.login_page') }}" style="color: var(--primary-color);">Inicia sesión aquí</a>
         </p>
     </div>
 </div>

@@ -307,5 +307,6 @@ class MenuSemanal(db.Model):
     
     receta = db.relationship('Receta', backref='asignaciones')
 
+@login_manager.user_loader
 def load_user(user_id):
     return db.session.get(Usuario, int(user_id))
