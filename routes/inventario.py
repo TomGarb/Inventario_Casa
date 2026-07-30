@@ -6,7 +6,7 @@ from datetime import datetime, date, timedelta
 from sqlalchemy import extract
 import json
 import logging
-from app import crud_create, crud_update, crud_read, crud_delete
+from utils import crud_create, crud_update
 
 inventario_bp = Blueprint('inventario', __name__)
 

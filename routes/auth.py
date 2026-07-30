@@ -6,7 +6,7 @@ from datetime import datetime, date, timedelta
 from sqlalchemy import extract
 import json
 import logging
-from app import admin_required
+from utils import admin_required
 
 auth_bp = Blueprint('auth', __name__)
 
