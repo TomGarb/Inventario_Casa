@@ -5,6 +5,7 @@
     <div class="auth-card">
         <h2>Iniciar Sesión</h2>
         <form class="auth-form" method="POST" action="{{ url_for('auth.login_page') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
             <div class="form-group">
                 <label for="username">Usuario</label>
                 <input type="text" id="username" name="username" class="form-control" required autocomplete="username">
