@@ -6,6 +6,7 @@ from datetime import datetime, date, timedelta
 from sqlalchemy import extract
 import json
 import logging
+from utils import calcular_balances_globales
 
 finanzas_bp = Blueprint('finanzas', __name__)
 

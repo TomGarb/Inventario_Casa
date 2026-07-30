@@ -83,54 +83,7 @@ pending_dedup = {}  # {chat_id: {sim_id, sim_nombre, new_nombre, cantidad, ubica
 # 3. HELPERS Y UTILIDADES
 # ==========================================
 
-def calcular_balances_globales():
-    # Devuelve una lista de diccionarios con el balance simplificado
-    with app.app_context():
-        divisiones = DivisionGasto.query.filter_by(esta_pagado=False).all()
-        # deudas[deudor_id][acreedor_id] = monto
-        from collections import defaultdict
-        deudas = defaultdict(lambda: defaultdict(float))
-        
-        for div in divisiones:
-            deudor = div.usuario_id
-            acreedor = div.rel_gasto.usuario_id
-            if deudor != acreedor:
-                deudas[deudor][acreedor] += div.monto_adeudado
-                
-        # Simplificar deudas cruzadas
-        usuarios_ids = list(deudas.keys())
-        for deudor in usuarios_ids:
-            for acreedor in list(deudas[deudor].keys()):
-                # Si el acreedor tambien le debe al deudor
-                if deudor in deudas[acreedor]:
-                    deuda_ida = deudas[deudor][acreedor]
-                    deuda_vuelta = deudas[acreedor][deudor]
-                    
-                    if deuda_ida > deuda_vuelta:
-                        deudas[deudor][acreedor] -= deuda_vuelta
-                        del deudas[acreedor][deudor]
-                    elif deuda_vuelta > deuda_ida:
-                        deudas[acreedor][deudor] -= deuda_ida
-                        del deudas[deudor][acreedor]
-                    else:
-                        del deudas[deudor][acreedor]
-                        del deudas[acreedor][deudor]
-                        
-        # Formatear salida
-        resultado = []
-        for deudor_id, deudores_dict in deudas.items():
-            for acreedor_id, monto in deudores_dict.items():
-                u_deudor = db.session.get(Usuario, deudor_id)
-                u_acreedor = db.session.get(Usuario, acreedor_id)
-                if u_deudor and u_acreedor and monto > 0:
-                    resultado.append({
-                        'deudor_id': deudor_id,
-                        'deudor_nombre': u_deudor.username,
-                        'acreedor_id': acreedor_id,
-                        'acreedor_nombre': u_acreedor.username,
-                        'monto': round(monto, 2)
-                    })
-        return resultado
+
 
 
 def formatear_fecha_amigable(f_val):
@@ -760,67 +713,7 @@ def require_login():
 # ==========================================
 
 
-def calcular_proxima_fecha(tarea, desde_fecha):
-    if not desde_fecha:
-        return datetime.now().date()
-    if tarea.tipo_frecuencia == 'dias':
-        try:
-            dias = int(tarea.valor_frecuencia)
-        except:
-            dias = 1
-        return desde_fecha + timedelta(days=dias)
-    elif tarea.tipo_frecuencia == 'dia_semana':
-        days_map = {'0': 0, '1': 1, '2': 2, '3': 3, '4': 4, '5': 5, '6': 6} # Lunes=0, Domingo=6
-        target = days_map.get(str(tarea.valor_frecuencia), 0)
-        days_ahead = target - desde_fecha.weekday()
-        if days_ahead <= 0:
-            days_ahead += 7
-        return desde_fecha + timedelta(days=days_ahead)
-    elif tarea.tipo_frecuencia == 'mes':
-        if desde_fecha.month == 12:
-            next_month = 1
-            next_year = desde_fecha.year + 1
-        else:
-            next_month = desde_fecha.month + 1
-            next_year = desde_fecha.year
-        if tarea.valor_frecuencia == 'inicio':
-            return date(next_year, next_month, 1)
-        elif tarea.valor_frecuencia == 'fin':
-            last_day = calendar.monthrange(next_year, next_month)[1]
-            return date(next_year, next_month, last_day)
-        else:
-            try:
-                day_val = int(tarea.valor_frecuencia)
-                # If target day is earlier than today in the CURRENT month, schedule for next month
-                if desde_fecha.day < day_val:
-                    last_day_current = calendar.monthrange(desde_fecha.year, desde_fecha.month)[1]
-                    target_day = min(day_val, last_day_current)
-                    return date(desde_fecha.year, desde_fecha.month, target_day)
-                else:
-                    last_day_next = calendar.monthrange(next_year, next_month)[1]
-                    target_day = min(day_val, last_day_next)
-                    return date(next_year, next_month, target_day)
-            except ValueError:
-                return date(next_year, next_month, 1)
-    elif tarea.tipo_frecuencia == 'fecha_fija':
-        try:
-            return datetime.strptime(tarea.valor_frecuencia, '%Y-%m-%d').date()
-        except:
-            return desde_fecha
-    return desde_fecha + timedelta(days=1)
 
-def calcular_proximo_turno(tarea):
-    if not tarea.usuarios:
-        return None
-    ultimo = HistorialTarea.query.filter_by(tarea_id=tarea.id).order_by(HistorialTarea.fecha.desc()).first()
-    if not ultimo:
-        return tarea.usuarios[0].id
-    usuarios_ids = [u.id for u in tarea.usuarios]
-    if ultimo.usuario_id in usuarios_ids:
-        idx = usuarios_ids.index(ultimo.usuario_id)
-        next_idx = (idx + 1) % len(usuarios_ids)
-        return usuarios_ids[next_idx]
-    return usuarios_ids[0]
 
 def check_tareas_pendientes():
     with app.app_context():

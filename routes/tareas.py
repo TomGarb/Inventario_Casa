@@ -6,6 +6,7 @@ from datetime import datetime, date, timedelta
 from sqlalchemy import extract
 import json
 import logging
+from utils import calcular_proxima_fecha, calcular_proximo_turno
 
 tareas_bp = Blueprint('tareas', __name__)
 
