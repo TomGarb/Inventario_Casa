@@ -3,7 +3,7 @@ import os
 import calendar
 import threading
 import telebot
-import google.generativeai as genai
+from google import genai
 import base64
 import json
 import pytz
@@ -18,7 +18,6 @@ from collections import defaultdict
 from datetime import datetime, date, timedelta, timedelta
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
-import whisper
 import uuid
 import re
 import difflib
@@ -37,12 +36,6 @@ logging.basicConfig(
     handlers=[logging.StreamHandler(sys.stdout)]
 )
 
-# Configuración global de PATH para que ffmpeg sea encontrado por whisper sin errores
-ffmpeg_dir = r"C:\Users\tomga\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-8.1.2-full_build\bin"
-if ffmpeg_dir not in os.environ.get("PATH", ""):
-    os.environ["PATH"] = os.environ.get("PATH", "") + os.pathsep + ffmpeg_dir
-
-modelo_whisper = whisper.load_model("base")
 load_dotenv()
 
 app = Flask(__name__)
@@ -63,8 +56,7 @@ TELEGRADMIN_CHAT_ID = os.getenv('ADMIN_CHAT_ID')
 TELEGRAM_GROUP_ID = os.getenv('TELEGRAM_GROUP_ID')
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 if GEMINI_API_KEY:
-    genai.configure(api_key=GEMINI_API_KEY)
-TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID', '')
+    TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID', '')
 ADMIN_CHAT_ID = os.getenv('ADMIN_CHAT_ID', TELEGRAM_GROUP_ID)
 
 from telebot import apihelper
@@ -609,24 +601,11 @@ if bot:
                 file_info = bot.get_file(file_id)
                 downloaded_file = bot.download_file(file_info.file_path)
 
-                import tempfile
-                import os
-
-                with tempfile.NamedTemporaryFile(delete=False, suffix='.jpg') as temp_file:
-                    temp_file.write(downloaded_file)
-                    temp_file_path = temp_file.name
-
                 try:
-                    # Enviar la imagen directamente en linea (bypass de la API de archivos que causa timeout)
-                    with open(temp_file_path, 'rb') as img_f:
-                        img_data = img_f.read()
-                        
-                    imagen_gemini = {
-                        'mime_type': 'image/jpeg',
-                        'data': img_data
-                    }
+                    # Enviar la imagen directamente en linea (bypass de disco)
+                    imagen_gemini = genai.types.Part.from_bytes(data=downloaded_file, mime_type='image/jpeg')
                     
-                    model = genai.GenerativeModel('gemini-3.6-flash')
+                    client = genai.Client(api_key=GEMINI_API_KEY)
 
                     prompt = (
                         "Eres un asistente contable. Analiza este ticket/factura y devuelve "
@@ -635,9 +614,9 @@ if bot:
                         "pagado), e 'items' (un array de objetos donde cada objeto tiene 'nombre', 'cantidad' y 'precio_unitario'). "
                         "No uses markdown ni texto adicional."
                     )
-                    response = model.generate_content(
-                        [prompt, imagen_gemini],
-                        request_options={"timeout": 120}
+                    response = client.models.generate_content(
+                        model='gemini-1.5-flash',
+                        contents=[prompt, imagen_gemini]
                     )
 
                     resultado_str = response.text.strip()
@@ -685,8 +664,7 @@ if bot:
                     )
 
                 finally:
-                    if os.path.exists(temp_file_path):
-                        os.remove(temp_file_path)
+                    pass
 
         except Exception as e:
             if check_api_quota_error(e, chat_id):
@@ -713,30 +691,22 @@ if bot:
             texto_transcrito = ''
 
             if message.content_type == 'voice':
-                ogg_path = None
                 try:
                     safe_telegram_reply(message, "Procesando audio... 🎙️")
                     file_info = bot.get_file(message.voice.file_id)
                     downloaded_file = bot.download_file(file_info.file_path)
 
-                    temp_id = str(uuid.uuid4())
-                    base_dir = os.path.dirname(os.path.abspath(__file__))
-                    ogg_path = os.path.join(base_dir, f"{temp_id}.ogg")
-
-                    with open(ogg_path, 'wb') as new_file:
-                        new_file.write(downloaded_file)
-
-                    resultado = modelo_whisper.transcribe(ogg_path, language="es")
-                    texto_transcrito = resultado["text"].strip()
+                    client = genai.Client(api_key=GEMINI_API_KEY)
+                    part = genai.types.Part.from_bytes(data=downloaded_file, mime_type='audio/ogg')
+                    
+                    response = client.models.generate_content(
+                        model='gemini-1.5-flash',
+                        contents=["Transcribe exactamente lo que dice este audio, sin agregar ningún otro comentario.", part]
+                    )
+                    texto_transcrito = response.text.strip()
                 except Exception as e:
                     safe_telegram_send(message.chat.id, f"❌ Error interno: {str(e)}")
                     return
-                finally:
-                    if ogg_path and os.path.exists(ogg_path):
-                        try:
-                            os.remove(ogg_path)
-                        except:
-                            pass
             else:
                 if message.text.startswith('/'): return
                 texto_transcrito = message.text.strip()
@@ -1265,13 +1235,13 @@ def extraer_datos_evento(texto, chat_id=None):
     if not GEMINI_API_KEY:
         return None
     try:
-        model = genai.GenerativeModel('gemini-3.6-flash')
+        client = genai.Client(api_key=GEMINI_API_KEY)
         tz = pytz.timezone('America/Argentina/Buenos_Aires')
         fecha_actual = datetime.now(tz).strftime('%Y-%m-%d %H:%M:%S')
         
         prompt = f"Eres un asistente de calendario. Hoy es {fecha_actual} (Hora de Buenos Aires). Analiza este mensaje y extrae los detalles del evento. Devuelve EXCLUSIVAMENTE un JSON con las claves: 'titulo' (resumen corto), 'fecha_inicio' (formato ISO 8601), 'fecha_fin' (formato ISO 8601, si aplica), y 'descripcion'. No uses markdown."
         
-        response = model.generate_content([prompt, texto], request_options={"timeout": 60})
+        response = model.generate_content([prompt, texto], )
         resultado_str = response.text.strip()
         
         if resultado_str.startswith('```json'):
@@ -1417,10 +1387,7 @@ def clasificar_intencion(texto, chat_id=None):
         return "INVENTARIO"
 
     try:
-        model = genai.GenerativeModel(
-            'gemini-3.6-flash',
-            generation_config={"response_mime_type": "application/json"}
-        )
+        client = genai.Client(api_key=GEMINI_API_KEY)
         prompt = (
             "Clasifica este mensaje en una de estas categorías: FINANZAS, COMPRAS, INVENTARIO, TAREAS, LOGISTICA, MENU, RECETA.\n"
             "Reglas de clasificación:\n"
@@ -1432,7 +1399,11 @@ def clasificar_intencion(texto, chat_id=None):
             "- FINANZAS: gastos, pagos, precios, compras con monto o dinero.\n"
             f"Devuelve ÚNICAMENTE un JSON con este formato: {{'intencion': 'CATEGORIA'}}. Mensaje: {texto}"
         )
-        response = model.generate_content(prompt, request_options={"timeout": 15})
+        response = client.models.generate_content(
+            model='gemini-1.5-flash',
+            contents=prompt,
+            config=genai.types.GenerateContentConfig(response_mime_type="application/json")
+        )
         data = json.loads(response.text.strip())
         intencion = data.get("intencion", "INVENTARIO").upper()
 
@@ -1454,10 +1425,7 @@ def procesar_gasto_texto(texto, message):
     import logging
     if re.search(r'\d+', texto):
         try:
-            model = genai.GenerativeModel(
-                'gemini-3.6-flash',
-                generation_config={"response_mime_type": "application/json"}
-            )
+            client = genai.Client(api_key=GEMINI_API_KEY)
             prompt = (
                 f"Analiza este texto de gasto: '{texto}'. "
                 "Extrae el monto numérico (como float), el comercio/concepto, la categoría del gasto (ej. 'Supermercado', 'Alimentos', 'Servicios', 'Otros') "
@@ -1465,7 +1433,11 @@ def procesar_gasto_texto(texto, message):
                 "(o 1 si no se especifica). "
                 "Devuelve ÚNICAMENTE un JSON con el formato exacto: {'monto': float, 'concepto': 'string', 'categoria': 'string', 'items': [{'nombre': 'string', 'cantidad': float}]}."
             )
-            response = model.generate_content(prompt, request_options={"timeout": 15})
+            response = client.models.generate_content(
+            model='gemini-1.5-flash',
+            contents=prompt,
+            config=genai.types.GenerateContentConfig(response_mime_type="application/json")
+        )
             data = json.loads(response.text.strip())
             monto = float(data.get('monto', 0))
             concepto = str(data.get('concepto', 'Gasto en general')).strip()
@@ -1614,17 +1586,24 @@ def procesar_recetas_texto(texto, message):
             ingredientes = [f"{p.nombre} ({p.stock_actual})" for p in productos]
             inv_str = ", ".join(ingredientes) if ingredientes else "No hay ingredientes registrados en inventario actualmente."
             
-            model = genai.GenerativeModel('gemini-3.6-flash')
-            prompt = f"""Eres un chef experto en cocina casera y prctica.
-Inventario actual disponible en la casa: {inv_str}.
+            client = genai.Client(api_key=GEMINI_API_KEY)
+            prompt = f"""
+A partir de la siguiente receta, genera una lista de los ingredientes exactos que faltan (ingredientes_faltantes).
+Devuelve ÚNICAMENTE un JSON válido con esta estructura, sin comentarios ni formato markdown extra:
+[
+  {{"nombre": "Tomate", "cantidad": "2 unidades", "categoria": "Verduras"}},
+  {{"nombre": "Queso", "cantidad": "200g", "categoria": "Lácteos"}}
+]
 
-El usuario pregunta o solicita: "{texto}"
+Si la receta no tiene ingredientes faltantes, devuelve [].
 
-Reglas:
-1. Si el usuario pregunta qu puede cocinar o pide una sugerencia general, propn una receta sabrosa y realista que utilice principalmente los ingredientes disponibles en el inventario. Explica brevemente por qu la sugieres y da los pasos de preparacin en formato claro.
-2. Si el usuario pide una receta especfica (ej. "cmo hago flan?" o "receta de pizza"), simplemente dale la receta clara paso a paso con los ingredientes necesarios (mencionando cules tiene en casa si aplica).
-3. Responde en espaol, con un tono amable, claro y en formato amigable para Telegram (puedes usar emojis y negritas con *texto*)."""
-            response = model.generate_content(prompt, request_options={"timeout": 60})
+Receta:
+{receta_json}
+"""
+            response = client.models.generate_content(
+                model='gemini-1.5-flash',
+                contents=prompt
+            )
             safe_telegram_send(message.chat.id, response.text.strip(), parse_mode="Markdown")
     except Exception as e:
         logging.error(f"[Mdulo Recetas] Error generando receta: {e}", exc_info=True)
@@ -3510,22 +3489,18 @@ def finanzas_ocr():
         if not GEMINI_API_KEY:
             return jsonify({'error': 'Gemini API key no configurada'}), 500
             
-        import tempfile
-        import os
-        
-        # Guardar en temporal para subir a Gemini
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.jpg') as temp_file:
-            temp_file.write(base64.b64decode(image_base64))
-            temp_file_path = temp_file.name
-
         try:
-            model = genai.GenerativeModel('gemini-3.6-flash')
-            # Gemini python sdk admite subir el archivo local
-            imagen_gemini = genai.upload_file(temp_file_path)
+            client = genai.Client(api_key=GEMINI_API_KEY)
+            
+            image_bytes = base64.b64decode(image_base64)
+            imagen_gemini = genai.types.Part.from_bytes(data=image_bytes, mime_type='image/jpeg')
             
             prompt = "Eres un asistente contable. Analiza este ticket/factura y devuelve EXCLUSIVAMENTE un JSON con tres claves: 'descripcion' (resumen de la compra en 3-4 palabras), 'monto_total' (número float, el total final pagado), e 'items' (lista de productos si es legible). No uses markdown ni texto adicional."
             
-            response = model.generate_content([prompt, imagen_gemini])
+            response = client.models.generate_content(
+                model='gemini-1.5-flash',
+                contents=[prompt, imagen_gemini]
+            )
             
             resultado_str = response.text.strip()
             # Limpiar backticks por si la IA devuelve markdown

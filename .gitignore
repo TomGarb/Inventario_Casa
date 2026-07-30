@@ -2,34 +2,51 @@
 venv/
 env/
 .venv/
+env.bak/
+venv.bak/
 
-# Archivos de Entorno
+# Archivos de Entorno y Secretos
 .env
+.env.*
+!.env.example
 
-# Archivos Compilados de Python
+# Archivos Compilados de Python y Caché
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.mypy_cache/
 
-# Bases de Datos
+# Bases de Datos y Flask
 *.db
+*.sqlite
 *.sqlite3
-
-# Flask
 instance/
 
-# Multimedia y Temporales
+# Multimedia, Temporales y Cargas
 *.ogg
 *.wav
 *.mp3
+*.jpg
+*.jpeg
+*.png
+temp/
+tmp/
+scratch/
+uploads/
+descargas/
 
 # Logs y Archivos de Bloqueo
 *.log
 bot_scheduler.lock
 
-# Configuraciones de Editores
+# Configuraciones de SO y Editores
 .vscode/
 .cursor/
 .idea/
 .DS_Store
+Thumbs.db
