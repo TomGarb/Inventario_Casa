@@ -9,9 +9,14 @@ import logging
 
 finanzas_bp = Blueprint('finanzas', __name__)
 
+@finanzas_bp.route('/finanzas')
+@login_required
 def finanzas_page():
     return render_template('views/finanzas.html', active_page='finanzas')
 
+
+@finanzas_bp.route('/api/finanzas/ocr', methods=['POST'])
+@login_required
 def finanzas_ocr():
     try:
         data = request.json
@@ -58,6 +63,9 @@ def finanzas_ocr():
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
+
+@finanzas_bp.route('/api/finanzas/gasto', methods=['POST'])
+@login_required
 def agregar_gasto_api():
     try:
         data = request.json
@@ -116,6 +124,9 @@ def agregar_gasto_api():
         db.session.rollback()
         return jsonify({'success': False, 'error': str(e)}), 500
 
+
+@finanzas_bp.route('/api/finanzas/gastos', methods=['GET'])
+@login_required
 def obtener_gastos_api():
     try:
         gastos = Gasto.query.order_by(Gasto.fecha.desc(), Gasto.id.desc()).all()
@@ -141,6 +152,9 @@ def obtener_gastos_api():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+
+@finanzas_bp.route('/api/finanzas/gasto/<int:gasto_id>', methods=['DELETE'])
+@login_required
 def eliminar_gasto_api(gasto_id):
     try:
         gasto = db.session.get(Gasto, gasto_id)
@@ -154,6 +168,9 @@ def eliminar_gasto_api(gasto_id):
         db.session.rollback()
         return jsonify({'success': False, 'error': str(e)}), 500
 
+
+@finanzas_bp.route('/api/finanzas/gasto/<int:gasto_id>', methods=['PUT'])
+@login_required
 def editar_gasto_api(gasto_id):
     try:
         gasto = db.session.get(Gasto, gasto_id)
@@ -216,6 +233,9 @@ def editar_gasto_api(gasto_id):
         db.session.rollback()
         return jsonify({'success': False, 'error': str(e)}), 500
 
+
+@finanzas_bp.route('/api/finanzas/balances', methods=['GET'])
+@login_required
 def finanzas_balances():
     try:
         balances = calcular_balances_globales()
@@ -223,6 +243,9 @@ def finanzas_balances():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+
+@finanzas_bp.route('/api/finanzas/exportar', methods=['GET'])
+@login_required
 def exportar_finanzas():
     try:
         import io
@@ -263,4 +286,5 @@ def exportar_finanzas():
         import traceback
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
+
 

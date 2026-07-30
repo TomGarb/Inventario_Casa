@@ -6,25 +6,37 @@ from datetime import datetime, date, timedelta
 from sqlalchemy import extract
 import json
 import logging
+from app import crud_create, crud_update, crud_read, crud_delete
 
 inventario_bp = Blueprint('inventario', __name__)
 
+@inventario_bp.route('/inventario')
 def inventario():
     return render_template('views/inventario.html', active_page='inventario')
 
+
+@inventario_bp.route('/compras')
 def compras():
     return render_template('views/compras.html', active_page='compras')
 
+
+@inventario_bp.route('/api/espacios', methods=['GET'])
 def obtener_espacios():
     salas = Sala.query.all()
     return jsonify([s.to_dict() for s in salas])
 
+
+@inventario_bp.route('/api/salas', methods=['POST'])
 def crear_sala():
     return crud_create(Sala, ['nombre'], ['piso'])
 
+
+@inventario_bp.route('/api/sala/editar/<int:id>', methods=['PUT'])
 def editar_sala(id):
     return crud_update(Sala, id, ['nombre'])
 
+
+@inventario_bp.route('/api/salas/<int:id_sala>', methods=['DELETE'])
 def eliminar_sala(id_sala):
     s = db.get_or_404(Sala, id_sala)
     for u in s.ubicaciones:
@@ -39,12 +51,18 @@ def eliminar_sala(id_sala):
     db.session.commit()
     return jsonify({'mensaje': 'Sala eliminada y productos movidos a Sin asignar'})
 
+
+@inventario_bp.route('/api/ubicaciones', methods=['POST'])
 def crear_ubicacion():
     return crud_create(Ubicacion, ['nombre', 'sala_id'])
 
+
+@inventario_bp.route('/api/ubicacion/editar/<int:id>', methods=['PUT'])
 def editar_ubicacion(id):
     return crud_update(Ubicacion, id, ['nombre'])
 
+
+@inventario_bp.route('/api/ubicaciones/<int:id_ubi>', methods=['DELETE'])
 def eliminar_ubicacion(id_ubi):
     u = db.get_or_404(Ubicacion, id_ubi)
     for su in u.sub_ubicaciones:
@@ -58,12 +76,18 @@ def eliminar_ubicacion(id_ubi):
     db.session.commit()
     return jsonify({'mensaje': 'Ubicacion eliminada y productos movidos a Sin asignar'})
 
+
+@inventario_bp.route('/api/sub_ubicaciones', methods=['POST'])
 def crear_sububicacion():
     return crud_create(SubUbicacion, ['nombre', 'ubicacion_id'])
 
+
+@inventario_bp.route('/api/sububicacion/editar/<int:id>', methods=['PUT'])
 def editar_sububicacion(id):
     return crud_update(SubUbicacion, id, ['nombre'])
 
+
+@inventario_bp.route('/api/sub_ubicaciones/<int:id_sub>', methods=['DELETE'])
 def eliminar_sububicacion(id_sub):
     su = db.get_or_404(SubUbicacion, id_sub)
     for p in su.productos:
@@ -72,16 +96,24 @@ def eliminar_sububicacion(id_sub):
     db.session.commit()
     return jsonify({'mensaje': 'Sububicacion eliminada y productos movidos a la Ubicación padre'})
 
+
+@inventario_bp.route('/api/comercios', methods=['GET'])
 def obtener_comercios():
     comercios = Comercio.query.all()
     return jsonify([c.to_dict() for c in comercios])
 
+
+@inventario_bp.route('/api/comercios', methods=['POST'])
 def crear_comercio():
     return crud_create(Comercio, ['nombre'])
 
+
+@inventario_bp.route('/api/comercios/<int:id_comercio>', methods=['PUT'])
 def editar_comercio(id_comercio):
     return crud_update(Comercio, id_comercio, ['nombre'])
 
+
+@inventario_bp.route('/api/comercios/<int:id_comercio>', methods=['DELETE'])
 def eliminar_comercio(id_comercio):
     c = db.get_or_404(Comercio, id_comercio)
     for p in c.productos:
@@ -90,10 +122,14 @@ def eliminar_comercio(id_comercio):
     db.session.commit()
     return jsonify({'mensaje': 'Comercio eliminado'})
 
+
+@inventario_bp.route('/api/productos', methods=['GET'])
 def obtener_productos():
     productos = Producto.query.order_by(Producto.id).all()
     return jsonify([p.to_dict() for p in productos])
 
+
+@inventario_bp.route('/api/productos', methods=['POST'])
 def agregar_producto():
     data = request.json
     if not data or 'nombre' not in data:
@@ -117,6 +153,8 @@ def agregar_producto():
     db.session.commit()
     return jsonify(nuevo_producto.to_dict()), 201
 
+
+@inventario_bp.route('/api/productos/<int:id_producto>', methods=['PUT'])
 def editar_producto(id_producto):
     data = request.json
     if not data:
@@ -151,12 +189,16 @@ def editar_producto(id_producto):
     
     return jsonify(producto.to_dict())
 
+
+@inventario_bp.route('/api/productos/<int:id_producto>', methods=['DELETE'])
 def eliminar_producto(id_producto):
     producto = db.get_or_404(Producto, id_producto)
     db.session.delete(producto)
     db.session.commit()
     return jsonify({'mensaje': 'Producto eliminado exitosamente'})
 
+
+@inventario_bp.route('/api/producto/mover/<int:id_producto>', methods=['POST'])
 def mover_producto(id_producto):
     data = request.get_json()
     if not data:
@@ -171,6 +213,8 @@ def mover_producto(id_producto):
     db.session.commit()
     return jsonify({'mensaje': 'Ubicación actualizada', 'producto': producto.to_dict()})
 
+
+@inventario_bp.route('/api/productos/bulk-mover', methods=['POST'])
 def bulk_mover_productos():
     data = request.json
     if not data or 'producto_ids' not in data:
@@ -190,6 +234,8 @@ def bulk_mover_productos():
     db.session.commit()
     return jsonify({'mensaje': f'{len(productos)} productos movidos con éxito'})
 
+
+@inventario_bp.route('/api/productos/bulk', methods=['POST'])
 def crear_productos_bulk():
     data = request.get_json()
     if not data or 'sub_ubicacion_id' not in data or 'productos' not in data:
@@ -256,6 +302,8 @@ def crear_productos_bulk():
     db.session.commit()
     return jsonify({'mensaje': f'{procesados} productos procesados correctamente.'}), 201
 
+
+@inventario_bp.route('/api/productos/<int:id_producto>/stock', methods=['PATCH'])
 def actualizar_stock(id_producto):
     data = request.get_json()
     if not data or 'stock_actual' not in data:
@@ -297,6 +345,8 @@ def actualizar_stock(id_producto):
         'alerta_enviada': alerta_enviada
     })
 
+
+@inventario_bp.route('/api/productos/<int:id_producto>/lista', methods=['PATCH'])
 def actualizar_estado_lista(id_producto):
     data = request.get_json()
     if not data or 'en_lista' not in data:
@@ -306,6 +356,8 @@ def actualizar_estado_lista(id_producto):
     db.session.commit()
     return jsonify({'mensaje': 'Estado en la lista actualizado', 'producto': producto.to_dict()})
 
+
+@inventario_bp.route('/api/compras/bulk', methods=['POST'])
 def crear_compras_bulk():
     data = request.get_json()
     if not data or 'sub_ubicacion_id' not in data or 'productos' not in data:
@@ -338,6 +390,8 @@ def crear_compras_bulk():
     db.session.commit()
     return jsonify({'mensaje': f'{procesados} productos añadidos a compras.'}), 201
 
+
+@inventario_bp.route('/api/compras/bulk-comprar', methods=['POST'])
 def bulk_comprar():
     data = request.json
     if not data or 'productos' not in data:
@@ -359,6 +413,8 @@ def bulk_comprar():
     db.session.commit()
     return jsonify({'mensaje': f'Se removieron {procesados} productos de la lista y se eliminaron {eliminados} temporales.'})
 
+
+@inventario_bp.route('/api/producto/consumir_rapido/<int:id_producto>', methods=['POST'])
 def consumir_rapido(id_producto):
     producto = db.get_or_404(Producto, id_producto)
     if producto.stock_actual > 0:
@@ -387,6 +443,8 @@ def consumir_rapido(id_producto):
         return jsonify({'mensaje': 'Consumo rápido exitoso'})
     return jsonify({'error': 'Stock ya en 0'}), 400
 
+
+@inventario_bp.route('/api/telegram/enviar_lista', methods=['POST'])
 def enviar_lista():
     if not bot or not CHAT_ID:
         return jsonify({'error': 'Telegram no configurado'}), 500
@@ -398,4 +456,5 @@ def enviar_lista():
     except Exception as e:
         print(f"Error Telegram: {e}")
         return jsonify({'error': 'Error enviando mensaje'}), 500
+
 

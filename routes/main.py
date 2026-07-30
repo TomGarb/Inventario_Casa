@@ -9,6 +9,8 @@ import logging
 
 main_bp = Blueprint('main', __name__)
 
+@main_bp.route('/')
+@login_required
 def dashboard():
     hoy = datetime.now().date()
     mes_actual = hoy.month
@@ -128,6 +130,8 @@ def dashboard():
         usuarios=usuarios
     )
 
+
+@main_bp.route('/api/dashboard_stats', methods=['GET'])
 def dashboard_stats():
     alertas_stock = Producto.query.filter(Producto.es_temporal == False, Producto.stock_actual <= Producto.stock_minimo).all()
     
@@ -151,6 +155,8 @@ def dashboard_stats():
         'inactivos': [p.to_dict() for p in inactivos]
     })
 
+
+@main_bp.route('/api/dashboard/movimientos', methods=['GET'])
 def get_movimientos():
     q = request.args.get('q', '').strip()
     query = Movimiento.query
@@ -162,4 +168,5 @@ def get_movimientos():
         
     movs = query.order_by(Movimiento.fecha.desc()).limit(limit).all()
     return jsonify([{'id': m.id, 'descripcion': m.descripcion, 'fecha': m.fecha.strftime("%Y-%m-%d %H:%M")} for m in movs])
+
 

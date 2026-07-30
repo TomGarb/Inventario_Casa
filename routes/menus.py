@@ -9,6 +9,8 @@ import logging
 
 menus_bp = Blueprint('menus', __name__)
 
+@menus_bp.route('/api/generar_mes', methods=['POST'])
+@login_required
 def generar_mes():
     hoy = datetime.now().date()
     modelos = ModeloTarea.query.all()
@@ -74,6 +76,9 @@ def generar_mes():
     db.session.commit()
     return jsonify({'mensaje': f'Se generaron {nuevas_tareas} tareas para este mes.'})
 
+
+@menus_bp.route('/api/menus/manual', methods=['POST'])
+@login_required
 def agregar_menu_manual():
     try:
         data = request.json
@@ -128,9 +133,15 @@ def agregar_menu_manual():
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
 
+
+@menus_bp.route('/menus')
+@login_required
 def menus_page():
     return render_template('views/menus.html', active_page='menus')
 
+
+@menus_bp.route('/api/menus/horarios', methods=['GET'])
+@login_required
 def api_horarios_get():
     horarios = HorarioComidas.query.all()
     res = []
@@ -143,6 +154,9 @@ def api_horarios_get():
         })
     return jsonify(res)
 
+
+@menus_bp.route('/api/menus/horarios', methods=['POST'])
+@login_required
 def api_horarios_post():
     data = request.json
     try:
@@ -156,6 +170,9 @@ def api_horarios_post():
     except Exception as e:
         return jsonify({'error': str(e)}), 400
 
+
+@menus_bp.route('/api/menus/sugerir', methods=['GET'])
+@login_required
 def menus_sugerir():
     todas_recetas = Receta.query.all()
     posibles = []
@@ -174,6 +191,9 @@ def menus_sugerir():
     sugerida = random.choice(posibles)
     return jsonify({'id': sugerida.id, 'nombre': sugerida.nombre, 'tipo': sugerida.tipo, 'es_rapida': sugerida.es_rapida})
 
+
+@menus_bp.route('/api/menus/sugerir_rapida', methods=['GET'])
+@login_required
 def menus_sugerir_rapida():
     rapidas = Receta.query.filter_by(es_rapida=True).all()
     if not rapidas:
@@ -181,6 +201,9 @@ def menus_sugerir_rapida():
     sugerida = random.choice(rapidas)
     return jsonify({'id': sugerida.id, 'nombre': sugerida.nombre, 'tipo': sugerida.tipo, 'es_rapida': sugerida.es_rapida})
 
+
+@menus_bp.route('/api/menus/<int:menu_id>', methods=['DELETE'])
+@login_required
 def eliminar_menu_api(menu_id):
     try:
         menu = db.session.get(MenuSemanal, menu_id)
@@ -194,6 +217,9 @@ def eliminar_menu_api(menu_id):
         db.session.rollback()
         return jsonify({'success': False, 'error': str(e)}), 500
 
+
+@menus_bp.route('/api/menus/<int:menu_id>', methods=['PUT'])
+@login_required
 def editar_menu_api(menu_id):
     try:
         menu = db.session.get(MenuSemanal, menu_id)
@@ -236,6 +262,9 @@ def editar_menu_api(menu_id):
         db.session.rollback()
         return jsonify({'success': False, 'error': str(e)}), 500
 
+
+@menus_bp.route('/api/menus/semana/duplicar', methods=['POST'])
+@login_required
 def menus_duplicar():
     tz = pytz.timezone('America/Argentina/Buenos_Aires')
     hoy = datetime.now(tz).date()
@@ -262,6 +291,9 @@ def menus_duplicar():
     db.session.commit()
     return jsonify({'success': True, 'duplicados': len(nuevos)}), 200
 
+
+@menus_bp.route('/api/menus/eventos', methods=['GET'])
+@login_required
 def api_menus_get():
     menus = MenuSemanal.query.all()
     result = []
@@ -280,4 +312,5 @@ def api_menus_get():
             }
         })
     return jsonify(result)
+
 

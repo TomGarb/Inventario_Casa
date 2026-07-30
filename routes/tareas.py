@@ -9,9 +9,14 @@ import logging
 
 tareas_bp = Blueprint('tareas', __name__)
 
+@tareas_bp.route('/tareas')
+@login_required
 def tareas_view():
     return render_template('views/tareas.html', active_page='tareas')
 
+
+@tareas_bp.route('/api/modelos', methods=['GET'])
+@login_required
 def get_modelos():
     modelos = ModeloTarea.query.all()
     hoy = datetime.now().date()
@@ -27,11 +32,17 @@ def get_modelos():
         res.append(d)
     return jsonify(res)
 
+
+@tareas_bp.route('/api/tareas', methods=['GET'])
+@login_required
 def get_tareas_activas():
     # Return instantiated tasks (for table and dashboard)
     tareas = Tarea.query.all()
     return jsonify([t.to_dict() for t in tareas])
 
+
+@tareas_bp.route('/api/modelos', methods=['POST'])
+@login_required
 def crear_modelo():
     data = request.json
     if not data or 'nombre' not in data:
@@ -55,6 +66,9 @@ def crear_modelo():
     db.session.commit()
     return jsonify(nueva.to_dict()), 201
 
+
+@tareas_bp.route('/api/modelos/<int:id_modelo>', methods=['PUT'])
+@login_required
 def editar_modelo(id_modelo):
     data = request.json
     modelo = db.get_or_404(ModeloTarea, id_modelo)
@@ -76,6 +90,9 @@ def editar_modelo(id_modelo):
     db.session.commit()
     return jsonify(modelo.to_dict())
 
+
+@tareas_bp.route('/api/modelos/<int:id_modelo>', methods=['DELETE'])
+@login_required
 def eliminar_modelo(id_modelo):
     modelo = db.get_or_404(ModeloTarea, id_modelo)
     
@@ -94,6 +111,9 @@ def eliminar_modelo(id_modelo):
     db.session.commit()
     return jsonify({'mensaje': 'Modelo Eliminado'})
 
+
+@tareas_bp.route('/api/tareas/<int:id_tarea>', methods=['PUT'])
+@login_required
 def editar_tarea_instancia(id_tarea):
     data = request.json
     tarea = db.get_or_404(Tarea, id_tarea)
@@ -129,6 +149,9 @@ def editar_tarea_instancia(id_tarea):
     db.session.commit()
     return jsonify(tarea.to_dict()), 200
 
+
+@tareas_bp.route('/api/tareas/<int:id_tarea>', methods=['DELETE'])
+@login_required
 def eliminar_tarea(id_tarea):
     tarea = db.get_or_404(Tarea, id_tarea)
     HistorialTarea.query.filter_by(tarea_id=tarea.id).delete()
@@ -137,6 +160,9 @@ def eliminar_tarea(id_tarea):
     db.session.commit()
     return jsonify({'mensaje': 'Eliminado'})
 
+
+@tareas_bp.route('/api/tareas/<int:id_tarea>/skip', methods=['POST'])
+@login_required
 def skip_tarea(id_tarea):
     data = request.json
     if not data or 'motivo' not in data:
@@ -190,6 +216,9 @@ def skip_tarea(id_tarea):
     
     return jsonify({'mensaje': 'Turno delegado con éxito', 'nuevo_encargado': nuevo_encargado_nombre}), 200
 
+
+@tareas_bp.route('/api/calendario_tareas', methods=['GET'])
+@login_required
 def calendario_tareas():
     # Only return actual Tarea instances, no projection needed!
     tareas = Tarea.query.all()
@@ -241,6 +270,9 @@ def calendario_tareas():
                 
     return jsonify(eventos)
 
+
+@tareas_bp.route('/api/tareas/<int:id_tarea>/completar', methods=['POST'])
+@login_required
 def completar_tarea(id_tarea):
     tarea = db.get_or_404(Tarea, id_tarea)
     tarea.completada = True
@@ -257,4 +289,5 @@ def completar_tarea(id_tarea):
             
     db.session.commit()
     return jsonify({'mensaje': 'Tarea completada'})
+
 

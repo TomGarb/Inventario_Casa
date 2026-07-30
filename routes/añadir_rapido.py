@@ -9,6 +9,7 @@ import logging
 
 añadir_rapido_bp = Blueprint('añadir_rapido', __name__)
 
+@añadir_rapido_bp.route('/api/añadir_rapido', methods=['POST'])
 def añadir_rapido():
     data = request.json
     nuevo = Producto(
@@ -23,4 +24,5 @@ def añadir_rapido():
     db.session.add(nuevo)
     db.session.commit()
     return jsonify(nuevo.to_dict()), 201
+
 

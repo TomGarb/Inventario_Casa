@@ -52,14 +52,14 @@
             <h1 class="desktop-title">HomeStock</h1>
             <div class="nav-buttons">
                 {% if current_user.is_authenticated %}
-                <a href="{{ url_for('dashboard') }}" class="nav-btn {% if active_page == 'dashboard' %}active{% endif %}"><span>📊</span> Dashboard</a>
-                <a href="{{ url_for('inventario') }}" class="nav-btn {% if active_page == 'inventario' %}active{% endif %}"><span>📦</span> Inventario</a>
-                <a href="{{ url_for('compras') }}" class="nav-btn {% if active_page == 'compras' %}active{% endif %}"><span>🛒</span> Compras</a>
-                <a href="{{ url_for('tareas_view') }}" class="nav-btn {% if active_page == 'tareas' %}active{% endif %}"><span>🧹</span> Tareas</a>
-                <a href="{{ url_for('finanzas_page') }}" class="nav-btn {% if active_page == 'finanzas' %}active{% endif %}"><span>💸</span> Finanzas</a>
-                <a href="{{ url_for('logistica_page') }}" class="nav-btn {% if active_page == 'logistica' %}active{% endif %}"><span>📅</span> Logística</a>
-                <a href="{{ url_for('menus_page') }}" class="nav-btn {% if active_page == 'menus' %}active{% endif %}"><span>🍽️</span> Menús</a>
-                <a href="{{ url_for('perfil') }}" class="nav-btn {% if active_page == 'perfil' %}active{% endif %}"><span>👤</span> Perfil</a>
+                <a href="{{ url_for('main.dashboard') }}" class="nav-btn {% if active_page == 'dashboard' %}active{% endif %}"><span>📊</span> Dashboard</a>
+                <a href="{{ url_for('inventario.inventario') }}" class="nav-btn {% if active_page == 'inventario' %}active{% endif %}"><span>📦</span> Inventario</a>
+                <a href="{{ url_for('inventario.compras') }}" class="nav-btn {% if active_page == 'compras' %}active{% endif %}"><span>🛒</span> Compras</a>
+                <a href="{{ url_for('tareas.tareas_view') }}" class="nav-btn {% if active_page == 'tareas' %}active{% endif %}"><span>🧹</span> Tareas</a>
+                <a href="{{ url_for('finanzas.finanzas_page') }}" class="nav-btn {% if active_page == 'finanzas' %}active{% endif %}"><span>💸</span> Finanzas</a>
+                <a href="{{ url_for('logistica.logistica_page') }}" class="nav-btn {% if active_page == 'logistica' %}active{% endif %}"><span>📅</span> Logística</a>
+                <a href="{{ url_for('menus.menus_page') }}" class="nav-btn {% if active_page == 'menus' %}active{% endif %}"><span>🍽️</span> Menús</a>
+                <a href="{{ url_for('auth.perfil') }}" class="nav-btn {% if active_page == 'perfil' %}active{% endif %}"><span>👤</span> Perfil</a>
                 <a href="{{ url_for('auth.logout') }}" class="nav-btn"><span>🚪</span> Salir</a>
                 {% else %}
                 <a href="{{ url_for('auth.login_page') }}" class="nav-btn {% if active_page == 'login' %}active{% endif %}"><span>🔑</span> Login</a>

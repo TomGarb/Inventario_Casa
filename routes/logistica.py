@@ -9,9 +9,14 @@ import logging
 
 logistica_bp = Blueprint('logistica', __name__)
 
+@logistica_bp.route('/logistica')
+@login_required
 def logistica_page():
     return render_template('views/logistica.html', active_page='logistica')
 
+
+@logistica_bp.route('/api/logistica/eventos', methods=['GET'])
+@login_required
 def api_logistica_get():
     from dateutil.rrule import rrule, DAILY, WEEKLY, MONTHLY, YEARLY
     from dateutil import parser
@@ -86,6 +91,9 @@ def api_logistica_get():
                     
     return jsonify(result)
 
+
+@logistica_bp.route('/api/logistica/eventos/<int:id_evento>', methods=['PUT', 'DELETE'])
+@login_required
 def api_logistica_evento_item(id_evento):
     ev = db.get_or_404(EventoLogistico, id_evento)
     if request.method == 'DELETE':
@@ -119,6 +127,9 @@ def api_logistica_evento_item(id_evento):
     db.session.commit()
     return jsonify({'success': True, 'id': ev.id})
 
+
+@logistica_bp.route('/api/logistica/eventos', methods=['POST'])
+@login_required
 def api_logistica_post():
     data = request.json
     try:
@@ -147,4 +158,5 @@ def api_logistica_post():
         return jsonify({'success': True}), 201
     except Exception as e:
         return jsonify({'error': str(e)}), 400
+
 
