@@ -52,6 +52,14 @@ migrate.init_app(app, db)
 login_manager.init_app(app)
 login_manager.login_view = 'login_page'
 
+# Asegúrate de importar el modelo de tu usuario si no está en este mismo archivo
+# from models.database import Usuario 
+
+@login_manager.user_loader
+def load_user(user_id):
+    # Cambia 'Usuario' por el nombre de tu clase en la base de datos (ej. User)
+    return Usuario.query.get(int(user_id))
+
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN', '')
 TELEGRADMIN_CHAT_ID = os.getenv('ADMIN_CHAT_ID')
 TELEGRAM_GROUP_ID = os.getenv('TELEGRAM_GROUP_ID')
