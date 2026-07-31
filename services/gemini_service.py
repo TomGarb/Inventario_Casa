@@ -13,12 +13,30 @@ def check_api_quota_error(e, chat_id=None):
         from google.api_core.exceptions import ResourceExhausted, GoogleAPICallError
     except ImportError:
         ResourceExhausted = type('ResourceExhausted', (Exception,), {})
+        
+    try:
+        from google.genai.errors import APIError, ClientError
+    except ImportError:
+        APIError = type('APIError', (Exception,), {})
+        ClientError = type('ClientError', (Exception,), {})
+        
     err_str = str(e).lower()
-    if isinstance(e, (ResourceExhausted,)) or '429' in err_str or 'resourceexhausted' in err_str or 'quota' in err_str or 'exhausted' in err_str or 'too many requests' in err_str:
+    
+    is_quota_error = (
+        isinstance(e, (ResourceExhausted,)) or 
+        (isinstance(e, (APIError, ClientError)) and getattr(e, 'code', 0) == 429) or
+        '429' in err_str or 
+        'resourceexhausted' in err_str or 
+        'quota' in err_str or 
+        'exhausted' in err_str or 
+        'too many requests' in err_str
+    )
+    
+    if is_quota_error:
         if chat_id:
             try:
                 from services.bot_telegram import safe_telegram_send
-                safe_telegram_send(chat_id, "⏳ El procesador de IA está saturado por límite de cuota (429). Por favor, intenta de nuevo en un minuto.")
+                safe_telegram_send(chat_id, "⏳ La inteligencia artificial está procesando demasiadas cosas. Por favor, espera 1 minuto y vuelve a enviarme el mensaje.")
             except Exception as send_err:
                 print(f"Error al enviar aviso de cuota: {send_err}")
         return True

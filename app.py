@@ -43,6 +43,11 @@ app = Flask(__name__)
 csrf.init_app(app)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'default-homestock-secret-key')
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///homestock.db')
+if app.config['SQLALCHEMY_DATABASE_URI'].startswith("postgres"):
+    app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+        'pool_pre_ping': True,
+        'pool_recycle': 300,
+    }
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db.init_app(app)
