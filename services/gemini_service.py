@@ -14,14 +14,44 @@ def check_api_quota_error(e, chat_id=None):
     except ImportError:
         ResourceExhausted = type('ResourceExhausted', (Exception,), {})
     err_str = str(e).lower()
-    if isinstance(e, (ResourceExhausted,)) or '429' in err_str or 'resourceexhausted' in err_str or 'quota' in err_str or 'exhausted' in err_str:
+    if isinstance(e, (ResourceExhausted,)) or '429' in err_str or 'resourceexhausted' in err_str or 'quota' in err_str or 'exhausted' in err_str or 'too many requests' in err_str:
         if chat_id:
             try:
-                safe_telegram_send(chat_id, "⏳ ¡Me quedé sin aliento! (Límite de la API gratuita). Por favor, espera unos 30 segundos y vuelve a intentarlo.")
-            except Exception:
-                pass
+                from services.bot_telegram import safe_telegram_send
+                safe_telegram_send(chat_id, "⏳ El procesador de IA está saturado por límite de cuota (429). Por favor, intenta de nuevo en un minuto.")
+            except Exception as send_err:
+                print(f"Error al enviar aviso de cuota: {send_err}")
         return True
     return False
+
+def extraer_datos_evento(texto, chat_id=None):
+    if not GEMINI_API_KEY:
+        return None
+    try:
+        import pytz
+        client = genai.Client(api_key=GEMINI_API_KEY)
+        tz = pytz.timezone('America/Argentina/Buenos_Aires')
+        fecha_actual = datetime.now(tz).strftime('%Y-%m-%d %H:%M:%S')
+        
+        prompt = f"Eres un asistente de calendario. Hoy es {fecha_actual} (Hora de Buenos Aires). Analiza este mensaje: '{texto}' y extrae los detalles del evento. Devuelve EXCLUSIVAMENTE un JSON con las claves: 'titulo' (resumen corto), 'fecha_inicio' (formato ISO 8601), 'fecha_fin' (formato ISO 8601, si aplica), y 'descripcion'. No uses markdown."
+        
+        response = client.models.generate_content(
+            model='gemini-2.0-flash',
+            contents=prompt,
+            config=genai.types.GenerateContentConfig(response_mime_type="application/json")
+        )
+        resultado_str = response.text.strip()
+        if resultado_str.startswith('```json'):
+            resultado_str = resultado_str.replace('```json', '').replace('```', '').strip()
+        elif resultado_str.startswith('```'):
+            resultado_str = resultado_str.replace('```', '').strip()
+            
+        return json.loads(resultado_str)
+    except Exception as e:
+        if check_api_quota_error(e, chat_id):
+            return "ERROR_CUOTA"
+        logging.error(f"Error al procesar el evento con la IA: {e}", exc_info=True)
+        return None
 
 def clasificar_intencion(texto, chat_id=None):
     import json

@@ -12,7 +12,7 @@ from utils import is_authorized, formatear_fecha_amigable, consumir_receta
 import difflib
 import pytz
 from google import genai
-from services.gemini_service import clasificar_intencion, procesar_gasto_texto, check_api_quota_error
+from services.gemini_service import clasificar_intencion, procesar_gasto_texto, check_api_quota_error, extraer_datos_evento, GEMINI_API_KEY
 
 _bot_app = None
 
@@ -221,8 +221,10 @@ Receta:
             )
             safe_telegram_send(message.chat.id, response.text.strip(), parse_mode="Markdown")
     except Exception as e:
-        logging.error(f"[Mdulo Recetas] Error generando receta: {e}", exc_info=True)
-        safe_telegram_send(message.chat.id, " Error al generar la receta. Intenta nuevamente.")
+        if check_api_quota_error(e, message.chat.id):
+            return
+        logging.error(f"[Módulo Recetas] Error generando receta: {e}", exc_info=True)
+        safe_telegram_send(message.chat.id, "❌ Error al generar la receta. Intenta nuevamente.")
 
 def procesar_inventario_texto(texto, message):
     pending_voice_commands[message.chat.id] = (texto, datetime.now(), 'inventario')
@@ -1262,6 +1264,8 @@ def registrar_handlers(bot, app):
                     )
                     texto_transcrito = response.text.strip()
                 except Exception as e:
+                    if check_api_quota_error(e, message.chat.id):
+                        return
                     safe_telegram_send(message.chat.id, f"❌ Error interno: {str(e)}")
                     return
             else:
