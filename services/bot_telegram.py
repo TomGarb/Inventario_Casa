@@ -216,7 +216,7 @@ Receta:
 {receta_json}
 """
             response = client.models.generate_content(
-                model='gemini-1.5-flash',
+                model='gemini-2.0-flash',
                 contents=prompt
             )
             safe_telegram_send(message.chat.id, response.text.strip(), parse_mode="Markdown")
@@ -1171,7 +1171,7 @@ def registrar_handlers(bot, app):
                         "No uses markdown ni texto adicional."
                     )
                     response = client.models.generate_content(
-                        model='gemini-1.5-flash',
+                        model='gemini-2.0-flash',
                         contents=[prompt, imagen_gemini]
                     )
 
@@ -1257,7 +1257,7 @@ def registrar_handlers(bot, app):
                     part = genai.types.Part.from_bytes(data=downloaded_file, mime_type='audio/ogg')
                     
                     response = client.models.generate_content(
-                        model='gemini-1.5-flash',
+                        model='gemini-2.0-flash',
                         contents=["Transcribe exactamente lo que dice este audio, sin agregar ningún otro comentario.", part]
                     )
                     texto_transcrito = response.text.strip()

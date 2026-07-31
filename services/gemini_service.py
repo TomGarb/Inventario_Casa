@@ -62,7 +62,7 @@ def clasificar_intencion(texto, chat_id=None):
             f"Devuelve ÚNICAMENTE un JSON con este formato: {{'intencion': 'CATEGORIA'}}. Mensaje: {texto}"
         )
         response = client.models.generate_content(
-            model='gemini-1.5-flash',
+            model='gemini-2.0-flash',
             contents=prompt,
             config=genai.types.GenerateContentConfig(response_mime_type="application/json")
         )
@@ -96,7 +96,7 @@ def procesar_gasto_texto(texto, message):
                 "Devuelve ÚNICAMENTE un JSON con el formato exacto: {'monto': float, 'concepto': 'string', 'categoria': 'string', 'items': [{'nombre': 'string', 'cantidad': float}]}."
             )
             response = client.models.generate_content(
-            model='gemini-1.5-flash',
+            model='gemini-2.0-flash',
             contents=prompt,
             config=genai.types.GenerateContentConfig(response_mime_type="application/json")
         )
