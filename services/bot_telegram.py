@@ -1,3 +1,4 @@
+from functools import wraps
 import os
 import uuid
 import json
@@ -8,6 +9,8 @@ from models.database import Usuario, Gasto, DetalleGasto, DivisionGasto, Product
 from extensions import db, bot
 from utils import is_authorized
 from services.gemini_service import clasificar_intencion, procesar_gasto_texto, check_api_quota_error
+
+_bot_app = None
 
 def safe_telegram_send(chat_id, mensaje, reply_markup=None, parse_mode='HTML'):
     if not bot:
@@ -31,7 +34,8 @@ def safe_telegram_send(chat_id, mensaje, reply_markup=None, parse_mode='HTML'):
         return False
 
 def enviar_listas_agrupadas(chat_id, comercio_objetivo=None):
-    with app.app_context():
+    if not _bot_app: return
+    with _bot_app.app_context():
         if comercio_objetivo:
             if comercio_objetivo == "Sin Comercio":
                 productos_en_lista = Producto.query.filter_by(en_lista=True, comercio_id=None).all()
@@ -65,8 +69,19 @@ def enviar_listas_agrupadas(chat_id, comercio_objetivo=None):
             safe_telegram_send(chat_id, f"📍 **{comercio}:**", reply_markup=markup, parse_mode='Markdown')
 
 def registrar_handlers(bot, app):
+    global _bot_app
+    _bot_app = app
+
+    def with_app_context(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            with app.app_context():
+                return func(*args, **kwargs)
+        return wrapper
+
     # 1. COMANDOS
     @bot.message_handler(commands=['desvincular'])
+    @with_app_context
     def cmd_desvincular(message):
         try:
             with app.app_context():
@@ -81,6 +96,7 @@ def registrar_handlers(bot, app):
             print(f"Error en /desvincular: {e}")
 
     @bot.message_handler(commands=['ayuda', 'comandos'])
+    @with_app_context
     def cmd_ayuda(message):
         texto = '''🤖 *Comandos de HomeStock*:
 • /start - Inicia el bot y verifica el estado.
@@ -94,15 +110,18 @@ def registrar_handlers(bot, app):
 💡 *Recuerda*: ¡También puedes hablarme normalmente! Pídeme recetas, dime qué compraste o pregúntame qué hay en el inventario y yo me encargo del resto.'''
         safe_telegram_send(message.chat.id, texto, parse_mode="Markdown")
     @bot.message_handler(commands=['compras'])
+    @with_app_context
     def cmd_compras(message):
         if not is_authorized(message.from_user.id): return
         enviar_listas_agrupadas(message.chat.id)
     @bot.message_handler(commands=['ping'])
+    @with_app_context
     def test_ping(message):
         print("🏓 PING RECIBIDO!")
         bot.reply_to(message, "¡Pong! El bot está vivo y escuchando.")
 
     @bot.message_handler(commands=['menus', 'menu'])
+    @with_app_context
     def handle_menus_command(message):
         try:
             print(f"📩 COMANDO RECIBIDO: {message.text}")
@@ -113,10 +132,12 @@ def registrar_handlers(bot, app):
             bot.reply_to(message, "Hubo un error interno. Revisa la consola.")
 
     @bot.message_handler(commands=['start'])
+    @with_app_context
     def cmd_start(message):
         safe_telegram_reply(message, "¡Hola! Bienvenido a Homestock. Para vincular tu cuenta, ingresa a la aplicación web, ve a tu Perfil, genera un token y envíalo aquí con el comando:\n/vincular <Tu Token>")
 
     @bot.message_handler(commands=['vincular'])
+    @with_app_context
     def cmd_vincular(message):
         import logging
         from sqlalchemy.exc import IntegrityError
@@ -175,6 +196,7 @@ def registrar_handlers(bot, app):
             safe_telegram_send(message.chat.id, "❌ Ocurrió un error general.")
 
     @bot.message_handler(commands=['balance'])
+    @with_app_context
     def handle_balance(message):
         if not is_authorized(message.from_user.id): return
         balances = calcular_balances_globales()
@@ -189,6 +211,7 @@ def registrar_handlers(bot, app):
         safe_telegram_reply(message, respuesta, parse_mode='HTML')
 
     @bot.message_handler(commands=['comprado'])
+    @with_app_context
     def handle_comprado(message):
         if not is_authorized(message.from_user.id): return
         texto = message.text.replace('/comprado', '').strip()
@@ -216,11 +239,13 @@ def registrar_handlers(bot, app):
             safe_telegram_reply(message, f"✅ '{producto.nombre}' actualizada. Nuevo stock: {producto.stock_actual}")
 
     @bot.message_handler(commands=['test_lista'])
+    @with_app_context
     def cmd_test_lista(message):
         if not is_authorized(message.from_user.id): return
         enviar_listas_agrupadas(message.chat.id)
 
     @bot.message_handler(commands=['sugerir_compra'])
+    @with_app_context
     def sugerir_compra(message):
         if not is_authorized(message.from_user.id): return
         with app.app_context():
@@ -250,6 +275,7 @@ def registrar_handlers(bot, app):
                 safe_telegram_send(message.chat.id, mensaje, reply_markup=markup, parse_mode='Markdown')
 
     @bot.message_handler(commands=['añadir', 'add'])
+    @with_app_context
     def cmd_anadir(message):
         if not is_authorized(message.from_user.id): return
         texto = message.text.replace('/añadir', '').replace('/add', '').strip()
@@ -312,12 +338,14 @@ def registrar_handlers(bot, app):
             safe_telegram_reply(message, msg)
 
     @bot.message_handler(commands=['cancelar'])
+    @with_app_context
     def cmd_cancelar(message):
         bot.clear_step_handler_by_chat_id(message.chat.id)
         bot.reply_to(message, '🛑 Operación cancelada. Puedes continuar con normalidad.')
 
     # 2. CALLBACKS
     @bot.callback_query_handler(func=lambda call: call.data == 'ver_compras')
+    @with_app_context
     def callback_ver_compras(call):
         bot.answer_callback_query(call.id)
         if not is_authorized(call.from_user.id): return
@@ -400,6 +428,7 @@ def registrar_handlers(bot, app):
             bot.edit_message_text(f"✅ ¡Gasto registrado exitosamente!\nConcepto: {data['descripcion']}\nCada usuario debe: ${round(monto_por_persona, 2)}", chat_id, call.message.message_id)
 
     @bot.callback_query_handler(func=lambda call: call.data in ['dedup_yes', 'dedup_no'])
+    @with_app_context
     def handle_dedup_callback(call):
         if not is_authorized(call.from_user.id): return
         chat_id = call.message.chat.id
@@ -431,6 +460,7 @@ def registrar_handlers(bot, app):
             bot.edit_message_text(f" Creado nuevo producto: {data['cantidad']}x '{nuevo_prod.nombre}'.", chat_id, call.message.message_id)
 
     @bot.callback_query_handler(func=lambda call: True)
+    @with_app_context
     def callback_inline(call):
         if not is_authorized(call.from_user.id): return
         if call.data in ['confirm_voice', 'cancel_voice']:
@@ -490,6 +520,7 @@ def registrar_handlers(bot, app):
             safe_telegram_send(call.message.chat.id, f"❌ Error al deshacer: {str(e)}")
 
     @bot.callback_query_handler(func=lambda call: call.data == 'add_low_stock')
+    @with_app_context
     def callback_add_low_stock(call):
         try:
             with app.app_context():
@@ -566,6 +597,7 @@ def registrar_handlers(bot, app):
 
     # 3. TEXTO / CATCH-ALL
     @bot.message_handler(content_types=['photo', 'document'])
+    @with_app_context
     def handle_photo(message):
         chat_id = message.chat.id
 
@@ -678,6 +710,7 @@ def registrar_handlers(bot, app):
                 logging.error(f"Fallo enviando mensaje de error al usuario: {silent_e}")
 
     @bot.message_handler(content_types=['text', 'voice'])
+    @with_app_context
     def handle_voice_and_text(message):
         try:
             print(f"📩 MENSAJE RECIBIDO DE TELEGRAM: {message.text}")
