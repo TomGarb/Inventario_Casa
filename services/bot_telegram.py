@@ -3,6 +3,7 @@ import os
 import uuid
 import json
 import logging
+from datetime import datetime, date, timedelta
 import telebot
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 from models.database import Usuario, Gasto, DetalleGasto, DivisionGasto, Producto, Ubicacion, SubUbicacion, Sala, Comercio, Movimiento, Tarea, ModeloTarea, HistorialTarea, SaltoTarea, EventoLogistico, Receta, IngredienteReceta, MenuSemanal, HorarioComidas
@@ -14,6 +15,17 @@ from google import genai
 from services.gemini_service import clasificar_intencion, procesar_gasto_texto, check_api_quota_error
 
 _bot_app = None
+
+def get_app():
+    global _bot_app
+    if _bot_app:
+        return _bot_app
+    try:
+        from app import app
+        return app
+    except ImportError:
+        return None
+
 
 def safe_telegram_send(chat_id, mensaje, reply_markup=None, parse_mode='HTML'):
     if not bot:
@@ -101,7 +113,7 @@ def procesar_tareas_texto(texto, message):
 
 def guardar_menu_desde_bot(chat_id, dia_semana, tipo_comida, nombre):
     try:
-        with app.app_context():
+        with get_app().app_context():
             receta = Receta.query.filter(Receta.nombre.ilike(f"%{nombre}%")).first()
             if not receta:
                 receta = Receta(nombre=nombre, tipo=tipo_comida, es_rapida=True)
@@ -184,7 +196,7 @@ def procesar_recetas_texto(texto, message):
     import logging
     safe_telegram_reply(message, " Consultando inventario y pensando una receta...")
     try:
-        with app.app_context():
+        with get_app().app_context():
             productos = Producto.query.filter(Producto.stock_actual > 0).all()
             ingredientes = [f"{p.nombre} ({p.stock_actual})" for p in productos]
             inv_str = ", ".join(ingredientes) if ingredientes else "No hay ingredientes registrados en inventario actualmente."
@@ -238,7 +250,7 @@ def handle_logistica_callback(call):
     datos_evento = pending_data[0]
     
     try:
-        with app.app_context():
+        with get_app().app_context():
             user = Usuario.query.filter_by(telegram_chat_id=str(call.from_user.id)).first()
             if not user:
                 safe_telegram_send(call.message.chat.id, "❌ Usuario no autorizado.")
@@ -316,7 +328,7 @@ def handle_menu_callback(call):
     receta_id = pending_data[0]
     
     try:
-        with app.app_context():
+        with get_app().app_context():
             receta = db.session.get(Receta, receta_id)
             if not receta:
                 safe_telegram_send(call.message.chat.id, "❌ No se encontró la receta.")
@@ -420,7 +432,7 @@ def callback_voice(call):
     recent_transactions[tx_id] = []
 
     try:
-        with app.app_context():
+        with get_app().app_context():
             try:
                 for item_texto in articulos_raw:
                     match_item = re.search(r'^(?:(\d+(?:\.\d+)?|un|una|uno|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce|media|medio|quince|veinte|treinta)\s+)?(?:(?:de|kilos? de|litros? de|paquetes? de|gramos? de)\s+)?(.*)$', item_texto)
@@ -588,7 +600,7 @@ def registrar_handlers(bot, app):
     def with_app_context(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
-            with app.app_context():
+            with get_app().app_context():
                 return func(*args, **kwargs)
         return wrapper
 
@@ -597,7 +609,7 @@ def registrar_handlers(bot, app):
     @with_app_context
     def cmd_desvincular(message):
         try:
-            with app.app_context():
+            with get_app().app_context():
                 user = Usuario.query.filter_by(telegram_chat_id=str(message.chat.id)).first()
                 if user:
                     user.telegram_chat_id = None
@@ -664,7 +676,7 @@ def registrar_handlers(bot, app):
             codigo_ingresado = partes[1].strip()
             print(f"🔗 Intento de vinculación - Chat ID: {message.chat.id} - Código: {codigo_ingresado}")
             
-            with app.app_context():
+            with get_app().app_context():
                 try:
                     # Buscar al usuario por su código
                     usuario = db.session.query(Usuario).filter_by(telegram_link_token=codigo_ingresado).first()
@@ -740,7 +752,7 @@ def registrar_handlers(bot, app):
             cantidad = int(partes[-1])
             nombre_producto = " ".join(partes[:-1])
 
-        with app.app_context():
+        with get_app().app_context():
             producto = Producto.query.filter(Producto.nombre.ilike(f"%{nombre_producto}%")).first()
             if not producto:
                 safe_telegram_reply(message, f"❌ No encontré '{nombre_producto}' en la base de datos.")
@@ -761,7 +773,7 @@ def registrar_handlers(bot, app):
     @with_app_context
     def sugerir_compra(message):
         if not is_authorized(message.from_user.id): return
-        with app.app_context():
+        with get_app().app_context():
             sugerencias = Producto.query.filter(Producto.stock_actual < Producto.stock_minimo, Producto.en_lista == False).all()
             
             if not sugerencias:
@@ -815,7 +827,7 @@ def registrar_handlers(bot, app):
         nombre = " ".join(partes[:stock_idx]).strip()
         ubicacion_nombre = " ".join(partes[stock_idx+1:]).strip()
         
-        with app.app_context():
+        with get_app().app_context():
             ubi_id = None
             if ubicacion_nombre:
                 ubi = Ubicacion.query.filter(Ubicacion.nombre.ilike(f"%{ubicacion_nombre}%")).first()
@@ -876,7 +888,7 @@ def registrar_handlers(bot, app):
             return
             
         # ocr_div_si: Dividir entre todos los activos
-        with app.app_context():
+        with get_app().app_context():
             comprador = db.session.get(Usuario, data['usuario_id'])
             if call.data == 'ocr_div_mio':
                 todos_usuarios = [comprador]
@@ -949,7 +961,7 @@ def registrar_handlers(bot, app):
         if not data:
             bot.edit_message_text(" La solicitud de confirmacin ha expirado.", chat_id, call.message.message_id)
             return
-        with app.app_context():
+        with get_app().app_context():
             if call.data == 'dedup_yes':
                 prod = db.session.get(Producto, data['sim_id'])
                 if prod:
@@ -995,7 +1007,7 @@ def registrar_handlers(bot, app):
             
         operaciones = recent_transactions.pop(tx_id)
         try:
-            with app.app_context():
+            with get_app().app_context():
                 for op in operaciones:
                     prod = db.session.get(Producto, op['producto_id'])
                     if not prod: continue
@@ -1036,7 +1048,7 @@ def registrar_handlers(bot, app):
     @with_app_context
     def callback_add_low_stock(call):
         try:
-            with app.app_context():
+            with get_app().app_context():
                 productos_bajos = Producto.query.filter(Producto.stock_actual <= Producto.stock_minimo, Producto.en_lista == False).all()
                 for p in productos_bajos:
                     p.en_lista = True
@@ -1049,7 +1061,7 @@ def registrar_handlers(bot, app):
     def callback_comprar(call):
         if not is_authorized(call.from_user.id): return
         producto_id = int(call.data.split('_')[1])
-        with app.app_context():
+        with get_app().app_context():
             producto = db.session.get(Producto, producto_id)
             if not producto:
                 return
@@ -1096,7 +1108,7 @@ def registrar_handlers(bot, app):
             ids_str = partes[-1]
             ids = [int(id_str) for id_str in ids_str.split(',')]
             
-            with app.app_context():
+            with get_app().app_context():
                 for p_id in ids:
                     producto = db.session.get(Producto, p_id)
                     if producto:
@@ -1129,7 +1141,7 @@ def registrar_handlers(bot, app):
             return
 
         try:
-            with app.app_context():
+            with get_app().app_context():
                 # Buscar usuario (reemplaza la función inexistente get_usuario_por_chat)
                 usuario = Usuario.query.filter_by(telegram_chat_id=str(message.from_user.id)).first()
                 if not usuario:
