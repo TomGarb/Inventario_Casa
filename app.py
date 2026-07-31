@@ -189,11 +189,7 @@ def enviar_al_usuario(usuario_id, mensaje, parse_mode='HTML'):
     threading.Thread(target=_enviar_al_usuario_sync, args=(usuario_id, mensaje, parse_mode)).start()
 
 
-if bot:
-    def is_authorized(user_id):
-        with app.app_context():
-            user = Usuario.query.filter_by(telegram_chat_id=str(user_id)).first()
-            return user is not None
+
 
 
 def procesar_compras_texto(texto, message):

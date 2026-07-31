@@ -6,6 +6,11 @@ from datetime import datetime, date, timedelta
 import calendar
 from collections import defaultdict
 
+def is_authorized(user_id):
+    from models.database import Usuario
+    user = Usuario.query.filter_by(telegram_chat_id=str(user_id)).first()
+    return user is not None
+
 def admin_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):

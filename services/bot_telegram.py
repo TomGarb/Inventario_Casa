@@ -5,7 +5,8 @@ import logging
 import telebot
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 from models.database import Usuario, Gasto, DetalleGasto, DivisionGasto, Producto, Ubicacion, SubUbicacion, Sala, Tarea
-from extensions import db
+from extensions import db, bot
+from utils import is_authorized
 from services.gemini_service import clasificar_intencion, procesar_gasto_texto, check_api_quota_error
 
 def safe_telegram_send(chat_id, mensaje, reply_markup=None, parse_mode='HTML'):
