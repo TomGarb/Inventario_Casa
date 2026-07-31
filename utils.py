@@ -170,3 +170,45 @@ def calcular_proximo_turno(tarea):
         return usuarios_ids[next_idx]
     return usuarios_ids[0]
 
+
+
+def formatear_fecha_amigable(f_val):
+    import re
+    if not f_val: return ""
+    try:
+        if isinstance(f_val, str):
+            clean_str = re.sub(r'([+-]\d{2}:?\d{2}|Z)$', '', f_val.strip())
+            dt = None
+            for fmt in ["%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d"]:
+                try:
+                    dt = datetime.strptime(clean_str[:len("2026-08-15T15:00:00")[:len(clean_str)]], fmt)
+                    break
+                except:
+                    continue
+            if not dt:
+                try:
+                    dt = datetime.fromisoformat(clean_str)
+                except:
+                    return str(f_val)
+        elif isinstance(f_val, datetime):
+            dt = f_val
+        elif isinstance(f_val, date):
+            return f_val.strftime('%d/%m/%Y')
+        else:
+            return str(f_val)
+        return dt.strftime('%d/%m/%Y a las %H:%M hs.')
+    except Exception:
+        return str(f_val)
+
+def consumir_receta(receta_id):
+    from models.database import Receta
+    receta = db.session.get(Receta, receta_id)
+    if not receta: return False
+    
+    for ing in receta.ingredientes:
+        if ing.producto.stock_actual >= ing.cantidad_requerida:
+            ing.producto.stock_actual -= ing.cantidad_requerida
+        else:
+            ing.producto.stock_actual = 0
+    db.session.commit()
+    return True
