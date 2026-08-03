@@ -55,6 +55,27 @@ def safe_telegram_send(chat_id, mensaje, reply_markup=None, parse_mode='HTML'):
         print(f"Error enviando mensaje a {chat_id}: {e}")
         return False
 
+def safe_telegram_reply(message, texto, reply_markup=None, parse_mode='HTML'):
+    if not bot:
+        return False
+    if parse_mode == 'Markdown':
+        texto = texto.replace('**', '*')
+    try:
+        bot.reply_to(message, texto, reply_markup=reply_markup, parse_mode=parse_mode)
+        return True
+    except Exception as e:
+        err_str = str(e).lower()
+        if "can't parse entities" in err_str and parse_mode:
+            print(f"⚠️ Aviso: Falló el parseo {parse_mode}, enviando como texto plano. Error: {e}")
+            try:
+                bot.reply_to(message, texto, reply_markup=reply_markup, parse_mode=None)
+                return True
+            except Exception as e2:
+                print(f"Error enviando mensaje plano de respuesta: {e2}")
+                return False
+        print(f"Error respondiendo mensaje: {e}")
+        return False
+
 def enviar_listas_agrupadas(chat_id, comercio_objetivo=None):
     if not _bot_app: return
     with _bot_app.app_context():
