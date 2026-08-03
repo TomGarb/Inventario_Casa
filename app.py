@@ -268,20 +268,18 @@ def start_background_tasks():
         except Exception as e:
             logging.error(f"[Scheduler/Bot] Error al iniciar tareas de fondo: {e}", exc_info=True)
 
-# Intentar arrancar tareas de fondo solo una vez (compatible con WSGI)
-start_background_tasks()
-
-
-# ==========================================
-# 12. ENDPOINTS NUEVOS MODULOS (STUBS)
-# ==========================================
-
-
 from routes import register_blueprints
 register_blueprints(app)
 from services.bot_telegram import registrar_handlers
 if bot:
     registrar_handlers(bot, app)
+
+# Intentar arrancar tareas de fondo solo una vez (compatible con WSGI)
+start_background_tasks()
+
+# ==========================================
+# 12. ENDPOINTS NUEVOS MODULOS (STUBS)
+# ==========================================
 
 if __name__ == '__main__':
     # 3. Arrancar Flask de forma segura

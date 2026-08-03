@@ -652,7 +652,7 @@ def registrar_handlers(bot, app):
         try:
             print(f"📩 COMANDO RECIBIDO: {message.text}")
             if not is_authorized(message.from_user.id): return
-            procesar_menu_config(message)
+            enviar_menu_principal(message.chat.id)
         except Exception as e:
             print(f"🔴 ERROR INTERNO EN HANDLER DE MENU: {e}")
             bot.reply_to(message, "Hubo un error interno. Revisa la consola.")
@@ -660,7 +660,11 @@ def registrar_handlers(bot, app):
     @bot.message_handler(commands=['start'])
     @with_app_context
     def cmd_start(message):
-        safe_telegram_reply(message, "¡Hola! Bienvenido a Homestock. Para vincular tu cuenta, ingresa a la aplicación web, ve a tu Perfil, genera un token y envíalo aquí con el comando:\n/vincular <Tu Token>")
+        if is_authorized(message.from_user.id):
+            safe_telegram_reply(message, "¡Hola de nuevo! Aquí tienes el menú principal:")
+            enviar_menu_principal(message.chat.id)
+        else:
+            safe_telegram_reply(message, "¡Hola! Bienvenido a Homestock. Para vincular tu cuenta, ingresa a la aplicación web, ve a tu Perfil, genera un token y envíalo aquí con el comando:\n/vincular <Tu Token>")
 
     @bot.message_handler(commands=['vincular'])
     @with_app_context
