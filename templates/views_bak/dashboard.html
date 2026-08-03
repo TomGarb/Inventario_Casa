@@ -148,12 +148,134 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+<script>
+function procesarTicketDash() {
+    const fileInput = document.getElementById('dash-ticket-file');
+    if (!fileInput.files || fileInput.files.length === 0) return;
 
+    const file = fileInput.files[0];
+    const reader = new FileReader();
 
+    const modal = document.getElementById('modal-dash-ticket');
+    const loading = document.getElementById('dash-ticket-loading');
+    const form = document.getElementById('dash-ticket-form');
+    
+    modal.style.display = 'block';
+    loading.style.display = 'block';
+    form.style.display = 'none';
+
+    reader.onload = function(e) {
+        const base64Image = e.target.result.split(',')[1];
+        
+        fetch('/api/finanzas/ocr', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ image_base64: base64Image })
+        })
+        .then(res => res.json())
+        .then(data => {
+            loading.style.display = 'none';
+            if(data.error) {
+                showToast(data.error, "error");
+                modal.style.display = 'none';
+            } else {
+                form.style.display = 'block';
+                document.getElementById('dash-gasto-concepto').value = data.descripcion || '';
+                document.getElementById('dash-gasto-monto').value = data.monto_total || '';
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            loading.style.display = 'none';
+            modal.style.display = 'none';
+            showToast("Error procesando imagen", "error");
+        });
+    };
+    reader.readAsDataURL(file);
+    fileInput.value = ''; // Reset
+}
+
+function guardarGastoDash() {
+    const descripcion = document.getElementById('dash-gasto-concepto').value;
+    const monto = document.getElementById('dash-gasto-monto').value;
+    
+    if (!descripcion || !monto) {
+        showToast("Completa concepto y monto", "error");
+        return;
+    }
+    
+    fetch('/api/finanzas/gasto', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            descripcion: descripcion,
+            monto_total: monto
+        })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if(data.success) {
+            showToast("Gasto guardado exitosamente", "success");
+            document.getElementById('modal-dash-ticket').style.display = 'none';
+            setTimeout(() => location.reload(), 1500);
+        } else {
+            showToast(data.error || "Error", "error");
+        }
+    })
+    .catch(err => {
+        console.error(err);
+        showToast("Error de red", "error");
+    });
+}
+</script>
 
 <link href='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.css' rel='stylesheet' />
 <script src='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.js'></script>
 <script src='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/locales/es.js'></script>
-
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    var calendarEl = document.getElementById('global-calendar');
+    if (calendarEl) {
+        var calendar = new FullCalendar.Calendar(calendarEl, {
+            locale: 'es',
+            initialView: 'dayGridMonth',
+            height: 'auto',
+            headerToolbar: {
+                left: 'prev,next today',
+                center: 'title',
+                right: 'dayGridMonth,timeGridWeek,listWeek'
+            },
+            eventSources: [
+                {
+                    url: '/api/calendario_tareas',
+                    color: '#0d6efd', // Blue
+                    textColor: 'white'
+                },
+                {
+                    url: '/api/menus/eventos',
+                    color: '#fd7e14', // Orange
+                    textColor: 'white'
+                },
+                {
+                    url: '/api/logistica/eventos',
+                    color: '#6f42c1', // Purple
+                    textColor: 'white'
+                }
+            ],
+            eventClick: function(info) {
+                if (info.event.extendedProps && info.event.extendedProps.tarea_id) {
+                    info.jsEvent.preventDefault();
+                    if (typeof abrirModalEdicionTareaCal === 'function') {
+                        abrirModalEdicionTareaCal(info);
+                    }
+                } else if (info.event.url) {
+                    info.jsEvent.preventDefault();
+                    window.open(info.event.url);
+                }
+            }
+        });
+        calendar.render();
+    }
+});
+</script>
 {% endblock %}

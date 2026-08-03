@@ -26,6 +26,13 @@ def get_app():
     except ImportError:
         return None
 
+def with_app_context(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        with get_app().app_context():
+            return func(*args, **kwargs)
+    return wrapper
+
 
 def safe_telegram_send(chat_id, mensaje, reply_markup=None, parse_mode='HTML'):
     if not bot:
@@ -598,14 +605,6 @@ def callback_voice(call):
 def registrar_handlers(bot, app):
     global _bot_app
     _bot_app = app
-
-    def with_app_context(func):
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            with get_app().app_context():
-                return func(*args, **kwargs)
-        return wrapper
-
     # 1. COMANDOS
     @bot.message_handler(commands=['desvincular'])
     @with_app_context
