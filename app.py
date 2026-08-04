@@ -85,6 +85,8 @@ CHAT_ID = TELEGRAM_CHAT_ID
 
 @app.before_request
 def require_login():
+    if request.path == '/webhook/telegram':
+        return
     allowed_routes = ['auth.login_page', 'auth.register_page', 'static']
     if request.endpoint not in allowed_routes and not current_user.is_authenticated:
         if request.path.startswith('/api/'):
@@ -291,7 +293,7 @@ def telegram_webhook():
         json_string = request.get_data().decode('utf-8')
         update = telebot.types.Update.de_json(json_string)
         bot.process_new_updates([update])
-        return '', 200
+        return "OK", 200
     else:
         abort(403)
 
