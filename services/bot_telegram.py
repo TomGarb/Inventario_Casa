@@ -1,5 +1,6 @@
 from functools import wraps
 import os
+import re
 import uuid
 import json
 import logging
@@ -673,6 +674,7 @@ def registrar_handlers(bot, app):
         try:
             print(f"📩 COMANDO RECIBIDO: {message.text}")
             if not is_authorized(message.from_user.id): return
+            bot.clear_step_handler_by_chat_id(message.chat.id)
             enviar_menu_principal(message.chat.id)
         except Exception as e:
             print(f"🔴 ERROR INTERNO EN HANDLER DE MENU: {e}")
@@ -682,6 +684,7 @@ def registrar_handlers(bot, app):
     @with_app_context
     def cmd_start(message):
         if is_authorized(message.from_user.id):
+            bot.clear_step_handler_by_chat_id(message.chat.id)
             safe_telegram_reply(message, "¡Hola de nuevo! Aquí tienes el menú principal:")
             enviar_menu_principal(message.chat.id)
         else:
@@ -1268,7 +1271,7 @@ def enviar_menu_principal(chat_id, texto="Selecciona una opción del menú princ
     markup = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=False)
     markup.row(KeyboardButton("💰 Finanzas"), KeyboardButton("📦 Inventario"))
     markup.row(KeyboardButton("📋 Tareas"), KeyboardButton("🚚 Logística"))
-    markup.row(KeyboardButton("❌ Cancelar"))
+    markup.row(KeyboardButton("🍽️ Comidas"), KeyboardButton("❌ Cancelar"))
     try:
         bot.send_message(chat_id, texto, reply_markup=markup)
     except Exception as e:
@@ -1276,7 +1279,7 @@ def enviar_menu_principal(chat_id, texto="Selecciona una opción del menú princ
 
 @with_app_context
 def procesar_estado_finanzas(message):
-    if not message.text or message.text == "❌ Cancelar":
+    if not message.text or re.search(r"(?i)Cancelar", message.text):
         bot.clear_step_handler_by_chat_id(message.chat.id)
         enviar_menu_principal(message.chat.id, "❌ Operación cancelada.")
         return
@@ -1318,7 +1321,7 @@ def procesar_estado_finanzas(message):
 
 @with_app_context
 def procesar_estado_inventario(message):
-    if not message.text or message.text == "❌ Cancelar":
+    if not message.text or re.search(r"(?i)Cancelar", message.text):
         bot.clear_step_handler_by_chat_id(message.chat.id)
         enviar_menu_principal(message.chat.id, "❌ Operación cancelada.")
         return
@@ -1366,7 +1369,7 @@ def procesar_estado_inventario(message):
 
 @with_app_context
 def procesar_estado_tareas(message):
-    if not message.text or message.text == "❌ Cancelar":
+    if not message.text or re.search(r"(?i)Cancelar", message.text):
         bot.clear_step_handler_by_chat_id(message.chat.id)
         enviar_menu_principal(message.chat.id, "❌ Operación cancelada.")
         return
@@ -1425,7 +1428,7 @@ def procesar_estado_tareas(message):
 
 @with_app_context
 def procesar_estado_logistica(message):
-    if not message.text or message.text == "❌ Cancelar":
+    if not message.text or re.search(r"(?i)Cancelar", message.text):
         bot.clear_step_handler_by_chat_id(message.chat.id)
         enviar_menu_principal(message.chat.id, "❌ Operación cancelada.")
         return
@@ -1489,7 +1492,7 @@ def procesar_estado_logistica(message):
         if not is_authorized(message.from_user.id): return
         safe_telegram_reply(message, "🎤 El procesamiento de audios está desactivado temporalmente para ahorrar cuota de IA. Por favor, utiliza los botones del menú inferior para registrar datos.")
 
-    @bot.message_handler(func=lambda message: message.text and 'Finanzas' in message.text)
+    @bot.message_handler(regexp=r"(?i)Finanzas")
     @with_app_context
     def handle_btn_finanzas(message):
         logging.info(f"Mensaje recibido: {message.text}")
@@ -1497,7 +1500,7 @@ def procesar_estado_logistica(message):
         msg = bot.send_message(message.chat.id, "💸 **Módulo Finanzas**\n\nEnvíame los datos con este formato estricto:\n\nMonto - Concepto - Detalle\n\n_(Puedes cargar varios en un solo mensaje usando saltos de línea)_", parse_mode="Markdown")
         bot.register_next_step_handler(msg, procesar_estado_finanzas)
 
-    @bot.message_handler(func=lambda message: message.text and 'Inventario' in message.text)
+    @bot.message_handler(regexp=r"(?i)Inventario")
     @with_app_context
     def handle_btn_inventario(message):
         logging.info(f"Mensaje recibido: {message.text}")
@@ -1505,7 +1508,7 @@ def procesar_estado_logistica(message):
         msg = bot.send_message(message.chat.id, "📦 **Módulo Inventario**\n\nEnvíame los datos con este formato:\n\nAcción - Producto - Cantidad\n\n_(Acciones permitidas: Alta, Baja, Modificar)_", parse_mode="Markdown")
         bot.register_next_step_handler(msg, procesar_estado_inventario)
 
-    @bot.message_handler(func=lambda message: message.text and 'Tareas' in message.text)
+    @bot.message_handler(regexp=r"(?i)Tareas")
     @with_app_context
     def handle_btn_tareas(message):
         logging.info(f"Mensaje recibido: {message.text}")
@@ -1513,7 +1516,7 @@ def procesar_estado_logistica(message):
         msg = bot.send_message(message.chat.id, "📋 **Módulo Tareas**\n\nEnvíame los datos con este formato:\n\nTarea - Prioridad - Vencimiento (DD/MM) - Asignado_a\n\n_(Prioridades: Alta, Media, Baja)\n(Asignado_a: 'Todos', o nombres como 'Juan, Ana')_", parse_mode="Markdown")
         bot.register_next_step_handler(msg, procesar_estado_tareas)
 
-    @bot.message_handler(func=lambda message: message.text and 'Logística' in message.text)
+    @bot.message_handler(regexp=r"(?i)Logística")
     @with_app_context
     def handle_btn_logistica(message):
         logging.info(f"Mensaje recibido: {message.text}")
@@ -1521,7 +1524,14 @@ def procesar_estado_logistica(message):
         msg = bot.send_message(message.chat.id, "🚚 **Módulo Logística**\n\nEnvíame los datos con este formato:\n\nTítulo - Fecha (DD/MM) - Hora (HH:MM) - Asignado_a\n\n_(Asignado_a: 'Todos', o nombres como 'Juan, Ana')_", parse_mode="Markdown")
         bot.register_next_step_handler(msg, procesar_estado_logistica)
 
-    @bot.message_handler(func=lambda message: message.text and 'Cancelar' in message.text)
+    @bot.message_handler(regexp=r"(?i)Comidas")
+    @with_app_context
+    def handle_btn_comidas(message):
+        logging.info(f"Mensaje recibido: {message.text}")
+        if not is_authorized(message.from_user.id): return
+        procesar_menu_config(message)
+
+    @bot.message_handler(regexp=r"(?i)Cancelar")
     @with_app_context
     def handle_btn_cancelar(message):
         logging.info(f"Mensaje recibido: {message.text}")
