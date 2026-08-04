@@ -1482,37 +1482,56 @@ def procesar_estado_logistica(message):
         enviar_menu_principal(message.chat.id)
 
 
-    @bot.message_handler(content_types=['text', 'voice'])
+    @bot.message_handler(content_types=['voice'])
     @with_app_context
-    def handle_voice_and_text(message):
-        try:
-            if not is_authorized(message.from_user.id):
-                return
+    def handle_voice(message):
+        logging.info("Mensaje de voz recibido.")
+        if not is_authorized(message.from_user.id): return
+        safe_telegram_reply(message, "🎤 El procesamiento de audios está desactivado temporalmente para ahorrar cuota de IA. Por favor, utiliza los botones del menú inferior para registrar datos.")
 
-            if message.content_type == 'voice':
-                bot.send_message(message.chat.id, "🎤 El procesamiento de audios está desactivado temporalmente para ahorrar cuota de IA. Por favor, utiliza los botones del menú inferior para registrar datos.")
-                return
-                
-            if message.text.startswith('/'): return
-            texto = message.text.strip()
-            
-            if texto == "💰 Finanzas":
-                msg = bot.send_message(message.chat.id, "💸 **Módulo Finanzas**\n\nEnvíame los datos con este formato estricto:\n\nMonto - Concepto - Detalle\n\n_(Puedes cargar varios en un solo mensaje usando saltos de línea)_", parse_mode="Markdown")
-                bot.register_next_step_handler(msg, procesar_estado_finanzas)
-            elif texto == "📦 Inventario":
-                msg = bot.send_message(message.chat.id, "📦 **Módulo Inventario**\n\nEnvíame los datos con este formato:\n\nAcción - Producto - Cantidad\n\n_(Acciones permitidas: Alta, Baja, Modificar)_", parse_mode="Markdown")
-                bot.register_next_step_handler(msg, procesar_estado_inventario)
-            elif texto == "📋 Tareas":
-                msg = bot.send_message(message.chat.id, "📋 **Módulo Tareas**\n\nEnvíame los datos con este formato:\n\nTarea - Prioridad - Vencimiento (DD/MM) - Asignado_a\n\n_(Prioridades: Alta, Media, Baja)\n(Asignado_a: 'Todos', o nombres como 'Juan, Ana')_", parse_mode="Markdown")
-                bot.register_next_step_handler(msg, procesar_estado_tareas)
-            elif texto == "🚚 Logística":
-                msg = bot.send_message(message.chat.id, "🚚 **Módulo Logística**\n\nEnvíame los datos con este formato:\n\nTítulo - Fecha (DD/MM) - Hora (HH:MM) - Asignado_a\n\n_(Asignado_a: 'Todos', o nombres como 'Juan, Ana')_", parse_mode="Markdown")
-                bot.register_next_step_handler(msg, procesar_estado_logistica)
-            elif texto == "❌ Cancelar":
-                enviar_menu_principal(message.chat.id, "Volviendo al menú principal.")
-            else:
-                enviar_menu_principal(message.chat.id, "⚠️ No reconocí esa opción. Por favor selecciona una de las siguientes opciones desde el menú de teclado:")
-                
-        except Exception as e:
-            print(f"🔴 ERROR INTERNO EN HANDLER DE TEXTO: {e}")
-            bot.reply_to(message, "Hubo un error interno. Revisa la consola.")
+    @bot.message_handler(func=lambda message: message.text and 'Finanzas' in message.text)
+    @with_app_context
+    def handle_btn_finanzas(message):
+        logging.info(f"Mensaje recibido: {message.text}")
+        if not is_authorized(message.from_user.id): return
+        msg = bot.send_message(message.chat.id, "💸 **Módulo Finanzas**\n\nEnvíame los datos con este formato estricto:\n\nMonto - Concepto - Detalle\n\n_(Puedes cargar varios en un solo mensaje usando saltos de línea)_", parse_mode="Markdown")
+        bot.register_next_step_handler(msg, procesar_estado_finanzas)
+
+    @bot.message_handler(func=lambda message: message.text and 'Inventario' in message.text)
+    @with_app_context
+    def handle_btn_inventario(message):
+        logging.info(f"Mensaje recibido: {message.text}")
+        if not is_authorized(message.from_user.id): return
+        msg = bot.send_message(message.chat.id, "📦 **Módulo Inventario**\n\nEnvíame los datos con este formato:\n\nAcción - Producto - Cantidad\n\n_(Acciones permitidas: Alta, Baja, Modificar)_", parse_mode="Markdown")
+        bot.register_next_step_handler(msg, procesar_estado_inventario)
+
+    @bot.message_handler(func=lambda message: message.text and 'Tareas' in message.text)
+    @with_app_context
+    def handle_btn_tareas(message):
+        logging.info(f"Mensaje recibido: {message.text}")
+        if not is_authorized(message.from_user.id): return
+        msg = bot.send_message(message.chat.id, "📋 **Módulo Tareas**\n\nEnvíame los datos con este formato:\n\nTarea - Prioridad - Vencimiento (DD/MM) - Asignado_a\n\n_(Prioridades: Alta, Media, Baja)\n(Asignado_a: 'Todos', o nombres como 'Juan, Ana')_", parse_mode="Markdown")
+        bot.register_next_step_handler(msg, procesar_estado_tareas)
+
+    @bot.message_handler(func=lambda message: message.text and 'Logística' in message.text)
+    @with_app_context
+    def handle_btn_logistica(message):
+        logging.info(f"Mensaje recibido: {message.text}")
+        if not is_authorized(message.from_user.id): return
+        msg = bot.send_message(message.chat.id, "🚚 **Módulo Logística**\n\nEnvíame los datos con este formato:\n\nTítulo - Fecha (DD/MM) - Hora (HH:MM) - Asignado_a\n\n_(Asignado_a: 'Todos', o nombres como 'Juan, Ana')_", parse_mode="Markdown")
+        bot.register_next_step_handler(msg, procesar_estado_logistica)
+
+    @bot.message_handler(func=lambda message: message.text and 'Cancelar' in message.text)
+    @with_app_context
+    def handle_btn_cancelar(message):
+        logging.info(f"Mensaje recibido: {message.text}")
+        if not is_authorized(message.from_user.id): return
+        enviar_menu_principal(message.chat.id, "Volviendo al menú principal.")
+
+    @bot.message_handler(content_types=['text'])
+    @with_app_context
+    def handle_catch_all(message):
+        logging.warning(f"Mensaje no manejado: {message.text}")
+        if not is_authorized(message.from_user.id): return
+        if message.text.startswith('/'): return
+        safe_telegram_reply(message, "No entendí ese comando. Por favor, usa los botones del menú.")
