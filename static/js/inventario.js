@@ -1739,6 +1739,12 @@ function showToast(message, type = 'success') {
             if (toast.parentElement) toast.remove();
         }, 300); // Wait for transition
     }, 3000);
+    
+    if (type === 'success') {
+        setTimeout(() => {
+            window.location.reload();
+        }, 800); // Give the user 800ms to see the success toast before reloading
+    }
 }
 
 window.alert = function(message) {

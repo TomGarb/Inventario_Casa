@@ -118,7 +118,7 @@
     function eliminarEventoLogistico() {
         const id = document.getElementById('ev-id').value;
         if (!id) return;
-        showConfirm("¿Seguro que deseas eliminar este evento?", () => {
+        if (confirm("¿Seguro que deseas eliminar este evento?")) {
             fetch('/api/logistica/eventos/' + id, { method: 'DELETE' })
             .then(r => r.json())
             .then(res => {
@@ -127,7 +127,7 @@
                 calendar.refetchEvents();
             })
             .catch(err => showToast('Error de red', 'error'));
-        });
+        }
     }
 
     function guardarEvento() {

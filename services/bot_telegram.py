@@ -1276,7 +1276,7 @@ def registrar_handlers(bot, app):
     def handle_btn_finanzas(message):
         logging.info(f"Mensaje recibido: {message.text}")
         if not is_authorized(message.from_user.id): return
-        msg = bot.send_message(message.chat.id, "💸 **Módulo Finanzas**\n\nEnvíame los datos con este formato estricto:\n\nMonto - Concepto - Detalle\n\n_(Puedes cargar varios en un solo mensaje usando saltos de línea)_", parse_mode="Markdown")
+        msg = bot.send_message(message.chat.id, "💸 **Módulo Finanzas**\n\nElige un formato:\n\n*1. Gasto Simple*\n`Monto - Concepto - Detalle`\n\n*2. Ticket / Supermercado*\n`Lugar de compra`\n`Artículo 1 - Precio`\n`Artículo 2 - Precio`", parse_mode="Markdown")
         bot.register_next_step_handler(msg, procesar_estado_finanzas)
 
     @bot.message_handler(regexp=r"(?i)Inventario")
@@ -1356,30 +1356,65 @@ def procesar_estado_finanzas(message):
                 safe_telegram_send(message.chat.id, "❌ Tu cuenta no está vinculada.")
                 return
                 
-            lineas = message.text.split('\n')
-            agregados = 0
-            for linea in lineas:
-                if not linea.strip(): continue
-                partes = [p.strip() for p in linea.split('-')]
-                if len(partes) < 3:
-                    raise ValueError(f"Formato incompleto: '{linea}'")
-                
-                monto = float(partes[0].replace('$', '').replace(',', '').strip())
-                concepto = partes[1]
-                detalle = partes[2]
-                
+            lineas = [l.strip() for l in message.text.split('\n') if l.strip()]
+            if not lineas: return
+            
+            first_char = lineas[0][0]
+            if first_char.isdigit() or first_char == '$':
+                agregados = 0
+                for linea in lineas:
+                    partes = [p.strip() for p in linea.split('-')]
+                    if len(partes) < 3:
+                        raise ValueError(f"Formato incompleto: '{linea}'")
+                    
+                    monto = float(partes[0].replace('$', '').replace(',', '').strip())
+                    concepto = partes[1]
+                    detalle = partes[2]
+                    
+                    nuevo_gasto = Gasto(
+                        fecha=datetime.now(),
+                        monto=monto,
+                        descripcion=concepto + " - " + detalle,
+                        usuario_id=usuario.id
+                    )
+                    db.session.add(nuevo_gasto)
+                    agregados += 1
+                db.session.commit()
+                enviar_menu_principal(message.chat.id, f"✅ ¡Listo! Se registraron {agregados} gastos individuales.")
+            else:
+                concepto_principal = lineas[0]
+                monto_total = 0.0
                 nuevo_gasto = Gasto(
                     fecha=datetime.now(),
-                    monto=monto,
-                    descripcion=concepto + " - " + detalle,
+                    monto=0.0,
+                    descripcion=concepto_principal,
                     usuario_id=usuario.id
                 )
                 db.session.add(nuevo_gasto)
-                agregados += 1
-            db.session.commit()
-            enviar_menu_principal(message.chat.id, f"✅ ¡Listo! Se registraron {agregados} gastos.")
+                db.session.flush()
+                
+                for linea in lineas[1:]:
+                    partes = [p.strip() for p in linea.split('-')]
+                    if len(partes) < 2:
+                        raise ValueError(f"Formato incompleto en ítem: '{linea}'. Debe ser 'Artículo - Precio'.")
+                    
+                    articulo = partes[0]
+                    precio = float(partes[1].replace('$', '').replace(',', '').strip())
+                    monto_total += precio
+                    
+                    detalle_obj = DetalleGasto(
+                        gasto_id=nuevo_gasto.id,
+                        descripcion=articulo,
+                        cantidad=1.0,
+                        precio_unitario=precio
+                    )
+                    db.session.add(detalle_obj)
+                    
+                nuevo_gasto.monto = monto_total
+                db.session.commit()
+                enviar_menu_principal(message.chat.id, f"✅ ¡Listo! Gasto agrupado '{concepto_principal}' registrado por un total de ${monto_total:.2f} con {len(lineas)-1} artículos.")
     except ValueError as ve:
-        msg = bot.send_message(message.chat.id, f"⚠️ Error: {ve}\n\nVuelve a enviarme los datos con el formato exacto:\n\nMonto - Concepto - Detalle")
+        msg = bot.send_message(message.chat.id, f"⚠️ Error: {ve}\n\nVuelve a enviarme los datos con el formato correspondiente.")
         bot.register_next_step_handler(msg, procesar_estado_finanzas)
     except Exception as e:
         bot.send_message(message.chat.id, f"❌ Error al procesar: {e}")
