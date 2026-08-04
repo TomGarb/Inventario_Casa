@@ -1320,6 +1320,11 @@ def registrar_handlers(bot, app):
     @bot.message_handler(content_types=['text'])
     @with_app_context
     def handle_catch_all(message):
+        if message.chat.id in pending_menu_config:
+            dia, tipo = pending_menu_config.pop(message.chat.id)
+            guardar_menu_desde_bot(message.chat.id, dia, tipo, message.text.strip())
+            return
+            
         logging.warning(f"Mensaje no manejado: {message.text}")
         if not is_authorized(message.from_user.id): return
         if message.text.startswith('/'): return
@@ -1365,9 +1370,9 @@ def procesar_estado_finanzas(message):
                 
                 nuevo_gasto = Gasto(
                     fecha=datetime.now(),
-                    monto_total=monto,
+                    monto=monto,
                     descripcion=concepto + " - " + detalle,
-                    pagador_id=usuario.id
+                    usuario_id=usuario.id
                 )
                 db.session.add(nuevo_gasto)
                 agregados += 1
@@ -1471,7 +1476,7 @@ def procesar_estado_tareas(message):
                 
             nueva_tarea = Tarea(
                 nombre=nombre_tarea,
-                frecuencia_dias=0, # Tarea unica
+                tipo_frecuencia='dias', valor_frecuencia='0', prioridad=prioridad,
                 fecha_programada=fecha_vencimiento
             )
             nueva_tarea.usuarios.extend(usuarios_asignar)
@@ -1525,11 +1530,13 @@ def procesar_estado_logistica(message):
             if not usuarios_asignar:
                 raise ValueError("No se especificaron usuarios válidos para asignar.")
                 
+            usuario_creador = Usuario.query.filter_by(telegram_chat_id=str(message.from_user.id)).first()
             nuevo_evento = EventoLogistico(
                 titulo=titulo,
                 fecha_inicio=fecha_inicio,
                 fecha_fin=fecha_inicio + timedelta(hours=1),
-                estado='Confirmado'
+                creador_id=usuario_creador.id if usuario_creador else usuarios_asignar[0].id,
+                asignado_id=usuarios_asignar[0].id if usuarios_asignar else None
             )
             db.session.add(nuevo_evento)
             db.session.commit() # commit first to get ID
