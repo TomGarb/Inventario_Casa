@@ -294,6 +294,7 @@ def telegram_webhook():
         json_string = request.get_data().decode('utf-8')
         update = telebot.types.Update.de_json(json_string)
         print(f">>> UPDATE PARSEADO: {update}")
+        print(f">>> HANDLERS DEL BOT: {len(bot.message_handlers)}")
         bot.process_new_updates([update])
         return "OK", 200
     else:
