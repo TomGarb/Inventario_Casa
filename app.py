@@ -189,9 +189,9 @@ def cleanup_pending_commands():
     pending_ocr_confirmations.clear()
     pending_dedup.clear()
 
-def iniciar_bot():
+def configurar_bot_telegram():
     if bot:
-        logging.info("[Bot Telemetría] Iniciando bot de Telegram en segundo plano...")
+        logging.info("[Bot Telemetría] Configurando bot de Telegram...")
         try:
             from telebot.types import BotCommand
             comandos = [
@@ -207,13 +207,14 @@ def iniciar_bot():
             print(f"Error configurando comandos en Telegram: {ec}")
             
         try:
-            print("🟢 INICIANDO POLLING DE TELEGRAM...")
+            print("🟢 CONFIGURANDO WEBHOOK DE TELEGRAM...")
             bot.remove_webhook()
-            logging.info("[Bot Telemetría] Webhook removido con éxito. Arrancando infinity_polling en hilo daemon...")
-            bot.infinity_polling(timeout=60, long_polling_timeout=60, logger_level=logging.INFO)
+            WEBHOOK_URL = "https://inventario-casa-m8an.onrender.com/webhook/telegram"
+            bot.set_webhook(url=WEBHOOK_URL)
+            logging.info(f"[Bot Telemetría] Webhook configurado con éxito en: {WEBHOOK_URL}")
         except Exception as e:
-            print(f"🔴 ERROR FATAL EN EL HILO DEL BOT: {e}")
-            logging.error(f"[Bot Telemetría] Error crítico en polling de Telegram: {e}", exc_info=True)
+            print(f"🔴 ERROR FATAL AL CONFIGURAR WEBHOOK: {e}")
+            logging.error(f"[Bot Telemetría] Error crítico configurando Webhook: {e}", exc_info=True)
 
 # ================= WSGI ARRANQUE SEGURO =================
 LOCK_FILE = "bot_scheduler.lock"
@@ -252,10 +253,8 @@ def start_background_tasks():
             with open(LOCK_FILE, "w") as f:
                 f.write(str(os.getpid()))
 
-            logging.info(f"Worker {os.getpid()} está iniciando hilos de fondo para bot y scheduler...")
-            bot_thread = threading.Thread(target=iniciar_bot, name="TelegramBotThread", daemon=True)
-            print(f"🛠️ Diagnóstico: El bot tiene {len(bot.message_handlers)} handlers de mensajes registrados antes de iniciar.")
-            bot_thread.start()
+            logging.info(f"Worker {os.getpid()} está iniciando background scheduler y configurando el bot...")
+            configurar_bot_telegram()
 
             tz = pytz.timezone('America/Argentina/Buenos_Aires')
             scheduler = BackgroundScheduler(timezone=tz)
@@ -278,8 +277,21 @@ if bot:
 start_background_tasks()
 
 # ==========================================
-# 12. ENDPOINTS NUEVOS MODULOS (STUBS)
+# 12. ENDPOINTS NUEVOS MODULOS (STUBS) Y WEBHOOK
 # ==========================================
+
+from flask import request, abort
+import telebot
+
+@app.route('/webhook/telegram', methods=['POST'])
+def telegram_webhook():
+    if request.headers.get('content-type') == 'application/json':
+        json_string = request.get_data().decode('utf-8')
+        update = telebot.types.Update.de_json(json_string)
+        bot.process_new_updates([update])
+        return '', 200
+    else:
+        abort(403)
 
 if __name__ == '__main__':
     # 3. Arrancar Flask de forma segura
