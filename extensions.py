@@ -17,4 +17,4 @@ csrf = CSRFProtect()
 
 # Configuración y creación del bot
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN', '')
-bot = telebot.TeleBot(TELEGRAM_TOKEN) if TELEGRAM_TOKEN else None
+bot = telebot.TeleBot(TELEGRAM_TOKEN, threaded=False) if TELEGRAM_TOKEN else None

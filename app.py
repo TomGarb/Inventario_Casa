@@ -289,9 +289,11 @@ from extensions import csrf
 @app.route('/webhook/telegram', methods=['POST'])
 @csrf.exempt
 def telegram_webhook():
+    print(">>> UPDATE RECIBIDO EN WEBHOOK")
     if request.headers.get('content-type') == 'application/json':
         json_string = request.get_data().decode('utf-8')
         update = telebot.types.Update.de_json(json_string)
+        print(f">>> UPDATE PARSEADO: {update}")
         bot.process_new_updates([update])
         return "OK", 200
     else:

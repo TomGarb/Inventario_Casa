@@ -672,6 +672,7 @@ def registrar_handlers(bot, app):
     @with_app_context
     def handle_menus_command(message):
         try:
+            print(">>> HANDLER /MENU EJECUTADO")
             print(f"📩 COMANDO RECIBIDO: {message.text}")
             if not is_authorized(message.from_user.id): return
             bot.clear_step_handler_by_chat_id(message.chat.id)
