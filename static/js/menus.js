@@ -108,9 +108,9 @@
         document.getElementById('modal-comida-manual').style.display = 'block';
     }
 
-    function eliminarMenuSeleccionado() {
+    async function eliminarMenuSeleccionado() {
         if (!menuSeleccionadoId) return;
-        if (!confirm('¿Seguro que deseas eliminar esta comida del planificador?')) return;
+        if (!await CustomDialog.confirm('¿Seguro que deseas eliminar esta comida del planificador?')) return;
 
         fetch(`/api/menus/${menuSeleccionadoId}`, {
             method: 'DELETE'
@@ -237,8 +237,8 @@
         });
     });
 
-    function duplicarMenuSemanaPasada() {
-        if(!confirm('¿Seguro que deseas copiar el menú de la semana anterior a la semana actual?')) return;
+    async function duplicarMenuSemanaPasada() {
+        if(!await CustomDialog.confirm('¿Seguro que deseas copiar el menú de la semana anterior a la semana actual?')) return;
         
         fetch('/api/menus/semana/duplicar', { method: 'POST' })
         .then(res => res.json())

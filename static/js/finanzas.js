@@ -361,9 +361,9 @@
         document.getElementById('modal-gasto').style.display = 'block';
     }
 
-    function eliminarGasto(index) {
+    async function eliminarGasto(index) {
         const g = window.gastosData[index];
-        if (!confirm(`¿Seguro que deseas eliminar el gasto "${escapeHTML(g.descripcion)}"?`)) return;
+        if (!await CustomDialog.confirm(`¿Seguro que deseas eliminar el gasto "${escapeHTML(g.descripcion)}"?`)) return;
 
         fetch(`/api/finanzas/gasto/${g.id}`, {
             method: 'DELETE'

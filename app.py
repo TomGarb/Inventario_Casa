@@ -57,8 +57,8 @@ migrate.init_app(app, db)
 login_manager.init_app(app)
 login_manager.login_view = 'auth.login_page'
 
-# Asegúrate de importar el modelo de tu usuario si no está en este mismo archivo
-# from models.database import Usuario 
+# Importación de modelos
+from models.database import Usuario, Tarea, Producto, EventoLogistico
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -185,7 +185,12 @@ def _pid_vivo(pid):
 
 def cleanup_pending_commands():
     """Limpia los comandos pendientes que quedaron huerfanos."""
-    global pending_voice_commands, pending_ocr_confirmations
+    from services.bot_telegram import (
+        pending_voice_commands, 
+        pending_menu_config, 
+        pending_ocr_confirmations, 
+        pending_dedup
+    )
     pending_voice_commands.clear()
     pending_menu_config.clear()
     pending_ocr_confirmations.clear()

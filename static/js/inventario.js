@@ -1018,13 +1018,13 @@ function renderGestionEspacios() {
 }
 
 async function eliminarEspacio(tipo, id) {
-    if (!confirm(`¿Estás seguro de eliminar esto? Afectará a los productos asignados.`)) return;
+    if (!await CustomDialog.confirm(`¿Estás seguro de eliminar esto? Afectará a los productos asignados.`)) return;
     const res = await fetch(`/api/${tipo}/${id}`, { method: 'DELETE' });
     if (res.ok) { fetchEspacios(); fetchProductsInventario(); }
 }
 
 async function editarEspacio(tipo, id, nombreActual) {
-    const nuevoNombre = prompt("Nuevo nombre:", nombreActual);
+    const nuevoNombre = await CustomDialog.prompt("Nuevo nombre:", nombreActual);
     if (!nuevoNombre || nuevoNombre.trim() === "" || nuevoNombre === nombreActual) return;
     const res = await fetch(`/api/${tipo}/editar/${id}`, {
         method: 'PUT',
@@ -1050,7 +1050,7 @@ function renderGestionComercios() {
 }
 
 async function editarComercio(id, nombreActual) {
-    const nuevoNombre = prompt("Nuevo nombre para el comercio:", nombreActual);
+    const nuevoNombre = await CustomDialog.prompt("Nuevo nombre para el comercio:", nombreActual);
     if (!nuevoNombre || nuevoNombre.trim() === "" || nuevoNombre === nombreActual) return;
     
     try {
@@ -1073,7 +1073,7 @@ async function editarComercio(id, nombreActual) {
 }
 
 async function eliminarComercio(id) {
-    if (!confirm(`¿Estás seguro de eliminar este comercio?`)) return;
+    if (!await CustomDialog.confirm(`¿Estás seguro de eliminar este comercio?`)) return;
     const res = await fetch(`/api/comercios/${id}`, { method: 'DELETE' });
     if (res.ok) { fetchComercios(); fetchProductsInventario(); }
 }
@@ -1134,7 +1134,7 @@ function initCargaMasiva() {
         if (draftStr) {
             const draft = JSON.parse(draftStr);
             if (draft.productos && draft.productos.length > 0 && draft.productos.some(p => p.nombre.trim() !== '')) {
-                restore = confirm("Tienes un borrador de carga masiva guardado offline. ¿Deseas restaurarlo?");
+                restore = await CustomDialog.confirm("Tienes un borrador de carga masiva guardado offline. ¿Deseas restaurarlo?");
                 if (restore) {
                     // Restaurar Selects
                     if (draft.sala) {
@@ -1261,7 +1261,7 @@ function initCargaMasiva() {
                     
                     // Pedir al usuario accion para cada uno
                     for (const nombreConflicto of conflictos) {
-                        let accion = prompt(`El producto '${nombreConflicto}' ya existe.\n¿Deseas 'sumar' el stock, 'sobreescribir' el registro u 'omitir'?\nEscribe sumar, sobreescribir u omitir:`, 'sumar');
+                        let accion = await CustomDialog.prompt(`El producto '${nombreConflicto}' ya existe.\n¿Deseas 'sumar' el stock, 'sobreescribir' el registro u 'omitir'?\nEscribe sumar, sobreescribir u omitir:`, 'sumar');
                         let val = accion ? accion.trim().toLowerCase() : 'omitir';
                         if (!['sumar', 'sobreescribir', 'omitir'].includes(val)) {
                             val = 'omitir';
@@ -1421,7 +1421,7 @@ let selectedProductIds = new Set();
 // ==========================================
 window.bulkDeleteProducts = async function() {
     if (selectedProductIds.size === 0) return;
-    if (!confirm(`¿Estás seguro de que deseas eliminar permanentemente los ${selectedProductIds.size} productos seleccionados?`)) return;
+    if (!await CustomDialog.confirm(`¿Estás seguro de que deseas eliminar permanentemente los ${selectedProductIds.size} productos seleccionados?`)) return;
     
     try {
         const ids = Array.from(selectedProductIds);
@@ -1680,7 +1680,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnEliminar = document.getElementById('btn-eliminar-producto');
     if(btnEliminar) {
         btnEliminar.onclick = async () => {
-            if(!confirm('¿Estás seguro de que deseas eliminar este producto permanentemente?')) return;
+            if(!await CustomDialog.confirm('¿Estás seguro de que deseas eliminar este producto permanentemente?')) return;
             const id = document.getElementById('editar-id').value;
             try {
                 const res = await fetch(`/api/productos/${id}`, { method: 'DELETE' });
@@ -1753,33 +1753,9 @@ window.alert = function(message) {
 };
 
 function showConfirm(message, callback) {
-    const modal = document.getElementById('custom-confirm-modal');
-    if (!modal) {
-        // Fallback
-        if(window.confirm(message)) callback();
-        return;
-    }
-    document.getElementById('custom-confirm-message').innerText = message;
-    modal.style.display = 'flex';
-    
-    const btnCancel = document.getElementById('custom-confirm-cancel');
-    const btnOk = document.getElementById('custom-confirm-ok');
-    
-    // Cleanup function
-    const cleanup = () => {
-        modal.style.display = 'none';
-        btnCancel.replaceWith(btnCancel.cloneNode(true));
-        btnOk.replaceWith(btnOk.cloneNode(true));
-    };
-    
-    btnCancel.onclick = () => {
-        cleanup();
-    };
-    
-    btnOk.onclick = () => {
-        cleanup();
-        callback();
-    };
+    CustomDialog.confirm(message).then(res => {
+        if(res) callback();
+    });
 }
 
 

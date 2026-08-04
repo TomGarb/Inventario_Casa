@@ -115,10 +115,10 @@
         document.getElementById('modal-evento').style.display = 'block';
     }
 
-    function eliminarEventoLogistico() {
+    async function eliminarEventoLogistico() {
         const id = document.getElementById('ev-id').value;
         if (!id) return;
-        if (confirm("¿Seguro que deseas eliminar este evento?")) {
+        if (await CustomDialog.confirm("¿Seguro que deseas eliminar este evento?")) {
             fetch('/api/logistica/eventos/' + id, { method: 'DELETE' })
             .then(r => r.json())
             .then(res => {

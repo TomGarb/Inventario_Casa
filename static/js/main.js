@@ -1,3 +1,88 @@
+window.CustomDialog = {
+    show: function(options) {
+        return new Promise((resolve) => {
+            const overlay = document.createElement('div');
+            overlay.className = 'modal';
+            overlay.style.display = 'flex';
+            overlay.style.zIndex = '9999';
+            
+            const content = document.createElement('div');
+            content.className = 'modal-content';
+            content.style.maxWidth = '450px';
+            content.style.textAlign = 'center';
+            
+            const title = document.createElement('h2');
+            title.innerText = options.type === 'confirm' ? '⚠️ Confirmar Acción' : '✏️ Ingresar Valor';
+            title.style.marginBottom = '1rem';
+            
+            const msg = document.createElement('p');
+            msg.innerText = options.message;
+            msg.style.marginBottom = '1.5rem';
+            msg.style.color = 'var(--text-secondary)';
+            
+            content.appendChild(title);
+            content.appendChild(msg);
+            
+            let inputField = null;
+            if (options.type === 'prompt') {
+                inputField = document.createElement('input');
+                inputField.type = 'text';
+                inputField.value = options.defaultValue || '';
+                inputField.style.width = '100%';
+                inputField.style.padding = '0.75rem';
+                inputField.style.marginBottom = '1.5rem';
+                inputField.style.borderRadius = 'var(--radius-md)';
+                inputField.style.border = '1px solid var(--border-color)';
+                inputField.style.backgroundColor = 'var(--bg-color)';
+                inputField.style.color = 'var(--text-primary)';
+                content.appendChild(inputField);
+            }
+            
+            const actions = document.createElement('div');
+            actions.className = 'modal-actions';
+            actions.style.justifyContent = 'center';
+            actions.style.gap = '1rem';
+            
+            const btnCancel = document.createElement('button');
+            btnCancel.className = 'btn btn-secundario';
+            btnCancel.innerText = 'Cancelar';
+            
+            const btnOk = document.createElement('button');
+            btnOk.className = 'btn btn-primary';
+            btnOk.innerText = 'Aceptar';
+            
+            actions.appendChild(btnCancel);
+            actions.appendChild(btnOk);
+            content.appendChild(actions);
+            overlay.appendChild(content);
+            document.body.appendChild(overlay);
+            
+            if (inputField) {
+                inputField.focus();
+                inputField.select();
+                inputField.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') btnOk.click();
+                    if (e.key === 'Escape') btnCancel.click();
+                });
+            }
+            
+            const close = (val) => {
+                document.body.removeChild(overlay);
+                resolve(val);
+            };
+            
+            btnCancel.onclick = () => close(options.type === 'prompt' ? null : false);
+            btnOk.onclick = () => close(options.type === 'prompt' ? inputField.value : true);
+        });
+    },
+    confirm: function(message) {
+        return this.show({ type: 'confirm', message: message });
+    },
+    prompt: function(message, defaultValue) {
+        return this.show({ type: 'prompt', message: message, defaultValue: defaultValue });
+    }
+};
+
 let dbEspacios = []; // Almacena Salas -> Ubicaciones -> SubUbicaciones
 let dbComercios = []; // Almacena Comercios
 let allProducts = [];
