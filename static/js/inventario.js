@@ -1121,7 +1121,7 @@ function initCargaMasiva() {
     bSub.addEventListener('change', saveDraft);
     container.addEventListener('input', saveDraft);
 
-    btnCargaMasiva.addEventListener('click', () => {
+    btnCargaMasiva.addEventListener('click', async () => {
         // Poblado de Sala
         bSala.innerHTML = `<option value="">-- Selecciona Sala --</option>` + dbEspacios.map(s => `<option value="${s.id}">${s.nombre}</option>`).join('');
         bUbi.innerHTML = `<option value="">-- Ubicación --</option>`; bUbi.disabled = true;
@@ -1715,48 +1715,5 @@ function populateBulkDropdowns() {
         subSelect.disabled = true;
     }
 }
-
-
-// --- Notificaciones Personalizadas ---
-function showToast(message, type = 'success') {
-    const container = document.getElementById('toast-container');
-    if (!container) return;
-    
-    const toast = document.createElement('div');
-    toast.className = `toast toast-${type}`;
-    
-    let icon = '✅';
-    if(type === 'error') icon = '❌';
-    else if(type === 'info') icon = 'ℹ️';
-    
-    toast.innerHTML = `<span>${icon}</span> <span>${message}</span>`;
-    
-    container.appendChild(toast);
-    
-    setTimeout(() => {
-        toast.classList.add('toast-hiding');
-        setTimeout(() => {
-            if (toast.parentElement) toast.remove();
-        }, 300); // Wait for transition
-    }, 3000);
-    
-    if (type === 'success') {
-        setTimeout(() => {
-            window.location.reload();
-        }, 800); // Give the user 800ms to see the success toast before reloading
-    }
-}
-
-window.alert = function(message) {
-    // Override default alert
-    showToast(message, 'info');
-};
-
-function showConfirm(message, callback) {
-    CustomDialog.confirm(message).then(res => {
-        if(res) callback();
-    });
-}
-
 
 
