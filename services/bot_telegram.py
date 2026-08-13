@@ -77,6 +77,20 @@ def safe_telegram_reply(message, texto, reply_markup=None, parse_mode='HTML'):
         print(f"Error respondiendo mensaje: {e}")
         return False
 
+def enviar_al_grupo(mensaje, reply_markup=None, parse_mode='HTML'):
+    from app import ADMIN_CHAT_ID
+    if ADMIN_CHAT_ID:
+        return safe_telegram_send(ADMIN_CHAT_ID, mensaje, reply_markup=reply_markup, parse_mode=parse_mode)
+    return False
+
+def enviar_al_usuario(usuario_id, mensaje, reply_markup=None, parse_mode='HTML'):
+    from models.database import Usuario
+    with get_app().app_context():
+        usuario = db.session.get(Usuario, usuario_id)
+        if usuario and usuario.telegram_chat_id:
+            return safe_telegram_send(usuario.telegram_chat_id, mensaje, reply_markup=reply_markup, parse_mode=parse_mode)
+    return False
+
 def enviar_listas_agrupadas(chat_id, comercio_objetivo=None):
     if not _bot_app: return
     with _bot_app.app_context():

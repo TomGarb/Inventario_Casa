@@ -7,6 +7,7 @@ from sqlalchemy import extract
 import json
 import logging
 from utils import calcular_proxima_fecha, calcular_proximo_turno
+from services.bot_telegram import enviar_al_grupo
 
 tareas_bp = Blueprint('tareas', __name__)
 

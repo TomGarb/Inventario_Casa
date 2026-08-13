@@ -100,6 +100,8 @@ def require_login():
 
 
 
+from services.bot_telegram import enviar_al_grupo, enviar_al_usuario, safe_telegram_send
+
 def check_tareas_pendientes():
     with app.app_context():
         hoy = datetime.now().date()
