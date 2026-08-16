@@ -504,3 +504,139 @@ select option {
     font-size: 1rem;
     border-radius: 4px;
 }
+
+/* =========================
+   PERFIL & TABS
+   ========================= */
+.perfil-container {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    max-width: 1000px;
+    margin: 0 auto;
+}
+
+@media (min-width: 768px) {
+    .perfil-container {
+        flex-direction: row;
+        align-items: flex-start;
+    }
+    .perfil-sidebar {
+        width: 250px;
+        flex-shrink: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+    .perfil-content {
+        flex-grow: 1;
+        min-width: 0;
+    }
+}
+
+.perfil-sidebar {
+    display: flex;
+    overflow-x: auto;
+    gap: 10px;
+    padding-bottom: 5px; /* for scrollbar on mobile */
+}
+
+.perfil-tab-btn {
+    padding: 12px 16px;
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    font-size: 0.95rem;
+    font-weight: 500;
+    color: var(--text-primary);
+    text-align: left;
+    white-space: nowrap;
+    transition: all 0.2s ease;
+}
+
+.perfil-tab-btn:hover {
+    background: var(--col-bg);
+}
+
+.perfil-tab-btn.active {
+    background: var(--primary-color);
+    color: #ffffff;
+    border-color: var(--primary-color);
+}
+
+.tab-panel {
+    display: none;
+    animation: fadeIn 0.3s ease;
+}
+
+.tab-panel.active {
+    display: block;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(5px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* =========================
+   TOGGLE SWITCH (iOS Style)
+   ========================= */
+.toggle-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 0;
+    cursor: pointer;
+}
+
+.toggle-label {
+    font-size: 0.95rem;
+    color: var(--text-primary);
+}
+
+.toggle-wrapper {
+    position: relative;
+    width: 50px;
+    height: 28px;
+}
+
+.toggle-input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+    position: absolute;
+}
+
+.toggle-switch {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: var(--border-color);
+    transition: .3s;
+    border-radius: 34px;
+}
+
+.toggle-switch:before {
+    position: absolute;
+    content: "";
+    height: 20px;
+    width: 20px;
+    left: 4px;
+    bottom: 4px;
+    background-color: white;
+    transition: .3s;
+    border-radius: 50%;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.toggle-input:checked + .toggle-switch {
+    background-color: var(--primary-color);
+}
+
+.toggle-input:checked + .toggle-switch:before {
+    transform: translateX(22px);
+}
