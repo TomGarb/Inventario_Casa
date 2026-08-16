@@ -32,6 +32,36 @@
         </div>
     
     <div style="margin-top: 20px; border-top: 1px solid var(--border-color); padding-top: 15px;">
+        <h4>Preferencias de Notificaciones</h4>
+        <form id="form-preferencias" style="display: flex; flex-direction: column; gap: 10px; margin-top: 10px;">
+            <label style="display: flex; align-items: center; gap: 10px;">
+                <input type="checkbox" id="pref-resumen" {% if current_user.recibir_resumen_matutino %}checked{% endif %}>
+                Recibir Resumen Matutino
+            </label>
+            <label style="display: flex; align-items: center; gap: 10px;">
+                <input type="checkbox" id="pref-vencimientos" {% if current_user.recibir_alertas_vencimiento %}checked{% endif %}>
+                Recibir Alertas de Vencimiento
+            </label>
+            <label style="display: flex; align-items: center; gap: 10px;">
+                <input type="checkbox" id="pref-tareas" {% if current_user.recibir_recordatorios_tareas %}checked{% endif %}>
+                Recibir Recordatorios de Tareas
+            </label>
+            <button type="button" class="btn btn-primary" onclick="guardarPreferencias()" style="width: fit-content; margin-top: 5px;">Guardar Preferencias</button>
+        </form>
+    </div>
+
+    {% if current_user.is_admin %}
+    <div style="margin-top: 20px; border-top: 1px solid var(--border-color); padding-top: 15px;">
+        <h4>Configuración del Sistema (Admin)</h4>
+        <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 10px;">
+            <label>ID del Grupo de Telegram de la Casa:</label>
+            <input type="text" id="config-grupo-id" placeholder="Ej. -100123456789" style="padding: 8px; border-radius: 4px; border: 1px solid var(--border-color); background: var(--bg-darker); color: var(--text-color);">
+            <button type="button" class="btn btn-primary" onclick="guardarConfiguracionGlobal()" style="width: fit-content;">Guardar Configuración</button>
+        </div>
+    </div>
+    {% endif %}
+    
+    <div style="margin-top: 20px; border-top: 1px solid var(--border-color); padding-top: 15px;">
         <h4>Seguridad</h4>
         <button class="btn btn-secondary" onclick="openChangePasswordModal({{ current_user.id }}, '{{ current_user.username }}')" style="margin-top: 10px;">🔑 Cambiar mi Contraseña</button>
     </div>

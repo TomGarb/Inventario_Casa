@@ -80,8 +80,12 @@ def safe_telegram_reply(message, texto, reply_markup=None, parse_mode='HTML'):
 
 def enviar_al_grupo(mensaje, reply_markup=None, parse_mode='HTML'):
     from app import ADMIN_CHAT_ID
-    if ADMIN_CHAT_ID:
-        return safe_telegram_send(ADMIN_CHAT_ID, mensaje, reply_markup=reply_markup, parse_mode=parse_mode)
+    from models.database import ConfiguracionGlobal
+    with get_app().app_context():
+        config = ConfiguracionGlobal.query.first()
+        grupo_id = config.grupo_principal_telegram_id if config and config.grupo_principal_telegram_id else ADMIN_CHAT_ID
+        if grupo_id:
+            return safe_telegram_send(grupo_id, mensaje, reply_markup=reply_markup, parse_mode=parse_mode)
     return False
 
 def enviar_al_usuario(usuario_id, mensaje, reply_markup=None, parse_mode='HTML'):
@@ -1028,6 +1032,30 @@ def registrar_handlers(bot, app):
             db.session.add(mov)
             db.session.commit()
             bot.edit_message_text(f" Creado nuevo producto: {data['cantidad']}x '{nuevo_prod.nombre}'.", chat_id, call.message.message_id)
+
+    @bot.callback_query_handler(func=lambda call: call.data.startswith('done_tarea_'))
+    @with_app_context
+    def handle_done_tarea(call):
+        tarea_id_str = call.data.replace('done_tarea_', '')
+        try:
+            tarea_id = int(tarea_id_str)
+            from models.database import Tarea
+            tarea = db.session.get(Tarea, tarea_id)
+            if not tarea:
+                bot.answer_callback_query(call.id, "❌ Tarea no encontrada.")
+                return
+                
+            tarea.completada = True
+            db.session.commit()
+            
+            bot.answer_callback_query(call.id, f"✅ Tarea completada: {tarea.nombre}")
+            
+            # Quitar el botón del mensaje para evitar clicks repetidos
+            nuevo_texto = f"{call.message.text}\n\n✅ <i>Completada por {call.from_user.first_name}</i>"
+            bot.edit_message_text(nuevo_texto, call.message.chat.id, call.message.message_id, reply_markup=None, parse_mode='HTML')
+            
+        except ValueError:
+            bot.answer_callback_query(call.id, "❌ ID inválido.")
 
     @bot.callback_query_handler(func=lambda call: True)
     @with_app_context

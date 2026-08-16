@@ -11,6 +11,16 @@ class Usuario(UserMixin, db.Model):
     telegram_chat_id = db.Column(db.String(50), unique=True, nullable=True)
     telegram_link_token = db.Column(db.String(10), unique=True, nullable=True)
     is_admin = db.Column(db.Boolean, default=False)
+    
+    # Nuevas preferencias de notificaciones
+    recibir_resumen_matutino = db.Column(db.Boolean, default=True)
+    recibir_alertas_vencimiento = db.Column(db.Boolean, default=True)
+    recibir_recordatorios_tareas = db.Column(db.Boolean, default=True)
+
+class ConfiguracionGlobal(db.Model):
+    __tablename__ = 'configuracion_global'
+    id = db.Column(db.Integer, primary_key=True)
+    grupo_principal_telegram_id = db.Column(db.String(50), nullable=True)
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
@@ -23,7 +33,10 @@ class Usuario(UserMixin, db.Model):
             'id': self.id,
             'username': self.username,
             'telegram_chat_id': self.telegram_chat_id,
-            'is_admin': self.is_admin
+            'is_admin': self.is_admin,
+            'recibir_resumen_matutino': self.recibir_resumen_matutino,
+            'recibir_alertas_vencimiento': self.recibir_alertas_vencimiento,
+            'recibir_recordatorios_tareas': self.recibir_recordatorios_tareas
         }
 
 usuario_tarea = db.Table('usuario_tarea',

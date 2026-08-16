@@ -104,6 +104,7 @@ from services.bot_telegram import enviar_al_grupo, enviar_al_usuario, safe_teleg
 
 def check_tareas_pendientes():
     with app.app_context():
+        from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
         hoy = datetime.now().date()
         # Query only pending Tareas
         tareas = Tarea.query.filter_by(completada=False).all()
@@ -121,20 +122,31 @@ def check_tareas_pendientes():
                 
             if vencida or es_manana:
                 for u in t.usuarios:
+                    if not u.recibir_recordatorios_tareas:
+                        continue
+                        
+                    markup = InlineKeyboardMarkup()
+                    markup.add(InlineKeyboardButton(f"✅ Completar", callback_data=f"done_tarea_{t.id}"))
+                    
                     if vencida:
-                        enviar_al_usuario(u.id, f"📅 <b>Recordatorio de Tarea</b>\n\nHola {u.username}, hoy te toca encargarte de: <b>{t.nombre}</b>.\n\nCuando la termines, márcala como completada en la web.")
+                        enviar_al_usuario(u.id, f"📅 <b>Recordatorio de Tarea</b>\n\nHola {u.username}, hoy te toca encargarte de: <b>{t.nombre}</b>.\n\nCuando la termines, pulsa el botón de abajo o márcala como completada en la web.", reply_markup=markup)
                     elif es_manana:
-                        enviar_al_usuario(u.id, f"📅 <b>Aviso Anticipado</b>\n\nHola {u.username}, te recuerdo que <b>mañana</b> debes encargarte de: <b>{t.nombre}</b>.")
+                        enviar_al_usuario(u.id, f"📅 <b>Aviso Anticipado</b>\n\nHola {u.username}, te recuerdo que <b>mañana</b> debes encargarte de: <b>{t.nombre}</b>.", reply_markup=markup)
 
 def check_low_stock():
     with app.app_context():
+        from models.database import ConfiguracionGlobal
+        config = ConfiguracionGlobal.query.first()
+        grupo_id = config.grupo_principal_telegram_id if config and config.grupo_principal_telegram_id else ADMIN_CHAT_ID
+        
         productos_bajos = Producto.query.filter(Producto.stock_actual <= Producto.stock_minimo, Producto.en_lista == False).all()
-        if productos_bajos and ADMIN_CHAT_ID:
+        if productos_bajos and grupo_id:
+            from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
             nombres = [p.nombre for p in productos_bajos]
             mensaje = f"⚠️ Atención: Te estás quedando sin: {', '.join(nombres)}. ¿Los agrego a la lista de compras?"
             markup = InlineKeyboardMarkup()
             markup.add(InlineKeyboardButton("✅ Agregar todos a la lista", callback_data="add_low_stock"))
-            safe_telegram_send(ADMIN_CHAT_ID, mensaje, reply_markup=markup)
+            safe_telegram_send(grupo_id, mensaje, reply_markup=markup)
 
 # (Legacy iniciar_bot removed)
 
@@ -148,6 +160,7 @@ LOCK_FILE = "bot_scheduler.lock"
 
 def enviar_resumen_matutino():
     with app.app_context():
+        from models.database import Usuario, ConfiguracionGlobal
         tz = pytz.timezone('America/Argentina/Buenos_Aires')
         hoy = datetime.now(tz).date()
         
@@ -165,10 +178,21 @@ def enviar_resumen_matutino():
             mensaje += f"- {hora}hs: {ev.titulo}\n"
             
         app_url = os.getenv('APP_URL', 'http://localhost:5000')
+        from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
         markup = InlineKeyboardMarkup()
         markup.add(InlineKeyboardButton("Ver calendario web", url=f"{app_url}/logistica"))
         
-        enviar_al_grupo(mensaje, reply_markup=markup)
+        # Enviar al grupo principal
+        config = ConfiguracionGlobal.query.first()
+        grupo_id = config.grupo_principal_telegram_id if config and config.grupo_principal_telegram_id else ADMIN_CHAT_ID
+        if grupo_id:
+            safe_telegram_send(grupo_id, mensaje, reply_markup=markup)
+            
+        # Enviar a usuarios con la preferencia activada
+        usuarios = Usuario.query.filter_by(recibir_resumen_matutino=True).all()
+        for u in usuarios:
+            if u.telegram_chat_id and u.telegram_chat_id != grupo_id:
+                enviar_al_usuario(u.id, mensaje, reply_markup=markup)
 
 def _pid_vivo(pid):
     """Devuelve True si el PID todavia esta corriendo en este sistema Y no es un archivo stale."""

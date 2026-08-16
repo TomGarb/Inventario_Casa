@@ -138,4 +138,42 @@ def change_password(id):
     db.session.commit()
     return jsonify({'mensaje': 'Contraseña actualizada correctamente'})
 
+@auth_bp.route('/api/perfil/preferencias', methods=['POST'])
+@login_required
+def guardar_preferencias():
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'No se recibieron datos'}), 400
+        
+    current_user.recibir_resumen_matutino = data.get('recibir_resumen_matutino', True)
+    current_user.recibir_alertas_vencimiento = data.get('recibir_alertas_vencimiento', True)
+    current_user.recibir_recordatorios_tareas = data.get('recibir_recordatorios_tareas', True)
+    
+    db.session.commit()
+    return jsonify({'mensaje': 'Preferencias guardadas exitosamente'})
+
+
+@auth_bp.route('/api/perfil/configuracion', methods=['GET', 'POST'])
+@admin_required
+def configuracion_global():
+    from models.database import ConfiguracionGlobal
+    config = ConfiguracionGlobal.query.first()
+    
+    if request.method == 'GET':
+        if not config:
+            return jsonify({'grupo_principal_telegram_id': ''})
+        return jsonify({'grupo_principal_telegram_id': config.grupo_principal_telegram_id or ''})
+        
+    if request.method == 'POST':
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No se recibieron datos'}), 400
+            
+        if not config:
+            config = ConfiguracionGlobal()
+            db.session.add(config)
+            
+        config.grupo_principal_telegram_id = data.get('grupo_principal_telegram_id', '')
+        db.session.commit()
+        return jsonify({'mensaje': 'Configuración global guardada exitosamente'})
 
