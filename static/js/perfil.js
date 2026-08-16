@@ -13,7 +13,6 @@ document.getElementById('btn-generar-token').addEventListener('click', async () 
     }
 });
 
-{% if current_user.is_admin %}
 // Admin Logic
 async function loadUsuarios() {
     try {
@@ -122,7 +121,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-{% endif %}
 function togglePassword(inputId) {
     const input = document.getElementById(inputId);
     if (input.type === 'password') {
@@ -179,4 +177,100 @@ document.getElementById('form-cambiar-password').addEventListener('submit', asyn
     }
 });
 
+/* =========================
+   PERFIL TABS LOGIC
+   ========================= */
+document.addEventListener('DOMContentLoaded', () => {
+    const tabBtns = document.querySelectorAll('.perfil-tab-btn');
+    const tabPanels = document.querySelectorAll('.tab-panel');
 
+    tabBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            // Remove active class from all
+            tabBtns.forEach(b => b.classList.remove('active'));
+            tabPanels.forEach(p => p.classList.remove('active'));
+
+            // Add active class to clicked button and target panel
+            btn.classList.add('active');
+            const targetId = btn.getAttribute('data-target');
+            document.getElementById(targetId).classList.add('active');
+        });
+    });
+    
+    // Load config global if admin
+    if (document.getElementById('config-grupo-id')) {
+        fetch('/api/perfil/configuracion')
+            .then(res => res.json())
+            .then(data => {
+                if (data.grupo_principal_telegram_id) {
+                    document.getElementById('config-grupo-id').value = data.grupo_principal_telegram_id;
+                }
+            })
+            .catch(e => console.error("Error loading config", e));
+    }
+});
+
+/* =========================
+   PREFERENCES & CONFIG API
+   ========================= */
+async function guardarPreferencias(event) {
+    const btn = event ? event.target : document.querySelector('#form-preferencias .btn');
+    const originalText = btn.innerText;
+    btn.innerText = "Guardando...";
+    btn.disabled = true;
+    
+    const payload = {
+        recibir_resumen_matutino: document.getElementById('pref-resumen').checked,
+        recibir_alertas_vencimiento: document.getElementById('pref-vencimientos').checked,
+        recibir_recordatorios_tareas: document.getElementById('pref-tareas').checked
+    };
+    
+    try {
+        const response = await fetch('/api/perfil/preferencias', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        
+        if(response.ok) {
+            alert("Preferencias guardadas correctamente.");
+        } else {
+            alert("Error al guardar preferencias.");
+        }
+    } catch(e) {
+        alert("Error de red al guardar preferencias.");
+    } finally {
+        btn.innerText = originalText;
+        btn.disabled = false;
+    }
+}
+
+async function guardarConfiguracionGlobal(event) {
+    const btn = event ? event.target : document.querySelector('#panel-admin .btn-primary');
+    const originalText = btn.innerText;
+    btn.innerText = "Guardando...";
+    btn.disabled = true;
+    
+    const payload = {
+        grupo_principal_telegram_id: document.getElementById('config-grupo-id').value.trim()
+    };
+    
+    try {
+        const response = await fetch('/api/perfil/configuracion', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        
+        if(response.ok) {
+            alert("Configuración global guardada correctamente.");
+        } else {
+            alert("Error al guardar configuración.");
+        }
+    } catch(e) {
+        alert("Error de red al guardar configuración.");
+    } finally {
+        btn.innerText = originalText;
+        btn.disabled = false;
+    }
+}
