@@ -55,6 +55,9 @@
         <h4>Configuración del Sistema (Admin)</h4>
         <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 10px;">
             <label>ID del Grupo de Telegram de la Casa:</label>
+            <p style="font-size: 0.85rem; color: #aaa; margin: 0;">
+                <em>¿Cómo obtenerlo?</em> Añade a <b>@RawDataBot</b> (o un bot similar) a tu grupo de la casa. Te enviará un mensaje con un campo <code>"chat": {"id": -100...}</code>. Copia ese número entero (incluyendo el signo menos si lo tiene) aquí. Una vez que lo tengas, puedes expulsar a @RawDataBot.
+            </p>
             <input type="text" id="config-grupo-id" placeholder="Ej. -100123456789" style="padding: 8px; border-radius: 4px; border: 1px solid var(--border-color); background: var(--bg-darker); color: var(--text-color);">
             <button type="button" class="btn btn-primary" onclick="guardarConfiguracionGlobal()" style="width: fit-content;">Guardar Configuración</button>
         </div>
