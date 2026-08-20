@@ -87,16 +87,25 @@
         <div id="panel-admin" class="tab-panel">
             <div class="dash-card">
                 <h3 class="dash-header">Configuración del Sistema</h3>
-                <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 10px;">
-                    <label>ID del Grupo de Telegram de la Casa:</label>
-                    <details style="cursor: pointer; margin-bottom: 5px;">
-                        <summary style="font-weight: bold; color: var(--primary-color);">❔ Ayuda: Cómo obtener el ID</summary>
-                        <p style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 10px; padding: 10px; background: var(--bg-darker); border-radius: 4px; border: 1px solid var(--border-color);">
-                            Añade a <b>@RawDataBot</b> (o un bot similar) a tu grupo de la casa. Te enviará un mensaje con un campo <code>"chat": {"id": -100...}</code>. Copia ese número entero (incluyendo el signo menos si lo tiene) aquí. Una vez que lo tengas, puedes expulsar a @RawDataBot.
-                        </p>
-                    </details>
-                    <input type="text" id="config-grupo-id" placeholder="Ej. -100123456789" style="padding: 10px; border-radius: 4px; border: 1px solid var(--border-color); background: var(--bg-darker); color: var(--text-color);">
-                    <button type="button" class="btn btn-primary" onclick="guardarConfiguracionGlobal(event)" style="width: fit-content;">Guardar Configuración</button>
+                <div style="display: flex; flex-direction: column; gap: 15px; margin-top: 10px;">
+                    <div>
+                        <label style="display: block; margin-bottom: 5px; font-weight: 500;">ID del Grupo de Telegram de la Casa:</label>
+                        <details style="cursor: pointer; margin-bottom: 5px;">
+                            <summary style="font-weight: bold; color: var(--primary-color);">❔ Ayuda: Cómo obtener el ID</summary>
+                            <p style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 10px; padding: 10px; background: var(--bg-darker); border-radius: 4px; border: 1px solid var(--border-color);">
+                                Añade a <b>@RawDataBot</b> (o un bot similar) a tu grupo de la casa. Te enviará un mensaje con un campo <code>"chat": {"id": -100...}</code>. Copia ese número entero (incluyendo el signo menos si lo tiene) aquí. Una vez que lo tengas, puedes expulsar a @RawDataBot.
+                            </p>
+                        </details>
+                        <input type="text" id="config-grupo-id" placeholder="Ej. -100123456789" style="width: 100%; padding: 10px; border-radius: 4px; border: 1px solid var(--border-color); background: var(--bg-darker); color: var(--text-color);">
+                    </div>
+                    
+                    <div>
+                        <label style="display: block; margin-bottom: 5px; font-weight: 500;">Horario de Alerta de Stock:</label>
+                        <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 5px;">Define a qué hora el bot enviará el mensaje diario de alerta de stock al grupo.</p>
+                        <input type="time" id="config-hora-stock" style="padding: 10px; border-radius: 4px; border: 1px solid var(--border-color); background: var(--bg-darker); color: var(--text-color);">
+                    </div>
+                    
+                    <button type="button" class="btn btn-primary" onclick="guardarConfiguracionGlobal(event)" style="width: fit-content; margin-top: 5px;">Guardar Configuración</button>
                 </div>
             </div>
 

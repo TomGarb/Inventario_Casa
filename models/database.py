@@ -21,6 +21,7 @@ class ConfiguracionGlobal(db.Model):
     __tablename__ = 'configuracion_global'
     id = db.Column(db.Integer, primary_key=True)
     grupo_principal_telegram_id = db.Column(db.String(50), nullable=True)
+    hora_alerta_stock = db.Column(db.String(5), default="10:00")
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)

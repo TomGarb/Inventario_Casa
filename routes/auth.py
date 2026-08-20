@@ -161,8 +161,11 @@ def configuracion_global():
     
     if request.method == 'GET':
         if not config:
-            return jsonify({'grupo_principal_telegram_id': ''})
-        return jsonify({'grupo_principal_telegram_id': config.grupo_principal_telegram_id or ''})
+            return jsonify({'grupo_principal_telegram_id': '', 'hora_alerta_stock': '10:00'})
+        return jsonify({
+            'grupo_principal_telegram_id': config.grupo_principal_telegram_id or '',
+            'hora_alerta_stock': config.hora_alerta_stock or '10:00'
+        })
         
     if request.method == 'POST':
         data = request.get_json()
@@ -174,6 +177,7 @@ def configuracion_global():
             db.session.add(config)
             
         config.grupo_principal_telegram_id = data.get('grupo_principal_telegram_id', '')
+        config.hora_alerta_stock = data.get('hora_alerta_stock', '10:00')
         db.session.commit()
         return jsonify({'mensaje': 'Configuración global guardada exitosamente'})
 

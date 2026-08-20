@@ -205,6 +205,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (data.grupo_principal_telegram_id) {
                     document.getElementById('config-grupo-id').value = data.grupo_principal_telegram_id;
                 }
+                if (data.hora_alerta_stock) {
+                    document.getElementById('config-hora-stock').value = data.hora_alerta_stock;
+                }
             })
             .catch(e => console.error("Error loading config", e));
     }
@@ -252,7 +255,8 @@ async function guardarConfiguracionGlobal(event) {
     btn.disabled = true;
     
     const payload = {
-        grupo_principal_telegram_id: document.getElementById('config-grupo-id').value.trim()
+        grupo_principal_telegram_id: document.getElementById('config-grupo-id').value.trim(),
+        hora_alerta_stock: document.getElementById('config-hora-stock').value || "10:00"
     };
     
     try {

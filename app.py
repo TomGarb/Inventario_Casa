@@ -137,6 +137,15 @@ def check_low_stock():
     with app.app_context():
         from models.database import ConfiguracionGlobal
         config = ConfiguracionGlobal.query.first()
+        
+        hora_alerta = config.hora_alerta_stock if config and config.hora_alerta_stock else "10:00"
+        import pytz
+        from datetime import datetime
+        tz = pytz.timezone('America/Argentina/Buenos_Aires')
+        now = datetime.now(tz)
+        if now.strftime("%H:%M") != hora_alerta:
+            return
+            
         grupo_id = config.grupo_principal_telegram_id if config and config.grupo_principal_telegram_id else ADMIN_CHAT_ID
         
         productos_bajos = Producto.query.filter(Producto.stock_actual <= Producto.stock_minimo, Producto.en_lista == False).all()
@@ -291,7 +300,7 @@ def start_background_tasks():
 
             tz = pytz.timezone('America/Argentina/Buenos_Aires')
             scheduler = BackgroundScheduler(timezone=tz)
-            scheduler.add_job(func=check_low_stock, trigger="cron", hour=10, minute=0)
+            scheduler.add_job(func=check_low_stock, trigger="cron", minute="*")
             scheduler.add_job(func=check_tareas_pendientes, trigger="cron", hour=9, minute=0)
             scheduler.add_job(func=enviar_resumen_matutino, trigger="cron", hour=8, minute=0)
             scheduler.add_job(func=cleanup_pending_commands, trigger="interval", hours=1)
