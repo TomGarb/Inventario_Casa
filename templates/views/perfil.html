@@ -29,7 +29,7 @@
 
                 <div style="margin-top: 20px;">
                     <h4>Vincular Bot de Telegram</h4>
-                    <p style="color: var(--text-color); font-size: 0.9rem; margin-bottom: 10px;">
+                    <p style="color: var(--text-primary); font-size: 0.9rem; margin-bottom: 10px;">
                         Si quieres añadir productos y recibir alertas por Telegram, necesitas vincular tu cuenta con nuestro Bot.
                     </p>
                     
@@ -37,7 +37,7 @@
                     
                     <div id="token-container" style="display: none; margin-top: 15px; padding: 15px; background: rgba(99, 102, 241, 0.1); border: 1px solid var(--primary-color); border-radius: 8px;">
                         <p style="margin-bottom: 10px;">Abre Telegram y envíale este comando al bot:</p>
-                        <code style="font-size: 1.2rem; display: block; padding: 10px; background: var(--bg-darker); border-radius: 4px; text-align: center; letter-spacing: 2px;" id="token-code">
+                        <code style="font-size: 1.2rem; display: block; padding: 10px; background: var(--bg-color); border-radius: 4px; text-align: center; letter-spacing: 2px;" id="token-code">
                             /vincular ABC123
                         </code>
                         <p style="margin-top: 10px; font-size: 0.8rem; color: #aaa;">El token expira pronto y solo se puede usar una vez.</p>
@@ -92,17 +92,17 @@
                         <label style="display: block; margin-bottom: 5px; font-weight: 500;">ID del Grupo de Telegram de la Casa:</label>
                         <details style="cursor: pointer; margin-bottom: 5px;">
                             <summary style="font-weight: bold; color: var(--primary-color);">❔ Ayuda: Cómo obtener el ID</summary>
-                            <p style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 10px; padding: 10px; background: var(--bg-darker); border-radius: 4px; border: 1px solid var(--border-color);">
+                            <p style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 10px; padding: 10px; background: var(--bg-color); border-radius: 4px; border: 1px solid var(--border-color);">
                                 Añade a <b>@RawDataBot</b> (o un bot similar) a tu grupo de la casa. Te enviará un mensaje con un campo <code>"chat": {"id": -100...}</code>. Copia ese número entero (incluyendo el signo menos si lo tiene) aquí. Una vez que lo tengas, puedes expulsar a @RawDataBot.
                             </p>
                         </details>
-                        <input type="text" id="config-grupo-id" placeholder="Ej. -100123456789" style="width: 100%; padding: 10px; border-radius: 4px; border: 1px solid var(--border-color); background: var(--bg-darker); color: var(--text-color);">
+                        <input type="text" id="config-grupo-id" placeholder="Ej. -100123456789" style="width: 100%; padding: 10px; border-radius: 4px; border: 1px solid var(--border-color); background: var(--bg-color); color: var(--text-primary);">
                     </div>
                     
                     <div>
                         <label style="display: block; margin-bottom: 5px; font-weight: 500;">Horario de Alerta de Stock:</label>
                         <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 5px;">Define a qué hora el bot enviará el mensaje diario de alerta de stock al grupo.</p>
-                        <input type="time" id="config-hora-stock" style="padding: 10px; border-radius: 4px; border: 1px solid var(--border-color); background: var(--bg-darker); color: var(--text-color);">
+                        <input type="time" id="config-hora-stock" style="padding: 10px; border-radius: 4px; border: 1px solid var(--border-color); background: var(--bg-color); color: var(--text-primary);">
                     </div>
                     
                     <button type="button" class="btn btn-primary" onclick="guardarConfiguracionGlobal(event)" style="width: fit-content; margin-top: 5px;">Guardar Configuración</button>
@@ -142,17 +142,17 @@
 {% if current_user.is_admin %}
 <!-- Modal for Creating User -->
 <div id="create-user-modal" class="modal" style="display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5);">
-    <div class="modal-content" style="background-color: var(--bg-card); margin: 10% auto; padding: 20px; border: 1px solid var(--border-color); width: 80%; max-width: 400px; border-radius: 8px;">
+    <div class="modal-content" style="background-color: var(--card-bg); margin: 10% auto; padding: 20px; border: 1px solid var(--border-color); width: 80%; max-width: 400px; border-radius: 8px;">
         <h3>Crear Nuevo Usuario</h3>
         <form id="form-create-user" style="display: flex; flex-direction: column; gap: 15px; margin-top: 15px;">
             <div>
                 <label>Usuario:</label>
-                <input type="text" id="new-username" required class="form-control" style="width: 100%; padding: 8px; margin-top: 5px; border-radius: 4px; border: 1px solid var(--border-color); background: var(--bg-darker); color: var(--text-color);">
+                <input type="text" id="new-username" required class="form-control" style="width: 100%; padding: 8px; margin-top: 5px; border-radius: 4px; border: 1px solid var(--border-color); background: var(--bg-color); color: var(--text-primary);">
             </div>
             <div>
                 <label>Contraseña:</label>
                 <div style="position: relative;">
-                    <input type="password" id="new-password" required class="form-control" style="width: 100%; padding: 8px; padding-right: 40px; margin-top: 5px; border-radius: 4px; border: 1px solid var(--border-color); background: var(--bg-darker); color: var(--text-color);">
+                    <input type="password" id="new-password" required class="form-control" style="width: 100%; padding: 8px; padding-right: 40px; margin-top: 5px; border-radius: 4px; border: 1px solid var(--border-color); background: var(--bg-color); color: var(--text-primary);">
                     <button type="button" onclick="togglePassword('new-password')" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; font-size: 1.2rem; margin-top: 2px;">👁️</button>
                 </div>
             </div>
@@ -171,21 +171,21 @@
 
 <!-- Modal Cambio de Contraseña -->
 <div id="modal-cambiar-password" class="modal" style="display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5);">
-    <div class="modal-content" style="background-color: var(--bg-card); margin: 10% auto; padding: 20px; border: 1px solid var(--border-color); width: 80%; max-width: 400px; border-radius: 8px;">
+    <div class="modal-content" style="background-color: var(--card-bg); margin: 10% auto; padding: 20px; border: 1px solid var(--border-color); width: 80%; max-width: 400px; border-radius: 8px;">
         <h3 id="modal-pwd-title">Cambiar Contraseña</h3>
         <form id="form-cambiar-password" style="display: flex; flex-direction: column; gap: 15px; margin-top: 15px;">
             <input type="hidden" id="pwd-user-id">
             <div>
                 <label>Nueva Contraseña:</label>
                 <div style="position: relative;">
-                    <input type="password" id="new-pwd-1" required class="form-control" style="width: 100%; padding: 8px; padding-right: 40px; margin-top: 5px; border-radius: 4px; border: 1px solid var(--border-color); background: var(--bg-darker); color: var(--text-color);">
+                    <input type="password" id="new-pwd-1" required class="form-control" style="width: 100%; padding: 8px; padding-right: 40px; margin-top: 5px; border-radius: 4px; border: 1px solid var(--border-color); background: var(--bg-color); color: var(--text-primary);">
                     <button type="button" onclick="togglePassword('new-pwd-1')" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; font-size: 1.2rem; margin-top: 2px;">👁️</button>
                 </div>
             </div>
             <div>
                 <label>Confirmar Nueva Contraseña:</label>
                 <div style="position: relative;">
-                    <input type="password" id="new-pwd-2" required class="form-control" style="width: 100%; padding: 8px; padding-right: 40px; margin-top: 5px; border-radius: 4px; border: 1px solid var(--border-color); background: var(--bg-darker); color: var(--text-color);">
+                    <input type="password" id="new-pwd-2" required class="form-control" style="width: 100%; padding: 8px; padding-right: 40px; margin-top: 5px; border-radius: 4px; border: 1px solid var(--border-color); background: var(--bg-color); color: var(--text-primary);">
                     <button type="button" onclick="togglePassword('new-pwd-2')" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; font-size: 1.2rem; margin-top: 2px;">👁️</button>
                 </div>
             </div>
