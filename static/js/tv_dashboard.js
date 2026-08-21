@@ -19,6 +19,61 @@ document.addEventListener("DOMContentLoaded", () => {
     setInterval(updateClock, 1000);
     updateClock();
 
+    let carousels = {};
+
+    function renderCard(containerId, items, emptyText, mapFn, headerHTML) {
+        const container = document.getElementById(containerId);
+        const headerElem = container.previousElementSibling;
+        
+        // Reset any existing interval for this container
+        if (carousels[containerId]) {
+            clearInterval(carousels[containerId]);
+            delete carousels[containerId];
+        }
+
+        if (!items || items.length === 0) {
+            headerElem.innerHTML = headerHTML;
+            container.innerHTML = '<div class="empty-state">' + emptyText + '</div>';
+            return;
+        }
+        
+        if (items.length <= 5) {
+            headerElem.innerHTML = headerHTML;
+            container.innerHTML = items.map(mapFn).join('');
+            return;
+        }
+
+        // Pagination Logic
+        const pages = [];
+        for (let i = 0; i < items.length; i += 5) {
+            pages.push(items.slice(i, i + 5));
+        }
+
+        let currentPage = 0;
+        container.style.transition = 'opacity 0.3s ease-in-out';
+
+        function showPage(pageIndex) {
+            // Update counter in header
+            headerElem.innerHTML = headerHTML + ' <span style="font-size: 1.2rem; color: var(--tv-text-muted); float: right; margin-top: 5px;">(' + (pageIndex + 1) + '/' + pages.length + ')</span>';
+            
+            // Fade out effect
+            container.style.opacity = 0;
+            setTimeout(() => {
+                container.innerHTML = pages[pageIndex].map(mapFn).join('');
+                container.style.opacity = 1;
+            }, 300);
+        }
+
+        // Show first page initially
+        showPage(0);
+
+        // Start carousel (5 seconds)
+        carousels[containerId] = setInterval(() => {
+            currentPage = (currentPage + 1) % pages.length;
+            showPage(currentPage);
+        }, 5000);
+    }
+
     // Fetch API Datos Internos
     async function fetchDashboardData() {
         try {
@@ -27,58 +82,41 @@ document.addEventListener("DOMContentLoaded", () => {
             const data = await res.json();
             
             // Stock
-            const stockContainer = document.getElementById('tv-stock-container');
-            if (data.stock && data.stock.length > 0) {
-                stockContainer.innerHTML = data.stock.map(p => 
-                    '<div class="tv-item">' +
-                        '<span>' + p.nombre + '</span>' +
-                        '<span class="badge badge-danger">' + p.stock_actual + ' / ' + p.stock_minimo + '</span>' +
-                    '</div>'
-                ).join('');
-            } else {
-                stockContainer.innerHTML = '<div class="empty-state">Todo el stock esta en orden \u2705</div>';
-            }
+            renderCard('tv-stock-container', data.stock, 'Todo el stock esta en orden \u2705', p => 
+                '<div class="tv-item">' +
+                    '<span>' + p.nombre + '</span>' +
+                    '<span class="badge badge-danger">' + p.stock_actual + ' / ' + p.stock_minimo + '</span>' +
+                '</div>',
+                '<i class="fas fa-exclamation-triangle"></i> Alertas de Stock'
+            );
 
             // Tareas
-            const tareasContainer = document.getElementById('tv-tareas-container');
-            if (data.tareas && data.tareas.length > 0) {
-                tareasContainer.innerHTML = data.tareas.map(t => {
-                    let badge = t.vencida ? '<span class="badge badge-danger">Vencida</span>' 
-                                          : '<span class="badge badge-warning">Hoy</span>';
-                    return '<div class="tv-item">' +
-                        '<span><strong>' + t.nombre + '</strong> <span style="font-size:1.2rem;color:var(--tv-text-muted)">(' + t.asignado + ')</span></span>' +
-                        badge +
-                    '</div>'
-                }).join('');
-            } else {
-                tareasContainer.innerHTML = '<div class="empty-state">No hay tareas pendientes hoy \u2728</div>';
-            }
+            renderCard('tv-tareas-container', data.tareas, 'No hay tareas pendientes hoy \u2728', t => {
+                let badge = t.vencida ? '<span class="badge badge-danger">Vencida</span>' 
+                                      : '<span class="badge badge-warning">Hoy</span>';
+                return '<div class="tv-item">' +
+                    '<span><strong>' + t.nombre + '</strong> <span style="font-size:1.2rem;color:var(--tv-text-muted)">(' + t.asignado + ')</span></span>' +
+                    badge +
+                '</div>'
+            }, '<i class="fas fa-tasks"></i> Tareas Pendientes');
 
             // Logistica
-            const logisticaContainer = document.getElementById('tv-logistica-container');
-            if (data.logistica && data.logistica.length > 0) {
-                logisticaContainer.innerHTML = data.logistica.map(l => 
-                    '<div class="tv-item">' +
-                        '<span>' + l.titulo + '</span>' +
-                        '<span class="badge badge-primary">' + l.hora + '</span>' +
-                    '</div>'
-                ).join('');
-            } else {
-                logisticaContainer.innerHTML = '<div class="empty-state">Sin eventos proximos</div>';
-            }
+            renderCard('tv-logistica-container', data.logistica, 'Sin eventos proximos', l => 
+                '<div class="tv-item">' +
+                    '<span>' + l.titulo + '</span>' +
+                    '<span class="badge badge-primary">' + l.hora + '</span>' +
+                '</div>',
+                '<i class="fas fa-calendar-alt"></i> Pr\u00f3ximos Eventos'
+            );
 
             // Menus
-            const menuContainer = document.getElementById('tv-menu-container');
-            if (data.menus && data.menus.length > 0) {
-                menuContainer.innerHTML = data.menus.map(m => 
-                    '<div class="tv-item">' +
-                        '<span style="text-transform:capitalize; color:var(--tv-text-muted)">' + m.tipo + ':</span>' +
-                        '<span style="font-weight:bold">' + m.receta + '</span>' +
-                    '</div>'
-                ).join('');
-            } else {
-                menuContainer.innerHTML = '<div class="empty-state">Menu no asignado para hoy</div>';
-            }
+            renderCard('tv-menu-container', data.menus, 'Menu no asignado para hoy', m => 
+                '<div class="tv-item">' +
+                    '<span style="text-transform:capitalize; color:var(--tv-text-muted)">' + m.tipo + ':</span>' +
+                    '<span style="font-weight:bold">' + m.receta + '</span>' +
+                '</div>',
+                '<i class="fas fa-utensils"></i> Men\u00fa del D\u00eda'
+            );
 
         } catch (error) {
             console.error("Error fetching tv data:", error);
