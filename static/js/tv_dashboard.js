@@ -12,7 +12,6 @@
         const dateString = now.toLocaleDateString('es-AR', opcionesFecha);
         
         document.getElementById('tv-clock').textContent = timeString;
-        // Capitalizar primer letra del dia
         document.getElementById('tv-date').textContent = dateString.charAt(0).toUpperCase() + dateString.slice(1);
     }
     
@@ -31,12 +30,12 @@
             if (data.stock && data.stock.length > 0) {
                 stockContainer.innerHTML = data.stock.map(p => 
                     <div class="tv-item">
-                        <span></span>
-                        <span class="badge badge-danger"> / </span>
+                        <span> + p.nombre + </span>
+                        <span class="badge badge-danger"> + p.stock_actual +  /  + p.stock_minimo + </span>
                     </div>
                 ).join('');
             } else {
-                stockContainer.innerHTML = '<div class="empty-state">Todo el stock está en orden ✅</div>';
+                stockContainer.innerHTML = '<div class="empty-state">Todo el stock esta en orden \u2705</div>';
             }
 
             // Tareas
@@ -45,14 +44,13 @@
                 tareasContainer.innerHTML = data.tareas.map(t => {
                     let badge = t.vencida ? '<span class="badge badge-danger">Vencida</span>' 
                                           : '<span class="badge badge-warning">Hoy</span>';
-                    return 
-                    <div class="tv-item">
-                        <span><strong></strong> <span style="font-size:1.2rem;color:var(--tv-text-muted)">()</span></span>
-                        
+                    return <div class="tv-item">
+                        <span><strong> + t.nombre + </strong> <span style="font-size:1.2rem;color:var(--tv-text-muted)">( + t.asignado + )</span></span>
+                         + badge + 
                     </div>
                 }).join('');
             } else {
-                tareasContainer.innerHTML = '<div class="empty-state">No hay tareas pendientes hoy 🎉</div>';
+                tareasContainer.innerHTML = '<div class="empty-state">No hay tareas pendientes hoy \u2728</div>';
             }
 
             // Logistica
@@ -60,12 +58,12 @@
             if (data.logistica && data.logistica.length > 0) {
                 logisticaContainer.innerHTML = data.logistica.map(l => 
                     <div class="tv-item">
-                        <span></span>
-                        <span class="badge badge-primary"></span>
+                        <span> + l.titulo + </span>
+                        <span class="badge badge-primary"> + l.hora + </span>
                     </div>
                 ).join('');
             } else {
-                logisticaContainer.innerHTML = '<div class="empty-state">Sin eventos próximos</div>';
+                logisticaContainer.innerHTML = '<div class="empty-state">Sin eventos proximos</div>';
             }
 
             // Menus
@@ -73,12 +71,12 @@
             if (data.menus && data.menus.length > 0) {
                 menuContainer.innerHTML = data.menus.map(m => 
                     <div class="tv-item">
-                        <span style="text-transform:capitalize; color:var(--tv-text-muted)">:</span>
-                        <span style="font-weight:bold"></span>
+                        <span style="text-transform:capitalize; color:var(--tv-text-muted)"> + m.tipo + :</span>
+                        <span style="font-weight:bold"> + m.receta + </span>
                     </div>
                 ).join('');
             } else {
-                menuContainer.innerHTML = '<div class="empty-state">Menú no asignado para hoy</div>';
+                menuContainer.innerHTML = '<div class="empty-state">Menu no asignado para hoy</div>';
             }
 
         } catch (error) {
@@ -91,8 +89,7 @@
         if (!weatherKey) return;
         
         try {
-            // Unidades metric (Celsius), lang es (Español)
-            const url = https://api.openweathermap.org/data/2.5/weather?q=&appid=&units=metric&lang=es;
+            const url = https://api.openweathermap.org/data/2.5/weather?q= + weatherCity + &appid= + weatherKey + &units=metric&lang=es;
             const res = await fetch(url);
             if (!res.ok) throw new Error("Weather Error");
             const data = await res.json();
@@ -101,15 +98,14 @@
             const icon = data.weather[0].icon;
             const desc = data.weather[0].description;
             
-            const iconUrl = https://openweathermap.org/img/wn/@2x.png;
+            const iconUrl = https://openweathermap.org/img/wn/ + icon + @2x.png;
             
             document.getElementById('tv-weather').innerHTML = 
-                <img src="" alt="weather" style="width: 80px; height: 80px;">
+                <img src=" + iconUrl + " alt="weather" style="width: 80px; height: 80px;">
                 <div>
-                    <div>°C</div>
-                    <div style="font-size: 1.2rem; color: var(--tv-text-muted); text-transform: capitalize;"></div>
-                </div>
-            ;
+                    <div> + temp + \u00B0C</div>
+                    <div style="font-size: 1.2rem; color: var(--tv-text-muted); text-transform: capitalize;"> + desc + </div>
+                </div>;
             
         } catch (error) {
             console.error("Error fetching weather:", error);
@@ -117,7 +113,6 @@
         }
     }
 
-    // Inicializar y establecer intervalos (Refresco cada 5 mins para DB, 30 mins para Clima)
     fetchDashboardData();
     fetchWeather();
     
