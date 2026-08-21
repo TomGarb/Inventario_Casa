@@ -1,4 +1,5 @@
-﻿const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+
+const csrfToken = document.querySelector('meta[name="csrf-token"]') ? document.querySelector('meta[name="csrf-token"]').getAttribute('content') : '';
 const originalFetch = window.fetch;
 window.fetch = async function() {
     let [resource, config] = arguments;
@@ -65,13 +66,13 @@ function renderTareas(tareas) {
     }
     
     container.innerHTML = tareas.map(t => 
-        <div class="touch-btn" id="tarea- + t.id + " onclick="promptUser('tarea',  + t.id + )">
-            <div style="display:flex; align-items:center; gap: 15px;">
-                <div style="width:30px;height:30px;border:3px solid var(--border-color);border-radius:50%;"></div>
-                <div style="font-size:1.4rem; font-weight:bold;"> + t.nombre + </div>
-            </div>
-             + (t.vencida ? '<span class="badge badge-danger">Vencida</span>' : '') + 
-        </div>
+        '<div class="touch-btn" id="tarea-' + t.id + '" onclick="promptUser(\'tarea\', ' + t.id + ')">' +
+            '<div style="display:flex; align-items:center; gap: 15px;">' +
+                '<div style="width:30px;height:30px;border:3px solid var(--border-color);border-radius:50%;"></div>' +
+                '<div style="font-size:1.4rem; font-weight:bold;">' + t.nombre + '</div>' +
+            '</div>' +
+            (t.vencida ? '<span class="badge badge-danger">Vencida</span>' : '') +
+        '</div>'
     ).join('');
 }
 
@@ -80,10 +81,10 @@ function renderInventario(productos) {
     if (!productos || productos.length === 0) return;
     
     container.innerHTML = productos.map(p => 
-        <div class="product-btn" data-name=" + p.nombre.replace(/"/g, '&quot;') + " id="prod- + p.id + " onclick="promptUser('inventario',  + p.id + )">
-            <i class="fas fa-box"></i>
-            <span> + p.nombre + </span>
-        </div>
+        '<div class="product-btn" data-name="' + p.nombre.replace(/"/g, '&quot;') + '" id="prod-' + p.id + '" onclick="promptUser(\'inventario\', ' + p.id + ')">' +
+            '<i class="fas fa-box"></i>' +
+            '<span>' + p.nombre + '</span>' +
+        '</div>'
     ).join('');
 }
 
@@ -95,10 +96,10 @@ function renderMenus(menus) {
     }
     
     container.innerHTML = menus.map(m => 
-        <div class="menu-item">
-            <div style="color:var(--primary-color); font-weight:bold; font-size:1.1rem; text-transform:uppercase"> + m.tipo + </div>
-            <div style="font-size:1.4rem;"> + m.receta + </div>
-        </div>
+        '<div class="menu-item">' +
+            '<div style="color:var(--primary-color); font-weight:bold; font-size:1.1rem; text-transform:uppercase">' + m.tipo + '</div>' +
+            '<div style="font-size:1.4rem;">' + m.receta + '</div>' +
+        '</div>'
     ).join('');
 }
 
@@ -108,7 +109,7 @@ window.promptUser = function(type, id) {
     const container = document.getElementById('userButtons');
     
     container.innerHTML = globalUsers.map(u => 
-        <button class="user-btn" onclick="executeAction( + u.id + )"> + u.username + </button>
+        '<button class="user-btn" onclick="executeAction(' + u.id + ')">' + u.username + '</button>'
     ).join('');
     
     modal.style.display = 'flex';
