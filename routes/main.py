@@ -50,7 +50,9 @@ def dashboard():
     
     # 4. Deuda Compartida
     balances = calcular_balances_globales()
-    mi_balance = balances.get(current_user.id, 0)
+    lo_que_debo = sum(b['monto'] for b in balances if b['deudor_id'] == current_user.id)
+    lo_que_me_deben = sum(b['monto'] for b in balances if b['acreedor_id'] == current_user.id)
+    mi_balance = lo_que_me_deben - lo_que_debo
     deuda_compartida = abs(mi_balance) if mi_balance < 0 else 0
     
     # 5. Ultimos movimientos
@@ -292,10 +294,11 @@ def get_metricas_data():
     # Deudas
     balances = calcular_balances_globales()
     deudas = []
-    for uid, bal in balances.items():
-        if bal < 0:
-            u = db.session.get(Usuario, uid)
-            deudas.append({'usuario': u.username if u else f"User {uid}", 'monto': abs(bal)})
+    for b in balances:
+        deudas.append({
+            'usuario': f"{b['deudor_nombre']} a {b['acreedor_nombre']}",
+            'monto': b['monto']
+        })
             
     return jsonify({
         'kpis': {
