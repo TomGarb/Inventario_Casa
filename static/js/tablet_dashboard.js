@@ -81,32 +81,42 @@ function renderInventario(productos) {
     if (!productos || productos.length === 0) return;
     
     container.innerHTML = productos.map(p => 
-        '<div class="product-btn" data-name="' + p.nombre.replace(/"/g, '&quot;') + '" id="prod-' + p.id + '" style="padding:0; overflow:hidden;">' +
+        '<div class="product-btn" data-name="' + p.nombre.replace(/"/g, '&quot;') + '" id="prod-' + p.id + '" style="padding:0; overflow:hidden; display:flex; flex-direction:column; justify-content:space-between;">' +
             '<div onclick="promptUser(\'inventario\', ' + p.id + ')" style="padding: 15px 10px; flex: 1;">' +
-                '<i class="fas fa-box"></i><br>' +
-                '<span>' + p.nombre + '</span>' +
+                '<i class="fas fa-box" style="font-size:2rem; margin-bottom:10px; color:var(--primary-color);"></i><br>' +
+                '<span style="font-size:1.2rem; font-weight:bold;">' + p.nombre + '</span><br>' +
+                '<span style="font-size:1rem; color:var(--text-secondary);">Stock: ' + p.stock + '</span>' +
             '</div>' +
             '<div style="display:flex; border-top: 1px solid var(--border-color);">' +
-                '<button onclick="restarStockTablet(' + p.id + ', event)" style="flex:1; border:none; background:transparent; padding:15px; font-size:1.5rem; color:var(--danger-color); cursor:pointer;">-1 Stock</button>' +
+                '<button onclick="cambiarStockTablet(' + p.id + ', ' + p.stock + ', -1, event)" style="flex:1; border:none; background:transparent; border-right:1px solid var(--border-color); padding:15px; font-size:1.8rem; font-weight:bold; color:var(--danger-color); cursor:pointer;">-</button>' +
+                '<button onclick="cambiarStockTablet(' + p.id + ', ' + p.stock + ', 1, event)" style="flex:1; border:none; background:transparent; padding:15px; font-size:1.8rem; font-weight:bold; color:var(--success-color); cursor:pointer;">+</button>' +
             '</div>' +
         '</div>'
     ).join('');
 }
 
-window.restarStockTablet = async function(id, e) {
+window.cambiarStockTablet = async function(id, currentStock, delta, e) {
     e.stopPropagation();
     try {
-        const res = await fetch('/api/producto/consumir_rapido/' + id, { method: 'POST' });
+        const newStock = Math.max(0, currentStock + delta);
+        if (newStock === currentStock) return;
+        
+        const res = await fetch('/api/productos/' + id + '/stock', { 
+            method: 'PATCH',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({stock_actual: newStock})
+        });
+        
         const btn = document.getElementById('prod-' + id);
         if(res.ok) {
-            btn.innerHTML = '<div style="padding:20px; color:var(--success-color)"><i class="fas fa-check-circle" style="font-size:2rem; margin-bottom:10px;"></i><br>Consumido</div>';
+            btn.innerHTML = '<div style="padding:20px; color:var(--success-color); height:100%; display:flex; align-items:center; justify-content:center; flex-direction:column;"><i class="fas fa-check-circle" style="font-size:2.5rem; margin-bottom:10px;"></i><br>Actualizado</div>';
             btn.style.borderColor = 'var(--success-color)';
-            setTimeout(() => fetchData(), 1500);
+            setTimeout(() => fetchData(), 1000);
         } else {
-            alert("El stock ya está en 0.");
+            alert("Error al actualizar");
         }
     } catch(err) {
-        console.error("Error consumiendo", err);
+        console.error("Error", err);
     }
 }
 

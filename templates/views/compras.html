@@ -65,6 +65,39 @@
         
     </div>
 </section>
+
+
+<!-- Modal Carga Masiva de Compras -->
+<div id="modalCargaCompras" class="modal oculto">
+    <div class="modal-content" style="max-width: 800px; width: 95%;">
+        <h2>⚡ Carga Rápida de Compras</h2>
+        <p style="color: var(--text-secondary); margin-bottom: 15px;">Añade múltiples productos al inventario en un solo paso.</p>
+        <div style="overflow-x: auto; max-height: 50vh; overflow-y: auto;">
+            <table class="table" style="min-width: 700px;">
+                <thead>
+                    <tr>
+                        <th>Producto</th>
+                        <th>Cantidad</th>
+                        <th>Unidad</th>
+                        <th>Ubicación (Opcional)</th>
+                        <th>Sububic. (Opcional)</th>
+                        <th>Comercio (Opcional)</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody id="bulkComprasRows">
+                    <!-- Filas inyectadas por JS -->
+                </tbody>
+            </table>
+        </div>
+        <button class="btn btn-secondary" id="btn-add-compra-row" style="margin-top: 10px;">+ Añadir Fila</button>
+        <div class="form-actions" style="margin-top: 25px; justify-content: flex-end; gap: 15px;">
+            <button class="btn btn-secondary" id="btn-cancelar-compras">Cancelar</button>
+            <button class="btn btn-primary" id="btn-guardar-compras">Guardar Todo</button>
+        </div>
+    </div>
+</div>
+
 {% endblock %}
 
 {% block scripts %}

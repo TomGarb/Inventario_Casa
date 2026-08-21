@@ -101,6 +101,7 @@ def require_login():
             'tareas.completar_tarea',
             'inventario.actualizar_estado_lista',
             'inventario.consumir_rapido',
+            'inventario.actualizar_stock',
             'auth.logout_page',
             'static'
         ]

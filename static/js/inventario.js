@@ -383,6 +383,7 @@ window.dropCompra = async function(ev, comercio_id) {
 // 3. COMPRAS
 // ==========================================
 async function initCompras() {
+    initSubNavigation();
     initTelegramButton();
     await fetchComercios();
     await fetchDashboardStats(); // Necesario para el mapa de compras
