@@ -103,8 +103,13 @@ body {
 /* Producto Grid */
 .product-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-    gap: 10px;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 15px;
+    max-height: 45vh;
+    overflow-y: auto;
+}
+.product-grid::-webkit-scrollbar {
+    display: none;
 }
 
 .product-btn {

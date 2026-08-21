@@ -102,6 +102,8 @@ def require_login():
             'inventario.actualizar_estado_lista',
             'inventario.consumir_rapido',
             'inventario.actualizar_stock',
+            'menus.agregar_menu_manual',
+            'logistica.api_logistica_post',
             'auth.logout_page',
             'static'
         ]

@@ -151,3 +151,24 @@ body {
     text-align: center;
     margin-top: 20px;
 }
+
+/* Auto Scroll for long lists */
+@keyframes autoScroll {
+    0% { transform: translateY(0); }
+    100% { transform: translateY(-50%); }
+}
+.ticker-wrap {
+    overflow: hidden;
+    height: 100%;
+    position: relative;
+    max-height: calc(100vh - 200px);
+}
+.ticker-content {
+    animation: autoScroll 20s linear infinite;
+    display: flex;
+    flex-direction: column;
+    gap: 15px; /* Same as list gaps */
+}
+.ticker-content:hover {
+    animation-play-state: paused;
+}

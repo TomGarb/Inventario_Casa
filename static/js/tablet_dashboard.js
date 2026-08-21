@@ -76,21 +76,17 @@ function renderTareas(tareas) {
     ).join('');
 }
 
+let currentTabletProduct = null;
+
 function renderInventario(productos) {
     const container = document.getElementById('tablet-inventario');
     if (!productos || productos.length === 0) return;
     
     container.innerHTML = productos.map(p => 
-        '<div class="product-btn" data-name="' + p.nombre.replace(/"/g, '&quot;') + '" id="prod-' + p.id + '" style="padding:0; overflow:hidden; display:flex; flex-direction:column; justify-content:space-between;">' +
-            '<div onclick="promptUser(\'inventario\', ' + p.id + ')" style="padding: 15px 10px; flex: 1;">' +
-                '<i class="fas fa-box" style="font-size:2rem; margin-bottom:10px; color:var(--primary-color);"></i><br>' +
-                '<span style="font-size:1.2rem; font-weight:bold;">' + p.nombre + '</span><br>' +
-                '<span style="font-size:1rem; color:var(--text-secondary);">Stock: ' + p.stock + '</span>' +
-            '</div>' +
-            '<div style="display:flex; border-top: 1px solid var(--border-color);">' +
-                '<button onclick="cambiarStockTablet(' + p.id + ', ' + p.stock + ', -1, event)" style="flex:1; border:none; background:transparent; border-right:1px solid var(--border-color); padding:15px; font-size:1.8rem; font-weight:bold; color:var(--danger-color); cursor:pointer;">-</button>' +
-                '<button onclick="cambiarStockTablet(' + p.id + ', ' + p.stock + ', 1, event)" style="flex:1; border:none; background:transparent; padding:15px; font-size:1.8rem; font-weight:bold; color:var(--success-color); cursor:pointer;">+</button>' +
-            '</div>' +
+        '<div class="product-btn" data-name="' + p.nombre.replace(/"/g, '&quot;') + '" id="prod-' + p.id + '" onclick="openTabletProductModal(' + p.id + ', \'' + p.nombre.replace(/'/g, "\\'") + '\', ' + p.stock + ')">' +
+            '<i class="fas fa-box" style="font-size:2rem; margin-bottom:10px; color:var(--primary-color);"></i>' +
+            '<span style="font-size:1.2rem; font-weight:bold;">' + p.nombre + '</span>' +
+            '<span style="font-size:1rem; color:var(--text-secondary);">Stock: ' + p.stock + '</span>' +
         '</div>'
     ).join('');
 }
@@ -191,4 +187,87 @@ window.executeAction = async function(userId) {
         console.error("Action error", e);
         alert("Error al procesar la accion");
     }
+}
+
+// Tablet Modals
+window.openTabletModal = function(id) {
+    document.getElementById(id).style.display = 'flex';
+}
+window.closeTabletModal = function(id) {
+    document.getElementById(id).style.display = 'none';
+}
+
+// Product Action
+window.openTabletProductModal = function(id, name, stock) {
+    currentTabletProduct = { id, name, stock };
+    document.getElementById('tp-name').innerText = name;
+    document.getElementById('tp-stock').innerText = stock;
+    openTabletModal('tabletProductModal');
+}
+
+window.tabletProductAction = async function(action) {
+    if (!currentTabletProduct) return;
+    const { id, stock } = currentTabletProduct;
+    closeTabletModal('tabletProductModal');
+    
+    try {
+        if (action === 'add' || action === 'sub') {
+            const delta = action === 'add' ? 1 : -1;
+            const newStock = Math.max(0, stock + delta);
+            if (newStock === stock) return;
+            
+            await fetch('/api/productos/' + id + '/stock', { 
+                method: 'PATCH',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({stock_actual: newStock})
+            });
+            fetchData();
+        } else if (action === 'falta') {
+            await fetch('/api/inventario/lista_compras/' + id, { method: 'POST' });
+            fetchData();
+            alert("Añadido a lista de compras");
+        }
+    } catch(e) {
+        console.error(e);
+    }
+}
+
+// Evento Submit
+window.submitTabletEvent = async function() {
+    const titulo = document.getElementById('t-evt-title').value;
+    const dt = document.getElementById('t-evt-date').value;
+    const tipo = document.getElementById('t-evt-type').value;
+    if(!titulo || !dt) { alert("Completa los datos"); return; }
+    
+    try {
+        await fetch('/api/logistica/eventos', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ titulo: titulo, descripcion: '', fecha_hora: dt, tipo: tipo })
+        });
+        closeTabletModal('tabletEventModal');
+        document.getElementById('t-evt-title').value = '';
+        fetchData();
+        alert("Evento creado");
+    } catch(e) { console.error(e); }
+}
+
+// Menu Submit
+window.submitTabletMenu = async function() {
+    const date = document.getElementById('t-mn-date').value;
+    const tipo = document.getElementById('t-mn-type').value;
+    const receta = document.getElementById('t-mn-recipe').value;
+    if(!date || !receta) { alert("Completa los datos"); return; }
+    
+    try {
+        await fetch('/api/menus/manual', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ fecha: date, tipo: tipo, receta: receta })
+        });
+        closeTabletModal('tabletMenuModal');
+        document.getElementById('t-mn-recipe').value = '';
+        fetchData();
+        alert("Menú guardado");
+    } catch(e) { console.error(e); }
 }

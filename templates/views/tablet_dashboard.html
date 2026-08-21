@@ -55,6 +55,80 @@
         </div>
     </div>
 
+    
+    <!-- Dock de Acciones Rapidas -->
+    <div style="position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--card-bg); padding: 15px 30px; border-radius: 30px; box-shadow: var(--shadow-lg); display: flex; gap: 20px; border: 1px solid var(--border-color); z-index: 100;">
+        <button class="neo-button-primary" style="padding: 15px 30px; font-size: 1.2rem; border-radius: 20px;" onclick="openTabletModal('tabletEventModal')">
+            📅 Nuevo Evento
+        </button>
+        <button class="neo-button-primary" style="padding: 15px 30px; font-size: 1.2rem; border-radius: 20px;" onclick="openTabletModal('tabletMenuModal')">
+            🍽️ Cargar Menú
+        </button>
+    </div>
+
+    <!-- Product Action Modal -->
+    <div id="tabletProductModal" class="modal-overlay" style="display: none;">
+        <div class="modal-content neo-card" style="width: 90%; max-width: 500px;">
+            <h2 id="tp-name" style="color: var(--primary-color);">Producto</h2>
+            <p style="font-size: 1.2rem; color: var(--text-secondary); margin-bottom: 30px;">Stock Actual: <strong id="tp-stock">0</strong></p>
+            
+            <div style="display: flex; flex-direction: column; gap: 15px;">
+                <button class="neo-button-primary" style="background: var(--success-color); color: white; padding: 20px; font-size: 1.5rem;" onclick="tabletProductAction('add')">
+                    <i class="fas fa-plus"></i> +1 Stock
+                </button>
+                <button class="neo-button-primary" style="background: var(--danger-color); color: white; padding: 20px; font-size: 1.5rem;" onclick="tabletProductAction('sub')">
+                    <i class="fas fa-minus"></i> -1 Stock
+                </button>
+                <button class="neo-button-primary" style="background: #eab308; color: white; padding: 20px; font-size: 1.5rem;" onclick="tabletProductAction('falta')">
+                    <i class="fas fa-shopping-cart"></i> Falta / Comprar
+                </button>
+                <button class="neo-button-primary" style="padding: 15px; margin-top: 15px;" onclick="closeTabletModal('tabletProductModal')">
+                    Cancelar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Evento Modal -->
+    <div id="tabletEventModal" class="modal-overlay" style="display: none;">
+        <div class="modal-content neo-card" style="width: 90%; max-width: 500px;">
+            <h2 style="color: var(--primary-color);">📅 Nuevo Evento</h2>
+            <div style="display: flex; flex-direction: column; gap: 15px; margin-top: 20px; text-align: left;">
+                <input type="text" id="t-evt-title" class="neo-input" placeholder="Título del evento" style="padding: 15px; font-size: 1.2rem;">
+                <input type="datetime-local" id="t-evt-date" class="neo-input" style="padding: 15px; font-size: 1.2rem;">
+                <select id="t-evt-type" class="neo-input" style="padding: 15px; font-size: 1.2rem;">
+                    <option value="visita">Visita</option>
+                    <option value="salida">Salida</option>
+                    <option value="mantenimiento">Mantenimiento</option>
+                    <option value="viaje">Viaje</option>
+                </select>
+                <div style="display: flex; gap: 15px; margin-top: 20px;">
+                    <button class="neo-button-primary" style="flex: 1; padding: 15px;" onclick="closeTabletModal('tabletEventModal')">Cancelar</button>
+                    <button class="neo-button-primary" style="flex: 1; padding: 15px; background: var(--primary-color); color: white;" onclick="submitTabletEvent()">Guardar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Menu Modal -->
+    <div id="tabletMenuModal" class="modal-overlay" style="display: none;">
+        <div class="modal-content neo-card" style="width: 90%; max-width: 500px;">
+            <h2 style="color: var(--primary-color);">🍽️ Cargar Menú</h2>
+            <div style="display: flex; flex-direction: column; gap: 15px; margin-top: 20px; text-align: left;">
+                <input type="date" id="t-mn-date" class="neo-input" style="padding: 15px; font-size: 1.2rem;">
+                <select id="t-mn-type" class="neo-input" style="padding: 15px; font-size: 1.2rem;">
+                    <option value="almuerzo">Almuerzo</option>
+                    <option value="cena">Cena</option>
+                </select>
+                <input type="text" id="t-mn-recipe" class="neo-input" placeholder="Nombre de la comida" style="padding: 15px; font-size: 1.2rem;">
+                <div style="display: flex; gap: 15px; margin-top: 20px;">
+                    <button class="neo-button-primary" style="flex: 1; padding: 15px;" onclick="closeTabletModal('tabletMenuModal')">Cancelar</button>
+                    <button class="neo-button-primary" style="flex: 1; padding: 15px; background: var(--primary-color); color: white;" onclick="submitTabletMenu()">Guardar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="/static/js/main.js"></script>
     <script src="/static/js/tablet_dashboard.js?v=1.0"></script>
 </body>
