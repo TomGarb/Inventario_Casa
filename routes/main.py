@@ -15,10 +15,8 @@ main_bp = Blueprint('main', __name__)
 @login_required
 def dashboard():
     hoy = datetime.now().date()
-    mes_actual = hoy.month
-    ano_actual = hoy.year
     
-    # 1. Mis Tareas Pendientes (del usuario, hoy o vencidas, o TODAS si es admin)
+    # 1. Mis Tareas Pendientes
     mis_tareas = []
     tareas = Tarea.query.all()
     es_admin = getattr(current_user, 'is_admin', False)
@@ -31,107 +29,44 @@ def dashboard():
                 try: proxima = datetime.strptime(t.valor_frecuencia, '%Y-%m-%d').date()
                 except: proxima = hoy
             if proxima <= hoy:
-                # Es mi turno o soy admin?
                 prox_user_id = calcular_proximo_turno(t)
-                
                 if prox_user_id == current_user.id or es_admin:
-                    prox_user = db.session.get(Usuario, prox_user_id) if prox_user_id else None
-                    nombre_asignado = prox_user.username if prox_user else "Todos/Nadie"
+                    mis_tareas.append({'tarea': t, 'vencida': proxima < hoy})
                     
-                    if prox_user_id == current_user.id:
-                        nombre_mostrar = t.nombre
-                    else:
-                        nombre_mostrar = f"{t.nombre} ({nombre_asignado})"
-                        
-                    mis_tareas.append({'nombre': nombre_mostrar, 'vencida': (hoy - proxima).days > 0})
-                    
-    # 2. Ranking del Hogar (completadas en mes actual)
-    usuarios = Usuario.query.all()
-    ranking = []
-    for u in usuarios:
-        completadas = HistorialTarea.query.filter(
-            HistorialTarea.usuario_id == u.id,
-            extract('month', HistorialTarea.fecha) == mes_actual,
-            extract('year', HistorialTarea.fecha) == ano_actual
-        ).count()
-        ranking.append({'username': u.username, 'completadas': completadas})
-    ranking.sort(key=lambda x: x['completadas'], reverse=True)
+    total_tareas_hoy = len(mis_tareas)
     
-    # 3. Radar de Tareas Críticas (vencidas > 2 días)
-    criticas = []
-    for t in tareas:
-        current_date = t.fecha_ultima_ejecucion or (hoy - timedelta(days=3))
-        proxima = calcular_proxima_fecha(t, current_date)
-        if t.tipo_frecuencia == 'fecha_fija':
-            try: proxima = datetime.strptime(t.valor_frecuencia, '%Y-%m-%d').date()
-            except: proxima = hoy
-        dias_vencida = (hoy - proxima).days
-        if dias_vencida > 2:
-            criticas.append({'nombre': t.nombre, 'dias_vencida': dias_vencida})
-            
-    # 4. Medidor de Excusas (Skips en mes actual)
-    skips_por_usuario = {}
-    for u in usuarios:
-        skips = SaltoTarea.query.filter(
-            SaltoTarea.usuario_id == u.id,
-            extract('month', SaltoTarea.fecha) == mes_actual,
-            extract('year', SaltoTarea.fecha) == ano_actual
-        ).count()
-        skips_por_usuario[u.username] = skips
-        
-    # 5. Última Actividad (ultimos 5 registros: historiales o saltos)
-    actividad = []
-    historiales = HistorialTarea.query.order_by(HistorialTarea.fecha.desc()).limit(5).all()
-    saltos = SaltoTarea.query.order_by(SaltoTarea.fecha.desc()).limit(5).all()
-    
-    for h in historiales:
-        u = db.session.get(Usuario, h.usuario_id)
-        t = db.session.get(Tarea, h.tarea_id)
-        actividad.append({'tipo': 'completada', 'fecha': h.fecha, 'texto': f"{u.username} completó: {t.nombre}"})
-        
-    for s in saltos:
-        u = db.session.get(Usuario, s.usuario_id)
-        t = db.session.get(Tarea, s.tarea_id)
-        actividad.append({'tipo': 'skip', 'fecha': s.fecha, 'texto': f"{u.username} saltó: {t.nombre}"})
-        
-    actividad.sort(key=lambda x: x['fecha'], reverse=True)
-    actividad = actividad[:5]
-    
-    # 6. Finanzas
-    gastos_mes = db.session.query(db.func.sum(Gasto.monto)).filter(
-        extract('month', Gasto.fecha) == mes_actual,
-        extract('year', Gasto.fecha) == ano_actual
-    ).scalar() or 0.0
-    balances = calcular_balances_globales()
-
-    # 7. Logística (Próximo evento y agenda hoy/mañana)
+    # 2. Logistica proximas 24hs
     tz = pytz.timezone('America/Argentina/Buenos_Aires')
     ahora = datetime.now(tz)
     fin_manana = (ahora + timedelta(days=1)).replace(hour=23, minute=59, second=59)
-    
     eventos_agenda = EventoLogistico.query.filter(
         EventoLogistico.fecha_inicio >= ahora,
         EventoLogistico.fecha_inicio <= fin_manana
-    ).order_by(EventoLogistico.fecha_inicio.asc()).limit(3).all()
+    ).order_by(EventoLogistico.fecha_inicio.asc()).all()
     
-    proximo_evento = EventoLogistico.query.filter(
-        EventoLogistico.fecha_inicio >= ahora
-    ).order_by(EventoLogistico.fecha_inicio.asc()).first()
+    # 3. Alertas de Stock
+    alertas_stock = Producto.query.filter(Producto.es_temporal == False, Producto.stock_actual <= Producto.stock_minimo).all()
+    total_faltantes = len(alertas_stock)
+    
+    # 4. Deuda Compartida
+    balances = calcular_balances_globales()
+    mi_balance = balances.get(current_user.id, 0)
+    deuda_compartida = abs(mi_balance) if mi_balance < 0 else 0
+    
+    # 5. Ultimos movimientos
+    movimientos = Movimiento.query.order_by(Movimiento.fecha.desc()).limit(5).all()
 
     return render_template('views/dashboard.html', 
         active_page='dashboard',
         mis_tareas=mis_tareas,
-        ranking=ranking,
-        criticas=criticas,
-        skips_por_usuario=skips_por_usuario,
-        actividad=actividad,
-        gastos_mes=gastos_mes,
-        balances=balances,
+        total_tareas_hoy=total_tareas_hoy,
+        total_faltantes=total_faltantes,
+        deuda_compartida=deuda_compartida,
         eventos_agenda=eventos_agenda,
-        proximo_evento=proximo_evento,
-        usuarios=usuarios
+        alertas_stock=alertas_stock,
+        movimientos=movimientos,
+        mi_balance=mi_balance
     )
-
 
 @main_bp.route('/api/dashboard_stats', methods=['GET'])
 def dashboard_stats():
@@ -305,3 +240,75 @@ def get_tablet_data():
     })
 
 
+
+
+@main_bp.route('/metricas', methods=['GET'])
+@login_required
+def metricas():
+    return render_template('views/metricas.html', active_page='metricas')
+
+@main_bp.route('/api/metricas_data', methods=['GET'])
+@login_required
+def get_metricas_data():
+    hoy = datetime.now().date()
+    # Gasto mes actual
+    mes_actual = hoy.month
+    ano_actual = hoy.year
+    gastos_mes = db.session.query(db.func.sum(Gasto.monto)).filter(extract('month', Gasto.fecha) == mes_actual, extract('year', Gasto.fecha) == ano_actual).scalar() or 0
+    
+    # Total productos falta
+    total_productos_falta = Producto.query.filter(Producto.es_temporal == False, Producto.stock_actual <= Producto.stock_minimo).count()
+    
+    # Dias para proximo evento
+    tz = pytz.timezone('America/Argentina/Buenos_Aires')
+    ahora = datetime.now(tz)
+    proximo_evento = EventoLogistico.query.filter(EventoLogistico.fecha_inicio >= ahora).order_by(EventoLogistico.fecha_inicio.asc()).first()
+    if proximo_evento:
+        dias_evento = (proximo_evento.fecha_inicio.date() - hoy).days
+    else:
+        dias_evento = "-"
+        
+    # Grafico gastos (ultimos 7 dias)
+    labels = []
+    datos_gastos = []
+    for i in range(6, -1, -1):
+        dia = hoy - timedelta(days=i)
+        g = db.session.query(db.func.sum(Gasto.monto)).filter(db.func.date(Gasto.fecha) == dia).scalar() or 0
+        labels.append(dia.strftime('%d/%m'))
+        datos_gastos.append(float(g))
+        
+    # Excepciones (deudas y tareas vencidas)
+    tareas_vencidas = []
+    tareas = Tarea.query.all()
+    for t in tareas:
+        current_date = t.fecha_ultima_ejecucion or (hoy - timedelta(days=1))
+        proxima = calcular_proxima_fecha(t, current_date)
+        if t.tipo_frecuencia == 'fecha_fija':
+            try: proxima = datetime.strptime(t.valor_frecuencia, '%Y-%m-%d').date()
+            except: proxima = hoy
+        if proxima < hoy:
+            tareas_vencidas.append({'nombre': t.nombre, 'dias_retraso': (hoy - proxima).days})
+            
+    # Deudas
+    balances = calcular_balances_globales()
+    deudas = []
+    for uid, bal in balances.items():
+        if bal < 0:
+            u = db.session.get(Usuario, uid)
+            deudas.append({'usuario': u.username if u else f"User {uid}", 'monto': abs(bal)})
+            
+    return jsonify({
+        'kpis': {
+            'gasto_mes_actual': float(gastos_mes),
+            'total_productos_falta': total_productos_falta,
+            'dias_para_proximo_evento': dias_evento
+        },
+        'chart': {
+            'labels': labels,
+            'data': datos_gastos
+        },
+        'excepciones': {
+            'tareas_vencidas': tareas_vencidas,
+            'deudas': deudas
+        }
+    })

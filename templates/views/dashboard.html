@@ -1,159 +1,123 @@
 {% extends "base.html" %}
-{% block content %}
-<!-- Vista 1: Dashboard Principal -->
-<section id="dashboard-view" class="view active-view">
-    <div class="dashboard-grid">
 
-    <!-- Fila 1: Calendario (Ancho completo) -->
-    <div class="dash-card" style="grid-column: 1 / -1;">
-            <h2 class="dash-header">🌍 Calendario Global de la Casa</h2>
-            <div id="global-calendar"></div>
-        </div>
-    
-    <!-- Fila 2: Tarjetas Rápidas Pequeñas (3 columnas en pantallas grandes) -->
-    <div class="dash-card">
-            <h2 class="dash-header">💸 Finanzas (Mes Actual)</h2>
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-                <div>
-                    <span style="font-size: 0.8rem; color: var(--text-secondary);">Gasto Total</span><br>
-                    <strong style="font-size: 1.5rem;">${{ gastos_mes | round(2) }}</strong>
-                </div>
-                <!-- Botón rápido de cámara -->
-                <button class="btn btn-primary" onclick="document.getElementById('dash-ticket-file').click()" style="padding: 10px 15px; border-radius: 20px;">
-                    📸 Subir Ticket
-                </button>
-                <input type="file" id="dash-ticket-file" accept="image/*" capture="environment" style="display: none;" onchange="procesarTicketDash()">
-            </div>
-            
-            <div id="dash-balances" style="max-height: 120px; overflow-y: auto;">
-                {% if balances %}
-                    <ul style="list-style: none; padding: 0; font-size: 0.9rem;">
-                    {% for b in balances %}
-                        <li style="padding: 5px 0; border-bottom: 1px solid var(--border-color);">
-                            <strong>{{ b.deudor_nombre }}</strong> debe a <strong>{{ b.acreedor_nombre }}</strong>: 
-                            <span style="color: var(--danger-color); float: right; font-weight: bold;">${{ b.monto | round(2) }}</span>
-                        </li>
-                    {% endfor %}
-                    </ul>
-                {% else %}
-                    <p style="color: var(--success-color); font-size: 0.9rem; margin-top: 10px;">¡Todo al día! No hay deudas.</p>
-                {% endif %}
-            </div>
-        </div>
-    <div class="dash-card">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                <h2 class="dash-header" style="margin: 0;">📜 Últimos Movimientos</h2>
-                <input type="text" id="buscador-movimientos" placeholder="🔍 Buscar movimiento..." style="padding: 0.4rem; border-radius: 4px; border: 1px solid var(--border-color); background: var(--bg-color); color: var(--text-primary); width: 250px;">
-            </div>
-            <ul id="feedMovimientos" style="list-style: none; padding: 0; margin: 0; color: var(--text-color, #eee); max-height: 300px; overflow-y: auto;">
-                <!-- Elementos renderizados por JS -->
-            </ul>
-        </div>
-    <div class="dash-card">
-            <h3 class="dash-header">📌 {% if current_user.is_admin %}Tareas Pendientes (Todas){% else %}Mis Tareas Pendientes{% endif %}</h3>
+{% block content %}
+<div class="dashboard-grid two-cols">
+
+    <!-- HERO WIDGET -->
+    <div class="neo-card dashboard-hero" style="text-align: center; padding: 30px; background: linear-gradient(135deg, var(--card-bg), var(--bg-color));">
+        <h1 style="margin-bottom: 10px; color: var(--primary-color);">👋 Hola, {{ current_user.username }}</h1>
+        <p style="font-size: 1.2rem; color: var(--text-secondary);">
+            Hoy tienes <strong>{{ total_tareas_hoy }}</strong> tareas pendientes, 
+            la heladera necesita <strong>{{ total_faltantes }}</strong> productos y 
+            debes <strong>${{ "%.2f"|format(deuda_compartida) }}</strong> en gastos compartidos.
+        </p>
+    </div>
+
+    <!-- QUICK ACTIONS -->
+    <div class="quick-actions-flex">
+        <button class="neo-button-primary" onclick="openGastoModal('ia')">
+            <i class="fas fa-camera"></i> Escanear Ticket
+        </button>
+        <button class="neo-button-primary" onclick="window.location.href='/compras'">
+            <i class="fas fa-cart-plus"></i> Añadir a Lista
+        </button>
+        <button class="neo-button-primary" onclick="abrirModalCrearTarea()">
+            <i class="fas fa-broom"></i> Nueva Tarea
+        </button>
+        <button class="neo-button-primary" onclick="abrirModalLogistica()">
+            <i class="fas fa-calendar-plus"></i> Agendar Evento
+        </button>
+    </div>
+
+    <!-- COLUMNA IZQUIERDA: MI DÍA -->
+    <div style="display: flex; flex-direction: column; gap: 20px;">
+        <div class="neo-card">
+            <h3>📝 Mis Tareas de Hoy</h3>
             {% if mis_tareas %}
-                <ul style="list-style: none; padding: 0;">
-                {% for t in mis_tareas %}
-                    <li style="padding: 10px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between;">
-                        <span>{{ t.nombre }}</span>
-                        {% if t.vencida %}
-                            <span style="color: var(--danger-color); font-weight: bold; font-size: 0.8rem;">⚠️ Vencida</span>
+                <ul style="list-style: none; padding: 0; margin-top: 15px;">
+                {% for item in mis_tareas %}
+                    <li style="padding: 10px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
+                        <span>{{ item.tarea.nombre }}</span>
+                        {% if item.vencida %}
+                            <span class="badge badge-danger">Vencida</span>
                         {% else %}
-                            <span style="color: var(--warning-color); font-weight: bold; font-size: 0.8rem;">Hoy</span>
+                            <span class="badge badge-warning">Hoy</span>
                         {% endif %}
                     </li>
                 {% endfor %}
                 </ul>
             {% else %}
-                <p style="color: var(--text-primary); font-size: 0.9rem; margin-top: 10px;">¡Estás al día! No tienes tareas pendientes hoy. 🎉</p>
+                <p style="color: var(--text-secondary); margin-top: 15px;">¡Estás al día! No tienes tareas pendientes hoy. ✨</p>
             {% endif %}
         </div>
 
-    <!-- Fila 3: Listas Medianas (2 columnas en pantallas grandes) -->
-    <div class="dash-card">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                <h2 class="dash-header" style="margin: 0;">📜 Últimos Movimientos</h2>
-                <input type="text" id="buscador-movimientos" placeholder="🔍 Buscar movimiento..." style="padding: 0.4rem; border-radius: 4px; border: 1px solid var(--border-color); background: var(--bg-color); color: var(--text-primary); width: 250px;">
-            </div>
-            <ul id="feedMovimientos" style="list-style: none; padding: 0; margin: 0; color: var(--text-color, #eee); max-height: 300px; overflow-y: auto;">
-                <!-- Elementos renderizados por JS -->
-            </ul>
-        </div>
-    <div class="dash-card">
-            <h2 class="dash-header">⚠️ Alertas de Reposición</h2>
-            <div id="dash-alertas-lista" class="dash-items-container">
-                <!-- Elementos renderizados por JS -->
-            </div>
-        </div>
-    <div class="dash-card">
-            <h2 class="dash-header">📅 Agenda Logística</h2>
-            {% if proximo_evento %}
-                <div style="background: var(--bg-secondary); padding: 10px; border-radius: 8px; border-left: 4px solid var(--primary-color); margin-bottom: 10px;">
-                    <span style="font-size: 0.8rem; color: var(--text-secondary);">Próximo evento</span><br>
-                    <strong>{{ proximo_evento.titulo }}</strong><br>
-                    <span style="font-size: 0.9rem;">{{ proximo_evento.fecha_inicio.strftime('%d/%m %H:%M') }}</span>
-                </div>
-            {% else %}
-                <p style="color: var(--text-secondary); font-size: 0.9rem;">No hay eventos próximos.</p>
-            {% endif %}
-            
+        <div class="neo-card">
+            <h3>🚗 Eventos Próximas 24hs</h3>
             {% if eventos_agenda %}
-                <ul style="list-style: none; padding: 0; margin-top: 10px; font-size: 0.9rem;">
-                {% for ev in eventos_agenda %}
-                    <li style="padding: 5px 0; border-bottom: 1px solid var(--border-color);">
-                        {{ ev.titulo }} <span style="float: right; color: var(--text-secondary);">{{ ev.fecha_inicio.strftime('%H:%M') }}</span>
+                <ul style="list-style: none; padding: 0; margin-top: 15px;">
+                {% for evento in eventos_agenda %}
+                    <li style="padding: 10px; border-bottom: 1px solid var(--border-color);">
+                        <strong>{{ evento.titulo }}</strong> <br>
+                        <small style="color: var(--text-secondary);"><i class="fas fa-clock"></i> {{ evento.fecha_inicio.strftime('%H:%M') }}</small>
                     </li>
                 {% endfor %}
                 </ul>
+            {% else %}
+                <p style="color: var(--text-secondary); margin-top: 15px;">No hay eventos logísticos programados.</p>
             {% endif %}
         </div>
-</section>
+    </div>
 
-<!-- Modal Ticket Rápido -->
-<div id="modal-dash-ticket" class="modal" style="display: none;">
-    <div class="modal-content" style="max-width: 400px;">
-        <span class="close" onclick="document.getElementById('modal-dash-ticket').style.display='none'">&times;</span>
-        <h2>Confirmar Gasto</h2>
-        <div id="dash-ticket-loading" style="display: none; text-align: center; padding: 20px;">
-            <p>Procesando ticket con IA... ⏳</p>
+    <!-- COLUMNA DERECHA: ALERTAS -->
+    <div style="display: flex; flex-direction: column; gap: 20px;">
+        <div class="neo-card">
+            <h3>⚠️ Alertas de Reposición</h3>
+            {% if alertas_stock %}
+                <ul style="list-style: none; padding: 0; margin-top: 15px;">
+                {% for p in alertas_stock[:5] %}
+                    <li style="padding: 10px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between;">
+                        <span>{{ p.nombre }}</span>
+                        <span class="badge badge-danger">{{ p.stock_actual }} / {{ p.stock_minimo }}</span>
+                    </li>
+                {% endfor %}
+                {% if alertas_stock|length > 5 %}
+                    <li style="text-align: center; margin-top: 10px;"><small><a href="/inventario" style="color: var(--primary-color);">Ver {{ alertas_stock|length - 5 }} más...</a></small></li>
+                {% endif %}
+                </ul>
+            {% else %}
+                <p style="color: var(--text-secondary); margin-top: 15px;">Stock en niveles óptimos.</p>
+            {% endif %}
         </div>
-        <div id="dash-ticket-form" style="display: none;">
-            <div class="form-group">
-                <label>Concepto</label>
-                <input type="text" id="dash-gasto-concepto" required>
-            </div>
-            <div class="form-group">
-                <label>Monto Total ($)</label>
-                <input type="number" id="dash-gasto-monto" step="0.01" required>
-            </div>
-            
-            <div class="form-group">
-                <label>Dividir entre:</label>
-                <div style="background: var(--bg-secondary); padding: 10px; border-radius: 8px;">
-                    {% for u in usuarios %}
-                        <div style="margin-bottom: 5px;">
-                            <label style="display: flex; align-items: center; gap: 10px; font-weight: normal;">
-                                <input type="checkbox" class="deudor-checkbox" value="{{ u.id }}" checked>
-                                {{ u.username }}
-                            </label>
-                        </div>
-                    {% endfor %}
-                </div>
-            </div>
-            
-            <button class="btn btn-primary" style="width: 100%; margin-top: 15px;" onclick="guardarGastoDash()">Guardar Gasto</button>
+
+        <div class="neo-card">
+            <h3>💸 Estado Financiero</h3>
+            <p style="margin-top: 15px;">
+                {% if mi_balance < 0 %}
+                    <span style="color: var(--danger-color); font-weight: bold;">Debes: ${{ "%.2f"|format(mi_balance|abs) }}</span>
+                {% elif mi_balance > 0 %}
+                    <span style="color: var(--success-color); font-weight: bold;">Te deben: ${{ "%.2f"|format(mi_balance) }}</span>
+                {% else %}
+                    <span style="color: var(--text-secondary);">Estás al día con los gastos.</span>
+                {% endif %}
+            </p>
+        </div>
+
+        <div class="neo-card">
+            <h3>📜 Últimos Movimientos</h3>
+            {% if movimientos %}
+                <ul style="list-style: none; padding: 0; margin-top: 15px; font-size: 0.9rem;">
+                {% for mov in movimientos %}
+                    <li style="padding: 8px 0; border-bottom: 1px solid var(--border-color);">
+                        {{ mov.descripcion }} <br>
+                        <small style="color: var(--text-secondary);">{{ mov.fecha.strftime('%d/%m %H:%M') }}</small>
+                    </li>
+                {% endfor %}
+                </ul>
+            {% else %}
+                <p style="color: var(--text-secondary); margin-top: 15px;">No hay movimientos recientes.</p>
+            {% endif %}
         </div>
     </div>
+
 </div>
-{% endblock %}
-
-{% block scripts %}
-<script src="{{ url_for('static', filename='js/dashboard.js') }}?v=2.0"></script>
-
-
-
-<link href='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.css' rel='stylesheet' />
-<script src='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.js'></script>
-<script src='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/locales/es.js'></script>
-
 {% endblock %}

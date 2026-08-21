@@ -100,6 +100,7 @@ def require_login():
             'main.get_tablet_data', 
             'tareas.completar_tarea',
             'inventario.actualizar_estado_lista',
+            'inventario.consumir_rapido',
             'auth.logout_page',
             'static'
         ]

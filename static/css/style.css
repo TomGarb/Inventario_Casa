@@ -640,3 +640,105 @@ select option {
 .toggle-input:checked + .toggle-switch:before {
     transform: translateX(22px);
 }
+
+/* =========================
+   NEOMORPHISM & RESPONSIVE GRID
+   ========================= */
+
+/* Solo aplicamos sombras neomórficas en Dark Mode para el efecto, en light mode usamos sombras suaves */
+.neo-card {
+    background: var(--card-bg);
+    border-radius: 15px;
+    padding: 20px;
+    border: none;
+    box-shadow: var(--shadow-md);
+    transition: all 0.3s ease;
+}
+
+@media (prefers-color-scheme: dark) {
+    .neo-card {
+        box-shadow: 5px 5px 10px #111216, -5px -5px 10px #2b2c32;
+    }
+}
+
+.neo-input {
+    background: var(--bg-color);
+    border-radius: 10px;
+    border: none;
+    color: var(--text-primary);
+    padding: 10px 15px;
+    width: 100%;
+}
+@media (prefers-color-scheme: dark) {
+    .neo-input {
+        box-shadow: inset 4px 4px 8px #111216, inset -4px -4px 8px #2b2c32;
+    }
+}
+
+.neo-button-primary {
+    background: linear-gradient(145deg, #6b4cff, #4a2fe5);
+    color: #fff;
+    border: none;
+    border-radius: 25px; /* Pill shape */
+    padding: 10px 20px;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 4px 4px 8px rgba(0,0,0,0.3);
+    transition: transform 0.2s;
+    text-align: center;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+.neo-button-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 6px 6px 12px rgba(0,0,0,0.4);
+}
+
+.neo-button-secondary {
+    background: var(--card-bg);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 25px;
+    padding: 10px 20px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+@media (prefers-color-scheme: dark) {
+    .neo-button-secondary {
+        border: none;
+        box-shadow: 4px 4px 8px #111216, -4px -4px 8px #2b2c32;
+    }
+}
+
+/* GRIDS RESPONSIVOS GLOBALES */
+.dashboard-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 20px;
+    width: 100%;
+}
+
+.dashboard-hero {
+    grid-column: 1 / -1; /* Ocupa todo el ancho */
+}
+
+.quick-actions-flex {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+    justify-content: center;
+    grid-column: 1 / -1;
+    margin-bottom: 20px;
+}
+.quick-actions-flex > * {
+    flex: 1 1 200px;
+}
+
+@media (min-width: 1024px) {
+    .dashboard-grid.two-cols {
+        grid-template-columns: 1fr 1fr;
+    }
+}

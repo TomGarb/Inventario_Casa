@@ -81,11 +81,33 @@ function renderInventario(productos) {
     if (!productos || productos.length === 0) return;
     
     container.innerHTML = productos.map(p => 
-        '<div class="product-btn" data-name="' + p.nombre.replace(/"/g, '&quot;') + '" id="prod-' + p.id + '" onclick="promptUser(\'inventario\', ' + p.id + ')">' +
-            '<i class="fas fa-box"></i>' +
-            '<span>' + p.nombre + '</span>' +
+        '<div class="product-btn" data-name="' + p.nombre.replace(/"/g, '&quot;') + '" id="prod-' + p.id + '" style="padding:0; overflow:hidden;">' +
+            '<div onclick="promptUser(\'inventario\', ' + p.id + ')" style="padding: 15px 10px; flex: 1;">' +
+                '<i class="fas fa-box"></i><br>' +
+                '<span>' + p.nombre + '</span>' +
+            '</div>' +
+            '<div style="display:flex; border-top: 1px solid var(--border-color);">' +
+                '<button onclick="restarStockTablet(' + p.id + ', event)" style="flex:1; border:none; background:transparent; padding:15px; font-size:1.5rem; color:var(--danger-color); cursor:pointer;">-1 Stock</button>' +
+            '</div>' +
         '</div>'
     ).join('');
+}
+
+window.restarStockTablet = async function(id, e) {
+    e.stopPropagation();
+    try {
+        const res = await fetch('/api/producto/consumir_rapido/' + id, { method: 'POST' });
+        const btn = document.getElementById('prod-' + id);
+        if(res.ok) {
+            btn.innerHTML = '<div style="padding:20px; color:var(--success-color)"><i class="fas fa-check-circle" style="font-size:2rem; margin-bottom:10px;"></i><br>Consumido</div>';
+            btn.style.borderColor = 'var(--success-color)';
+            setTimeout(() => fetchData(), 1500);
+        } else {
+            alert("El stock ya está en 0.");
+        }
+    } catch(err) {
+        console.error("Error consumiendo", err);
+    }
 }
 
 function renderMenus(menus) {
