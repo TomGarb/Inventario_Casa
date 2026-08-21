@@ -1,0 +1,77 @@
+﻿<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart TV Dashboard</title>
+    <!-- Incluir CSS específico de TV -->
+    <link rel="stylesheet" href="/static/css/tv_dashboard.css?v=1.0">
+    <!-- FontAwesome para iconos -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    
+    <!-- Meta tags para Javascript -->
+    <meta name="weather-api-key" content="{{ weather_api_key }}">
+    <meta name="weather-city" content="{{ weather_city }}">
+    <meta name="tv-token" content="{{ token }}">
+</head>
+<body>
+    <div class="tv-grid">
+        
+        <!-- Widget: Reloj y Clima -->
+        <div class="tv-widget clock-widget">
+            <div id="tv-clock">--:--</div>
+            <div id="tv-date">Cargando fecha...</div>
+            <div id="tv-weather">
+                {% if weather_api_key %}
+                    <div class="weather-loading"><i class="fas fa-spinner fa-spin"></i> Obteniendo clima...</div>
+                {% else %}
+                    <div class="weather-missing">
+                        <i class="fas fa-cloud-sun"></i> Clima no configurado<br>
+                        <span class="small-text">(Añade OPENWEATHER_API_KEY en .env)</span>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Widget: Tareas de Hoy -->
+        <div class="tv-widget">
+            <div class="widget-header">
+                <i class="fas fa-tasks"></i> Tareas Pendientes
+            </div>
+            <div id="tv-tareas-container" class="widget-content">
+                <div class="loading"><i class="fas fa-spinner fa-spin"></i> Cargando tareas...</div>
+            </div>
+        </div>
+
+        <!-- Widget: Alertas de Stock -->
+        <div class="tv-widget">
+            <div class="widget-header alert-header">
+                <i class="fas fa-exclamation-triangle"></i> Alertas de Stock
+            </div>
+            <div id="tv-stock-container" class="widget-content">
+                <div class="loading"><i class="fas fa-spinner fa-spin"></i> Revisando inventario...</div>
+            </div>
+        </div>
+
+        <!-- Widget: Logística y Menú -->
+        <div class="tv-widget double-widget">
+            <div class="sub-widget">
+                <div class="widget-header">
+                    <i class="fas fa-calendar-alt"></i> Próximos Eventos
+                </div>
+                <div id="tv-logistica-container" class="widget-content"></div>
+            </div>
+            <div class="sub-widget">
+                <div class="widget-header">
+                    <i class="fas fa-utensils"></i> Menú del Día
+                </div>
+                <div id="tv-menu-container" class="widget-content"></div>
+            </div>
+        </div>
+        
+    </div>
+
+    <!-- Scripts -->
+    <script src="/static/js/tv_dashboard.js?v=1.0"></script>
+</body>
+</html>

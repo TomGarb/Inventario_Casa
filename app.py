@@ -87,11 +87,24 @@ CHAT_ID = TELEGRAM_CHAT_ID
 def require_login():
     if request.path == '/webhook/telegram':
         return
-    allowed_routes = ['auth.login_page', 'auth.register_page', 'static']
+    allowed_routes = ['auth.login_page', 'auth.register_page', 'static', 'main.tv_dashboard', 'main.get_tv_data']
     if request.endpoint not in allowed_routes and not current_user.is_authenticated:
         if request.path.startswith('/api/'):
             return jsonify({'error': 'Unauthorized'}), 401
         return redirect(url_for('auth.login_page'))
+        
+    # Restricciones para el usuario Tablet
+    if current_user.is_authenticated and getattr(current_user, 'is_tablet', False):
+        allowed_tablet_endpoints = [
+            'main.tablet_dashboard', 
+            'main.get_tablet_data', 
+            'tareas.completar_tarea',
+            'inventario.actualizar_estado_lista',
+            'auth.logout_page',
+            'static'
+        ]
+        if request.endpoint not in allowed_tablet_endpoints:
+            return redirect(url_for('main.tablet_dashboard'))
 
 # ==========================================
 # 6. TAREAS PROGRAMADAS Y ARRANQUE

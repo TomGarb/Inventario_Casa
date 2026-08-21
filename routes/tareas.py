@@ -279,8 +279,14 @@ def completar_tarea(id_tarea):
     tarea = db.get_or_404(Tarea, id_tarea)
     tarea.completada = True
     
+    # Soporte para Tablet/Kiosco (puede completar tareas a nombre de otro usuario)
+    data = request.get_json(silent=True) or {}
+    usuario_final = current_user.id
+    if data.get('usuario_id') and (getattr(current_user, 'is_tablet', False) or getattr(current_user, 'is_admin', False)):
+        usuario_final = int(data['usuario_id'])
+    
     # Register in Historial
-    hist = HistorialTarea(tarea_id=tarea.id, usuario_id=current_user.id)
+    hist = HistorialTarea(tarea_id=tarea.id, usuario_id=usuario_final)
     db.session.add(hist)
     
     # Update model's last execution date if applicable

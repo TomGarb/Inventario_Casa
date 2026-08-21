@@ -11,6 +11,7 @@ class Usuario(UserMixin, db.Model):
     telegram_chat_id = db.Column(db.String(50), unique=True, nullable=True)
     telegram_link_token = db.Column(db.String(10), unique=True, nullable=True)
     is_admin = db.Column(db.Boolean, default=False)
+    is_tablet = db.Column(db.Boolean, default=False)
     
     # Nuevas preferencias de notificaciones
     recibir_resumen_matutino = db.Column(db.Boolean, default=True)

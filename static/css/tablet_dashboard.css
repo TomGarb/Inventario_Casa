@@ -1,0 +1,187 @@
+﻿/* Estilos Optimizados para Tablet / Kiosco Táctil */
+body {
+    background-color: var(--bg-color);
+    margin: 0;
+    padding: 0;
+    height: 100vh;
+    overflow: hidden; /* No global scroll */
+    user-select: none; /* Prevenir selección de texto accidental */
+    touch-action: pan-y; /* Mejor manejo de touch en scroll-lists */
+}
+
+/* Header */
+.tablet-header {
+    background: var(--card-bg);
+    padding: 15px 30px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 2px solid var(--border-color);
+    height: 70px;
+    box-sizing: border-box;
+}
+
+.tablet-header .time { font-size: 2rem; font-weight: bold; color: var(--primary-color); }
+.tablet-header .title { font-size: 1.5rem; font-weight: bold; color: var(--text-color); }
+
+/* Layout Grid (Horizontal Tablet) */
+.tablet-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 60% 40%;
+    height: calc(100vh - 70px);
+    gap: 15px;
+    padding: 15px;
+    box-sizing: border-box;
+}
+
+/* Tareas occupies full left column */
+.tablet-grid > .tablet-card:first-child {
+    grid-row: 1 / span 2;
+}
+
+.tablet-card {
+    background: var(--card-bg);
+    border-radius: 15px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid var(--border-color);
+}
+
+.card-title {
+    padding: 15px 20px;
+    font-size: 1.5rem;
+    font-weight: bold;
+    border-bottom: 2px solid var(--border-color);
+    background: rgba(0,0,0,0.02);
+    color: var(--text-color);
+}
+
+.scroll-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 10px;
+}
+
+/* Botones y Elementos Interactivos - GIGANTES para el dedo */
+.touch-btn {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px;
+    background: var(--bg-color);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    margin-bottom: 10px;
+    font-size: 1.4rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    color: var(--text-color);
+}
+
+.touch-btn:active {
+    transform: scale(0.98);
+    background: var(--border-color);
+}
+
+.touch-btn.completing {
+    opacity: 0.5;
+    pointer-events: none;
+    transform: translateX(100%); /* Slide out animation */
+    transition: transform 0.3s ease-out, opacity 0.3s;
+}
+
+.task-icon {
+    font-size: 2rem;
+    color: var(--text-secondary);
+    width: 40px;
+    text-align: center;
+}
+
+/* Producto Grid */
+.product-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 10px;
+}
+
+.product-btn {
+    background: var(--bg-color);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 15px 10px;
+    text-align: center;
+    font-size: 1.1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    cursor: pointer;
+}
+.product-btn:active { background: var(--border-color); }
+.product-btn i { font-size: 2rem; color: var(--primary-color); margin-bottom: 5px;}
+
+.search-box {
+    padding: 10px;
+    display: flex;
+    gap: 10px;
+    border-bottom: 1px solid var(--border-color);
+}
+.search-box input {
+    flex: 1;
+    padding: 15px;
+    font-size: 1.2rem;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+}
+.search-box i { font-size: 1.5rem; padding: 15px; color: var(--text-secondary); }
+
+/* User Modal */
+.modal-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+}
+.modal-content {
+    background: var(--card-bg);
+    padding: 30px;
+    border-radius: 20px;
+    width: 80%;
+    max-width: 600px;
+    text-align: center;
+}
+.modal-content h2 { margin-top: 0; font-size: 2rem; margin-bottom: 20px;}
+.user-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 15px;
+}
+.user-btn {
+    background: var(--primary-color);
+    color: white;
+    border: none;
+    padding: 20px;
+    font-size: 1.5rem;
+    border-radius: 12px;
+    font-weight: bold;
+}
+.user-btn:active { opacity: 0.8; }
+.btn-large { padding: 15px 30px; font-size: 1.2rem; }
+.mt-15 { margin-top: 20px; }
+
+/* Menu */
+.menu-list {
+    padding: 15px;
+    font-size: 1.3rem;
+}
+.menu-item {
+    margin-bottom: 15px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid var(--border-color);
+}
+.menu-item:last-child { border: none;}

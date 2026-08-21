@@ -171,4 +171,137 @@ def get_movimientos():
     movs = query.order_by(Movimiento.fecha.desc()).limit(limit).all()
     return jsonify([{'id': m.id, 'descripcion': m.descripcion, 'fecha': m.fecha.strftime("%Y-%m-%d %H:%M")} for m in movs])
 
+import os
+
+@main_bp.route('/tv-dashboard', methods=['GET'])
+def tv_dashboard():
+    # Simple token protection (e.g. ?token=micasa123)
+    # The token can be set in .env as TV_DASHBOARD_TOKEN, default 'micasa123'
+    expected_token = os.environ.get('TV_DASHBOARD_TOKEN', 'micasa123')
+    token = request.args.get('token')
+    
+    if token != expected_token:
+        return "Acceso Denegado. Token inválido.", 403
+        
+    weather_api_key = os.environ.get('OPENWEATHER_API_KEY', '')
+    weather_city = os.environ.get('OPENWEATHER_CITY', 'Buenos Aires, AR')
+    
+    return render_template('views/tv_dashboard.html', 
+                           weather_api_key=weather_api_key, 
+                           weather_city=weather_city,
+                           token=token)
+
+@main_bp.route('/api/tv_data', methods=['GET'])
+def get_tv_data():
+    expected_token = os.environ.get('TV_DASHBOARD_TOKEN', 'micasa123')
+    token = request.args.get('token')
+    
+    if token != expected_token:
+        return jsonify({'error': 'Acceso Denegado'}), 403
+        
+    tz = pytz.timezone('America/Argentina/Buenos_Aires')
+    hoy = datetime.now(tz).date()
+    
+    # 1. Alertas de Stock
+    alertas_stock = Producto.query.filter(Producto.es_temporal == False, Producto.stock_actual <= Producto.stock_minimo).all()
+    stock_data = [{'nombre': p.nombre, 'stock_actual': p.stock_actual, 'stock_minimo': p.stock_minimo} for p in alertas_stock]
+    
+    # 2. Menús del Día
+    menus_hoy = MenuSemanal.query.filter(MenuSemanal.fecha_asignada == hoy).all()
+    menu_data = [{'tipo': m.tipo_comida, 'receta': m.receta.nombre} for m in menus_hoy]
+    
+    # 3. Logística (Próximos 3 eventos desde hoy)
+    ahora = datetime.now(tz)
+    fin_manana = (ahora + timedelta(days=1)).replace(hour=23, minute=59, second=59)
+    eventos = EventoLogistico.query.filter(
+        EventoLogistico.fecha_inicio >= ahora,
+        EventoLogistico.fecha_inicio <= fin_manana
+    ).order_by(EventoLogistico.fecha_inicio.asc()).limit(3).all()
+    logistica_data = [{'titulo': e.titulo, 'hora': e.fecha_inicio.strftime('%H:%M')} for e in eventos]
+    
+    # 4. Tareas (Vencidas y Hoy)
+    tareas_data = []
+    tareas = Tarea.query.all()
+    for t in tareas:
+        current_date = t.fecha_ultima_ejecucion or (hoy - timedelta(days=1))
+        proxima = calcular_proxima_fecha(t, current_date)
+        if t.tipo_frecuencia == 'fecha_fija':
+            try: proxima = datetime.strptime(t.valor_frecuencia, '%Y-%m-%d').date()
+            except: proxima = hoy
+            
+        if proxima <= hoy:
+            prox_user_id = calcular_proximo_turno(t)
+            prox_user = db.session.get(Usuario, prox_user_id) if prox_user_id else None
+            nombre_asignado = prox_user.username if prox_user else "Todos"
+            
+            tareas_data.append({
+                'nombre': t.nombre,
+                'asignado': nombre_asignado,
+                'vencida': (hoy - proxima).days > 0,
+                'prioridad': t.prioridad
+            })
+            
+    # Sort tareas: Vencidas and Urgentes first
+    tareas_data.sort(key=lambda x: (not x['vencida'], x['prioridad'] != 'Urgente'))
+    
+    return jsonify({
+        'stock': stock_data,
+        'menus': menu_data,
+        'logistica': logistica_data,
+        'tareas': tareas_data[:6]
+    })
+
+
+@main_bp.route('/tablet-dashboard', methods=['GET'])
+@login_required
+def tablet_dashboard():
+    return render_template('views/tablet_dashboard.html')
+
+
+@main_bp.route('/api/tablet_data', methods=['GET'])
+@login_required
+def get_tablet_data():
+    tz = pytz.timezone('America/Argentina/Buenos_Aires')
+    hoy = datetime.now(tz).date()
+    
+    # 1. Tareas de hoy (pendientes)
+    tareas_data = []
+    tareas = Tarea.query.filter_by(completada=False).all()
+    for t in tareas:
+        current_date = t.fecha_ultima_ejecucion or (hoy - timedelta(days=1))
+        proxima = calcular_proxima_fecha(t, current_date)
+        if t.tipo_frecuencia == 'fecha_fija':
+            try: proxima = datetime.strptime(t.valor_frecuencia, '%Y-%m-%d').date()
+            except: proxima = hoy
+            
+        if proxima <= hoy:
+            tareas_data.append({
+                'id': t.id,
+                'nombre': t.nombre,
+                'prioridad': t.prioridad,
+                'vencida': (hoy - proxima).days > 0
+            })
+            
+    tareas_data.sort(key=lambda x: (not x['vencida'], x['prioridad'] != 'Urgente'))
+    
+    # 2. Productos Comunes (para marcarlos rápido como faltantes)
+    # Mostramos los que NO están en la lista y no son temporales
+    productos = Producto.query.filter_by(es_temporal=False, en_lista=False).order_by(Producto.nombre).all()
+    inventario_data = [{'id': p.id, 'nombre': p.nombre, 'stock': p.stock_actual} for p in productos]
+    
+    # 3. Menú de Hoy
+    menus_hoy = MenuSemanal.query.filter(MenuSemanal.fecha_asignada == hoy).all()
+    menu_data = [{'tipo': m.tipo_comida, 'receta': m.receta.nombre} for m in menus_hoy]
+    
+    # 4. Usuarios Reales (no tablet) para asignar acciones
+    usuarios = Usuario.query.filter_by(is_tablet=False).all()
+    usuarios_data = [{'id': u.id, 'username': u.username} for u in usuarios]
+    
+    return jsonify({
+        'tareas': tareas_data,
+        'inventario': inventario_data,
+        'menus': menu_data,
+        'usuarios': usuarios_data
+    })
+
 

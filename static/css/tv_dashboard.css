@@ -1,0 +1,153 @@
+﻿/* Tema oscuro de alto contraste para TV */
+:root {
+    --tv-bg: #050505;
+    --tv-card-bg: #111111;
+    --tv-border: #333333;
+    --tv-text: #ffffff;
+    --tv-text-muted: #aaaaaa;
+    --tv-accent: #3498db;
+    --tv-danger: #e74c3c;
+    --tv-warning: #f1c40f;
+    --tv-success: #2ecc71;
+}
+
+body {
+    margin: 0;
+    padding: 20px;
+    background-color: var(--tv-bg);
+    color: var(--tv-text);
+    font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    overflow: hidden; /* Evitar scroll en la TV */
+}
+
+.tv-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    gap: 20px;
+    height: 95vh;
+}
+
+.tv-widget {
+    background-color: var(--tv-card-bg);
+    border: 1px solid var(--tv-border);
+    border-radius: 15px;
+    padding: 25px;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+}
+
+.widget-header {
+    font-size: 2rem;
+    font-weight: bold;
+    margin-bottom: 20px;
+    color: var(--tv-accent);
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    border-bottom: 2px solid var(--tv-border);
+    padding-bottom: 15px;
+}
+
+.alert-header {
+    color: var(--tv-danger);
+}
+
+.widget-content {
+    flex: 1;
+    overflow-y: hidden;
+    font-size: 1.8rem;
+}
+
+/* Reloj Widget Especial */
+.clock-widget {
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+}
+
+#tv-clock {
+    font-size: 8rem;
+    font-weight: bold;
+    line-height: 1;
+    text-shadow: 0 0 20px rgba(52, 152, 219, 0.5);
+}
+
+#tv-date {
+    font-size: 2.5rem;
+    color: var(--tv-text-muted);
+    margin-top: 10px;
+    margin-bottom: 30px;
+}
+
+#tv-weather {
+    font-size: 3rem;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    background: rgba(255,255,255,0.05);
+    padding: 20px 40px;
+    border-radius: 20px;
+}
+
+.weather-missing {
+    font-size: 1.5rem;
+    color: var(--tv-warning);
+}
+.weather-missing .small-text {
+    font-size: 1rem;
+    color: var(--tv-text-muted);
+}
+
+/* Listas internas */
+.tv-item {
+    padding: 15px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.tv-item:last-child {
+    border-bottom: none;
+}
+
+.badge {
+    padding: 5px 15px;
+    border-radius: 20px;
+    font-size: 1.2rem;
+    font-weight: bold;
+}
+
+.badge-danger { background: var(--tv-danger); color: white; }
+.badge-warning { background: var(--tv-warning); color: black; }
+.badge-success { background: var(--tv-success); color: white; }
+.badge-primary { background: var(--tv-accent); color: white; }
+
+.double-widget {
+    display: grid;
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr 1fr;
+    gap: 20px;
+    padding: 0;
+    background: transparent;
+    border: none;
+    box-shadow: none;
+}
+
+.sub-widget {
+    background-color: var(--tv-card-bg);
+    border: 1px solid var(--tv-border);
+    border-radius: 15px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+}
+
+.empty-state {
+    color: var(--tv-text-muted);
+    font-style: italic;
+    text-align: center;
+    margin-top: 20px;
+}
