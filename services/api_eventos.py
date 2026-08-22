@@ -4,7 +4,7 @@ Usa la API key pública "1" para consultar próximos partidos de equipos y ligas
 """
 import requests
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from extensions import db
 
 SPORTS_API_BASE = "https://www.thesportsdb.com/api/v1/json/3"
