@@ -94,6 +94,14 @@
                 <!-- Formulario Nueva Suscripcion -->
                 <div class="neo-card" style="margin-bottom: 20px;">
                     <h4>➕ Nueva Suscripción</h4>
+                    
+                    <div class="alert alert-info" style="margin-top: 10px; font-size: 0.9rem;">
+                        💡 <strong>¿Cómo agregar un equipo o liga?</strong><br>
+                        1. Entra a <a href="https://www.thesportsdb.com/" target="_blank" style="color: var(--primary-color);">thesportsdb.com</a> y busca a tu equipo o liga.<br>
+                        2. Al entrar a su perfil, mira la URL (ej: <code>.../team/135171-River-Plate</code>).<br>
+                        3. Copia solo los números del inicio (en este caso <code>135171</code>) y pégalo en "TheSportsDB ID".
+                    </div>
+
                     <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 60px auto; gap: 15px; align-items: end; margin-top: 15px;">
                         <div>
                             <label style="font-size: 0.85rem; color: var(--text-secondary);">TheSportsDB ID</label>
@@ -121,6 +129,37 @@
                 <!-- Lista Suscripciones -->
                 <div id="subs-container">
                     <div class="loading">Cargando suscripciones...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal Editar Suscripción -->
+        <div id="modal-editar-sub" class="modal oculto">
+            <div class="modal-content" style="max-width: 500px;">
+                <h2 style="color: var(--primary-color);">✏️ Editar Suscripción</h2>
+                <input type="hidden" id="edit-sub-id">
+                <div class="form-group" style="margin-top: 15px;">
+                    <label>TheSportsDB ID</label>
+                    <input type="text" id="edit-sub-api-id" class="neo-input">
+                </div>
+                <div class="form-group" style="margin-top: 15px;">
+                    <label>Nombre</label>
+                    <input type="text" id="edit-sub-nombre" class="neo-input">
+                </div>
+                <div class="form-group" style="margin-top: 15px;">
+                    <label>Tipo</label>
+                    <select id="edit-sub-tipo" class="neo-input">
+                        <option value="equipo">Equipo</option>
+                        <option value="liga">Liga</option>
+                    </select>
+                </div>
+                <div class="form-group" style="margin-top: 15px;">
+                    <label>Color</label>
+                    <input type="color" id="edit-sub-color" class="neo-input" style="padding: 2px; height: 38px; width: 100%;">
+                </div>
+                <div class="modal-actions" style="margin-top: 25px; display: flex; justify-content: flex-end; gap: 10px;">
+                    <button class="btn neo-button-secondary" onclick="document.getElementById('modal-editar-sub').classList.add('oculto')">Cancelar</button>
+                    <button class="btn neo-button-primary" onclick="guardarEdicionSuscripcion()">Guardar Cambios</button>
                 </div>
             </div>
         </div>

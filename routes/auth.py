@@ -217,15 +217,27 @@ def crear_suscripcion():
     db.session.commit()
     return jsonify(sub.to_dict()), 201
 
-@auth_bp.route('/api/suscripciones/<int:id>', methods=['DELETE'])
+@auth_bp.route('/api/suscripciones/<int:id>', methods=['PUT', 'DELETE'])
 @login_required
-def eliminar_suscripcion(id):
+def gestionar_suscripcion(id):
     sub = SuscripcionDeporte.query.get_or_404(id)
     if sub.usuario_id != current_user.id and not current_user.is_admin:
         return jsonify({'error': 'No autorizado'}), 403
-    db.session.delete(sub)
-    db.session.commit()
-    return jsonify({'mensaje': 'Suscripción eliminada'})
+        
+    if request.method == 'DELETE':
+        db.session.delete(sub)
+        db.session.commit()
+        return jsonify({'mensaje': 'Suscripción eliminada'})
+        
+    if request.method == 'PUT':
+        data = request.get_json()
+        if 'nombre' in data: sub.nombre = data['nombre'].strip()
+        if 'external_api_id' in data: sub.external_api_id = data['external_api_id'].strip()
+        if 'tipo' in data and data['tipo'] in ('equipo', 'liga'): sub.tipo = data['tipo'].strip()
+        if 'color' in data: sub.color = data['color'].strip()
+        
+        db.session.commit()
+        return jsonify(sub.to_dict()), 200
 
 @auth_bp.route('/api/sincronizar_deportes', methods=['POST'])
 @login_required

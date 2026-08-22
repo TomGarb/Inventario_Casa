@@ -300,7 +300,7 @@ async function cargarSuscripciones() {
             container.innerHTML = '<div style="color: var(--text-secondary); text-align: center; padding: 20px;">No tienes suscripciones activas.</div>';
             return;
         }
-        
+        window.suscripcionesCache = subs;
         container.innerHTML = subs.map(s => `
             <div class="neo-card" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; padding: 15px; border-left: 5px solid ${s.color || '#3b82f6'};">
                 <div>
@@ -308,11 +308,55 @@ async function cargarSuscripciones() {
                     <span class="badge badge-info" style="margin-left: 10px; text-transform: capitalize;">${s.tipo}</span>
                     <div style="font-size: 0.8rem; color: var(--text-secondary);">API ID: ${s.external_api_id}</div>
                 </div>
-                <button class="neo-button-secondary" onclick="eliminarSuscripcion(${s.id})" style="color: var(--danger-color); padding: 5px 15px;">🗑️ Eliminar</button>
+                <div>
+                    <button class="neo-button-secondary" onclick="abrirEditarSuscripcion(${s.id})" style="padding: 5px 15px; margin-right: 5px;">✏️ Editar</button>
+                    <button class="neo-button-secondary" onclick="eliminarSuscripcion(${s.id})" style="color: var(--danger-color); padding: 5px 15px;">🗑️ Eliminar</button>
+                </div>
             </div>
         `).join('');
     } catch(e) {
         container.innerHTML = `<div class="alert alert-danger">Error: ${e.message}</div>`;
+    }
+}
+
+function abrirEditarSuscripcion(id) {
+    const sub = window.suscripcionesCache.find(s => s.id === id);
+    if (!sub) return;
+    
+    document.getElementById('edit-sub-id').value = sub.id;
+    document.getElementById('edit-sub-api-id').value = sub.external_api_id;
+    document.getElementById('edit-sub-nombre').value = sub.nombre;
+    document.getElementById('edit-sub-tipo').value = sub.tipo;
+    document.getElementById('edit-sub-color').value = sub.color || '#3b82f6';
+    
+    document.getElementById('modal-editar-sub').classList.remove('oculto');
+}
+
+async function guardarEdicionSuscripcion() {
+    const id = document.getElementById('edit-sub-id').value;
+    const api_id = document.getElementById('edit-sub-api-id').value.trim();
+    const nombre = document.getElementById('edit-sub-nombre').value.trim();
+    const tipo = document.getElementById('edit-sub-tipo').value;
+    const color = document.getElementById('edit-sub-color').value;
+    
+    if (!api_id || !nombre) {
+        showToast('Completa ID y Nombre', 'error');
+        return;
+    }
+    
+    try {
+        const res = await fetch('/api/suscripciones/' + id, {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ external_api_id: api_id, nombre, tipo, color })
+        });
+        if (!res.ok) throw new Error('Error al guardar cambios');
+        
+        document.getElementById('modal-editar-sub').classList.add('oculto');
+        showToast('Suscripción actualizada', 'success');
+        cargarSuscripciones();
+    } catch(e) {
+        showToast('Error: ' + e.message, 'error');
     }
 }
 
