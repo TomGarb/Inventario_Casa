@@ -1,7 +1,7 @@
 from flask import Blueprint, request, jsonify, render_template, redirect, url_for, flash
 from flask_login import login_required, current_user, login_user, logout_user
 from extensions import db
-from models.database import Usuario, Gasto, DetalleGasto, DivisionGasto, Producto, Ubicacion, SubUbicacion, Sala, Comercio, Movimiento, Tarea, ModeloTarea, HistorialTarea, SaltoTarea, EventoLogistico, Receta, IngredienteReceta, MenuSemanal, HorarioComidas
+from models.database import Usuario, Gasto, DetalleGasto, DivisionGasto, Producto, Ubicacion, SubUbicacion, Sala, Comercio, Movimiento, Tarea, ModeloTarea, HistorialTarea, SaltoTarea, EventoLogistico, Receta, IngredienteReceta, MenuSemanal, HorarioComidas, SuscripcionDeporte
 from datetime import datetime, date, timedelta
 from sqlalchemy import extract
 import json
@@ -181,3 +181,43 @@ def configuracion_global():
         db.session.commit()
         return jsonify({'mensaje': 'Configuración global guardada exitosamente'})
 
+# ==========================================
+# SUSCRIPCIONES DEPORTIVAS
+# ==========================================
+
+@auth_bp.route('/api/suscripciones', methods=['GET'])
+@login_required
+def get_suscripciones():
+    subs = SuscripcionDeporte.query.filter_by(usuario_id=current_user.id).all()
+    return jsonify([s.to_dict() for s in subs])
+
+@auth_bp.route('/api/suscripciones', methods=['POST'])
+@login_required
+def crear_suscripcion():
+    data = request.get_json()
+    nombre = data.get('nombre', '').strip()
+    external_api_id = data.get('external_api_id', '').strip()
+    tipo = data.get('tipo', '').strip()
+    
+    if not nombre or not external_api_id or tipo not in ('equipo', 'liga'):
+        return jsonify({'error': 'Datos incompletos. Se requiere nombre, external_api_id y tipo (equipo/liga)'}), 400
+    
+    sub = SuscripcionDeporte(
+        usuario_id=current_user.id,
+        nombre=nombre,
+        external_api_id=external_api_id,
+        tipo=tipo
+    )
+    db.session.add(sub)
+    db.session.commit()
+    return jsonify(sub.to_dict()), 201
+
+@auth_bp.route('/api/suscripciones/<int:id>', methods=['DELETE'])
+@login_required
+def eliminar_suscripcion(id):
+    sub = SuscripcionDeporte.query.get_or_404(id)
+    if sub.usuario_id != current_user.id and not current_user.is_admin:
+        return jsonify({'error': 'No autorizado'}), 403
+    db.session.delete(sub)
+    db.session.commit()
+    return jsonify({'mensaje': 'Suscripción eliminada'})

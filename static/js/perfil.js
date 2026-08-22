@@ -194,6 +194,10 @@ document.addEventListener('DOMContentLoaded', () => {
             btn.classList.add('active');
             const targetId = btn.getAttribute('data-target');
             document.getElementById(targetId).classList.add('active');
+            
+            if (targetId === 'panel-entret') {
+                cargarSuscripciones();
+            }
         });
     });
     
@@ -276,5 +280,78 @@ async function guardarConfiguracionGlobal(event) {
     } finally {
         btn.innerText = originalText;
         btn.disabled = false;
+    }
+}
+
+// ==========================
+// SUSCRIPCIONES DEPORTIVAS
+// ==========================
+
+async function cargarSuscripciones() {
+    const container = document.getElementById('subs-container');
+    if (!container) return;
+    
+    try {
+        const res = await fetch('/api/suscripciones');
+        if (!res.ok) throw new Error('Error al cargar suscripciones');
+        const subs = await res.json();
+        
+        if (subs.length === 0) {
+            container.innerHTML = '<div style="color: var(--text-secondary); text-align: center; padding: 20px;">No tienes suscripciones activas.</div>';
+            return;
+        }
+        
+        container.innerHTML = subs.map(s => `
+            <div class="neo-card" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; padding: 15px;">
+                <div>
+                    <strong>${s.nombre}</strong>
+                    <span class="badge badge-info" style="margin-left: 10px; text-transform: capitalize;">${s.tipo}</span>
+                    <div style="font-size: 0.8rem; color: var(--text-secondary);">API ID: ${s.external_api_id}</div>
+                </div>
+                <button class="neo-button-secondary" onclick="eliminarSuscripcion(${s.id})" style="color: var(--danger-color); padding: 5px 15px;">🗑️ Eliminar</button>
+            </div>
+        `).join('');
+    } catch(e) {
+        container.innerHTML = `<div class="alert alert-danger">Error: ${e.message}</div>`;
+    }
+}
+
+async function agregarSuscripcion() {
+    const id = document.getElementById('sub-id').value.trim();
+    const nombre = document.getElementById('sub-nombre').value.trim();
+    const tipo = document.getElementById('sub-tipo').value;
+    
+    if (!id || !nombre) {
+        showToast('Completa ID y Nombre', 'error');
+        return;
+    }
+    
+    try {
+        const res = await fetch('/api/suscripciones', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ external_api_id: id, nombre, tipo })
+        });
+        if (!res.ok) throw new Error('Error al guardar');
+        
+        document.getElementById('sub-id').value = '';
+        document.getElementById('sub-nombre').value = '';
+        
+        showToast('Suscripción agregada', 'success');
+        cargarSuscripciones();
+    } catch(e) {
+        showToast('Error: ' + e.message, 'error');
+    }
+}
+
+async function eliminarSuscripcion(id) {
+    if (!confirm('¿Eliminar esta suscripción?')) return;
+    try {
+        const res = await fetch('/api/suscripciones/' + id, { method: 'DELETE' });
+        if (!res.ok) throw new Error('Error al eliminar');
+        showToast('Eliminada', 'success');
+        cargarSuscripciones();
+    } catch(e) {
+        showToast('Error: ' + e.message, 'error');
     }
 }

@@ -9,6 +9,7 @@
     <div class="perfil-sidebar">
         <button class="perfil-tab-btn active" data-target="panel-cuenta">👤 Cuenta & Seguridad</button>
         <button class="perfil-tab-btn" data-target="panel-notif">🔔 Notificaciones</button>
+        <button class="perfil-tab-btn" data-target="panel-entret">🎬 Entretenimiento</button>
         {% if current_user.is_admin %}
         <button class="perfil-tab-btn" data-target="panel-admin">🤖 Config. Telegram</button>
         {% endif %}
@@ -79,6 +80,42 @@
                     </label>
                     <button type="button" class="btn btn-primary" onclick="guardarPreferencias(event)" style="width: fit-content; margin-top: 10px;">Guardar Preferencias</button>
                 </form>
+            </div>
+        </div>
+
+        <!-- Tab 4: Entretenimiento -->
+        <div id="panel-entret" class="tab-panel">
+            <div class="dash-card">
+                <h3 class="dash-header">🎬 Suscripciones Deportivas</h3>
+                <p style="color: var(--text-secondary); margin-bottom: 20px;">Sincroniza automáticamente los próximos eventos en tu calendario Logístico.</p>
+
+                <!-- Formulario Nueva Suscripcion -->
+                <div class="neo-card" style="margin-bottom: 20px;">
+                    <h4>➕ Nueva Suscripción</h4>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 15px; align-items: end; margin-top: 15px;">
+                        <div>
+                            <label style="font-size: 0.85rem; color: var(--text-secondary);">TheSportsDB ID</label>
+                            <input type="text" id="sub-id" class="neo-input" placeholder="Ej: 135171">
+                        </div>
+                        <div>
+                            <label style="font-size: 0.85rem; color: var(--text-secondary);">Nombre descriptivo</label>
+                            <input type="text" id="sub-nombre" class="neo-input" placeholder="Ej: River Plate">
+                        </div>
+                        <div>
+                            <label style="font-size: 0.85rem; color: var(--text-secondary);">Tipo</label>
+                            <select id="sub-tipo" class="neo-input">
+                                <option value="equipo">Equipo</option>
+                                <option value="liga">Liga</option>
+                            </select>
+                        </div>
+                        <button class="neo-button-primary" onclick="agregarSuscripcion()">Añadir</button>
+                    </div>
+                </div>
+
+                <!-- Lista Suscripciones -->
+                <div id="subs-container">
+                    <div class="loading">Cargando suscripciones...</div>
+                </div>
             </div>
         </div>
 

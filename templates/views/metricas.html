@@ -54,6 +54,37 @@
             </div>
         </div>
     </div>
+
+    <!-- METAS DE AHORRO -->
+    <div class="dashboard-hero" style="margin-top: 20px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+            <h2 style="color: var(--primary-color); margin: 0;">🎯 Metas de Ahorro</h2>
+            <button class="neo-button-primary" onclick="toggleFormMeta()" style="font-size: 0.9rem;">+ Nueva Meta</button>
+        </div>
+        
+        <!-- Formulario inline nueva meta -->
+        <div id="form-nueva-meta" class="neo-card" style="display: none; margin-bottom: 20px;">
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 15px; align-items: end;">
+                <div>
+                    <label style="font-size: 0.85rem; color: var(--text-secondary); display: block; margin-bottom: 5px;">Nombre</label>
+                    <input type="text" id="meta-nombre" class="neo-input" placeholder="Ej: Vacaciones 2027" style="padding: 12px;">
+                </div>
+                <div>
+                    <label style="font-size: 0.85rem; color: var(--text-secondary); display: block; margin-bottom: 5px;">Monto Objetivo ($)</label>
+                    <input type="number" id="meta-monto" class="neo-input" placeholder="100000" style="padding: 12px;">
+                </div>
+                <div>
+                    <label style="font-size: 0.85rem; color: var(--text-secondary); display: block; margin-bottom: 5px;">Fecha Límite (opcional)</label>
+                    <input type="date" id="meta-fecha" class="neo-input" style="padding: 12px;">
+                </div>
+                <button class="neo-button-primary" onclick="crearMeta()" style="padding: 12px 25px;">Guardar</button>
+            </div>
+        </div>
+        
+        <div id="metas-container" class="metas-grid">
+            <div class="loading">Cargando metas...</div>
+        </div>
+    </div>
 </div>
 {% endblock %}
 

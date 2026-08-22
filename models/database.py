@@ -325,6 +325,49 @@ class MenuSemanal(db.Model):
     
     receta = db.relationship('Receta', backref='asignaciones')
 
+
+class MetaAhorro(db.Model):
+    __tablename__ = 'metas_ahorro'
+    id = db.Column(db.Integer, primary_key=True)
+    nombre = db.Column(db.String(100), nullable=False)
+    monto_objetivo = db.Column(db.Float, nullable=False)
+    monto_actual = db.Column(db.Float, default=0.0)
+    fecha_limite = db.Column(db.Date, nullable=True)
+    icono = db.Column(db.String(50), default='🎯')
+    completada = db.Column(db.Boolean, default=False)
+
+    def to_dict(self):
+        pct = round((self.monto_actual / self.monto_objetivo) * 100, 1) if self.monto_objetivo > 0 else 0
+        return {
+            'id': self.id,
+            'nombre': self.nombre,
+            'monto_objetivo': self.monto_objetivo,
+            'monto_actual': self.monto_actual,
+            'fecha_limite': self.fecha_limite.isoformat() if self.fecha_limite else None,
+            'icono': self.icono,
+            'completada': self.completada,
+            'porcentaje': min(pct, 100)
+        }
+
+class SuscripcionDeporte(db.Model):
+    __tablename__ = 'suscripciones_deporte'
+    id = db.Column(db.Integer, primary_key=True)
+    usuario_id = db.Column(db.Integer, db.ForeignKey('usuarios.id'), nullable=False)
+    nombre = db.Column(db.String(100), nullable=False)
+    external_api_id = db.Column(db.String(50), nullable=False)
+    tipo = db.Column(db.String(20), nullable=False)  # 'equipo' o 'liga'
+
+    usuario = db.relationship('Usuario', backref='suscripciones_deporte')
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'usuario_id': self.usuario_id,
+            'nombre': self.nombre,
+            'external_api_id': self.external_api_id,
+            'tipo': self.tipo
+        }
+
 @login_manager.user_loader
 def load_user(user_id):
     return db.session.get(Usuario, int(user_id))

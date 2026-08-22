@@ -289,6 +289,53 @@ def _limpiar_lock():
             pass
 atexit.register(_limpiar_lock)
 
+def seed_suscripciones():
+    """Inyecta suscripciones deportivas iniciales si la tabla está vacía."""
+    with app.app_context():
+        from models.database import SuscripcionDeporte, Usuario
+        import sqlalchemy
+        try:
+            if SuscripcionDeporte.query.first() is not None:
+                return  # Ya hay datos
+            
+            admin = Usuario.query.filter_by(is_admin=True).first()
+            if not admin:
+                admin = Usuario.query.first()
+            if not admin:
+                logging.warning("[Seed] No hay usuarios para asignar suscripciones deportivas.")
+                return
+            
+            seeds = [
+                # Equipos
+                {'nombre': 'San Lorenzo', 'external_api_id': '135173', 'tipo': 'equipo'},
+                {'nombre': 'River Plate', 'external_api_id': '135171', 'tipo': 'equipo'},
+                {'nombre': 'Scuderia Ferrari HP', 'external_api_id': '134806', 'tipo': 'equipo'},
+                {'nombre': 'Argentina', 'external_api_id': '134509', 'tipo': 'equipo'},
+                {'nombre': 'Bayern Munich', 'external_api_id': '133664', 'tipo': 'equipo'},
+                {'nombre': 'Chelsea', 'external_api_id': '133610', 'tipo': 'equipo'},
+                # Ligas
+                {'nombre': 'Formula 1', 'external_api_id': '4370', 'tipo': 'liga'},
+                {'nombre': 'UEFA Champions League', 'external_api_id': '4480', 'tipo': 'liga'},
+                {'nombre': 'NBA', 'external_api_id': '4387', 'tipo': 'liga'},
+            ]
+            
+            for s in seeds:
+                db.session.add(SuscripcionDeporte(usuario_id=admin.id, **s))
+            
+            db.session.commit()
+            logging.info(f"[Seed] {len(seeds)} suscripciones deportivas inyectadas para {admin.username}.")
+        except sqlalchemy.exc.ProgrammingError:
+            db.session.rollback()
+            logging.info("[Seed] La tabla SuscripcionDeporte no existe aún, saltando inyección de datos (probablemente durante migración).")
+        except Exception as e:
+            db.session.rollback()
+            logging.warning(f"[Seed] Error inyectando datos semilla: {e}")
+
+def sync_eventos_deportivos_job():
+    """Wrapper para ejecutar la sincronización deportiva desde el scheduler."""
+    from services.api_eventos import sync_eventos_deportivos
+    sync_eventos_deportivos(app)
+
 def start_background_tasks():
     lock_activo = False
     if os.path.exists(LOCK_FILE):
@@ -321,6 +368,7 @@ def start_background_tasks():
             scheduler.add_job(func=check_tareas_pendientes, trigger="cron", hour=9, minute=0)
             scheduler.add_job(func=enviar_resumen_matutino, trigger="cron", hour=8, minute=0)
             scheduler.add_job(func=cleanup_pending_commands, trigger="interval", hours=1)
+            scheduler.add_job(func=sync_eventos_deportivos_job, trigger="cron", day_of_week='mon', hour=3)
             scheduler.start()
             logging.info("[Scheduler] Tareas cron de fondo iniciadas correctamente.")
         except Exception as e:
@@ -334,6 +382,9 @@ if bot:
 
 # Intentar arrancar tareas de fondo solo una vez (compatible con WSGI)
 start_background_tasks()
+
+# Seed data después de arranque
+seed_suscripciones()
 
 # ==========================================
 # 12. ENDPOINTS NUEVOS MODULOS (STUBS) Y WEBHOOK

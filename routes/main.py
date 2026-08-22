@@ -1,7 +1,7 @@
 from flask import Blueprint, request, jsonify, render_template, redirect, url_for, flash
 from flask_login import login_required, current_user, login_user, logout_user
 from extensions import db
-from models.database import Usuario, Gasto, DetalleGasto, DivisionGasto, Producto, Ubicacion, SubUbicacion, Sala, Comercio, Movimiento, Tarea, ModeloTarea, HistorialTarea, SaltoTarea, EventoLogistico, Receta, IngredienteReceta, MenuSemanal, HorarioComidas
+from models.database import Usuario, Gasto, DetalleGasto, DivisionGasto, Producto, Ubicacion, SubUbicacion, Sala, Comercio, Movimiento, Tarea, ModeloTarea, HistorialTarea, SaltoTarea, EventoLogistico, Receta, IngredienteReceta, MenuSemanal, HorarioComidas, MetaAhorro
 from datetime import datetime, date, timedelta
 from sqlalchemy import extract
 import json
@@ -313,6 +313,9 @@ def get_metricas_data():
             'monto': b['monto']
         })
             
+    # Metas de Ahorro
+    metas = MetaAhorro.query.filter_by(completada=False).all()
+            
     return jsonify({
         'kpis': {
             'gasto_mes_actual': float(gastos_mes),
@@ -326,5 +329,60 @@ def get_metricas_data():
         'excepciones': {
             'tareas_vencidas': tareas_vencidas,
             'deudas': deudas
-        }
+        },
+        'metas': [m.to_dict() for m in metas]
     })
+
+# ==========================================
+# METAS DE AHORRO
+# ==========================================
+
+@main_bp.route('/api/metas', methods=['POST'])
+@login_required
+def crear_meta():
+    data = request.get_json()
+    nombre = data.get('nombre', '').strip()
+    monto_objetivo = data.get('monto_objetivo', 0)
+    fecha_limite = data.get('fecha_limite')
+    icono = data.get('icono', '🎯')
+    
+    if not nombre or not monto_objetivo or float(monto_objetivo) <= 0:
+        return jsonify({'error': 'Se requiere nombre y monto objetivo mayor a 0'}), 400
+    
+    meta = MetaAhorro(
+        nombre=nombre,
+        monto_objetivo=float(monto_objetivo),
+        fecha_limite=datetime.strptime(fecha_limite, '%Y-%m-%d').date() if fecha_limite else None,
+        icono=icono
+    )
+    db.session.add(meta)
+    db.session.commit()
+    return jsonify(meta.to_dict()), 201
+
+@main_bp.route('/api/metas/<int:id>', methods=['PUT'])
+@login_required
+def actualizar_meta(id):
+    meta = MetaAhorro.query.get_or_404(id)
+    data = request.get_json()
+    
+    if 'aporte' in data:
+        meta.monto_actual = meta.monto_actual + float(data['aporte'])
+        if meta.monto_actual >= meta.monto_objetivo:
+            meta.completada = True
+    if 'nombre' in data:
+        meta.nombre = data['nombre']
+    if 'monto_objetivo' in data:
+        meta.monto_objetivo = float(data['monto_objetivo'])
+    if 'completada' in data:
+        meta.completada = data['completada']
+    
+    db.session.commit()
+    return jsonify(meta.to_dict())
+
+@main_bp.route('/api/metas/<int:id>', methods=['DELETE'])
+@login_required
+def eliminar_meta(id):
+    meta = MetaAhorro.query.get_or_404(id)
+    db.session.delete(meta)
+    db.session.commit()
+    return jsonify({'mensaje': 'Meta eliminada'})
