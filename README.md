@@ -1,31 +1,26 @@
 # HomeStock 📦🎙️
 
-HomeStock es un gestor de inventario doméstico inteligente diseñado para registrar, consultar y administrar los productos de tu hogar de manera sencilla. Su principal fortaleza radica en la integración con un Bot de Telegram que permite actualizar el inventario enviando comandos de voz impulsados por OpenAI Whisper.
+HomeStock es un ERP doméstico y gestor inteligente diseñado para registrar, consultar y administrar todas las áreas de tu hogar de manera sencilla. Integra un Bot de Telegram con Inteligencia Artificial (Gemini 2.0 Flash) para interpretar texto y leer tickets de compra, un calendario logístico, módulo de finanzas compartidas y dashboards multi-dispositivo.
 
 ## Características Principales
-* **Control por Voz (Telegram)**: Envía audios a tu bot ("Compré 2 litros de leche", "Gasté 1 paquete de fideos") y el sistema lo transcribe, interpreta y actualiza tu stock.
-* **Manejo de Intenciones NLP**: Detección de intenciones (Agregar, Comprar, Restar, Consumir) para operaciones precisas.
-* **Botones Inline**: Confirmación o rechazo de acciones directamente en el chat, con capacidad de "Deshacer" (Undo) de forma segura y concurrente.
-* **Dashboard Web**: Panel de administración web responsivo y amigable para gestionar Categorías, Ubicaciones, Productos y Usuarios.
-* **Panel de Administrador**: Control de roles y permisos (`@admin_required`) para proteger rutas y la gestión de usuarios.
-* **Alertas de Stock Bajo**: Tareas programadas (CRON) que revisan los productos por debajo del stock mínimo y avisan al administrador por Telegram.
+* **Inteligencia Artificial Multimodal (Gemini)**: Procesamiento de texto natural para detectar intenciones y lectura de tickets de supermercado mediante OCR para carga automática de gastos. *(Nota: El soporte de audio se encuentra deshabilitado para optimizar cuota de IA).*
+* **Manejo de Intenciones NLP**: Detección inteligente de intenciones (Inventario, Finanzas, Logística, Tareas) directo desde Telegram.
+* **Módulo de Finanzas (Tipo Splitwise)**: Carga de gastos, subida de tickets por foto, y división automática de deudas entre los habitantes del hogar.
+* **Logística y Entretenimiento (TheSportsDB)**: Calendario compartido del hogar. Permite sincronizar y agregar automáticamente los próximos partidos de tus equipos y ligas favoritas (F1, NBA, Fútbol).
+* **Métricas y Gamificación**: Sistema de "Metas de Ahorro" con barras de progreso visuales y estadísticas de gastos mensuales.
+* **Gestor de Menú y Recetas**: Creación de recetas (Desayuno, Almuerzo, Cena), armado de menús semanales automáticos y su cruce con el inventario para deducir qué ingredientes faltan.
+* **Dashboards Multi-Dispositivo (TV y Tablet)**: Vistas animadas dedicadas (`/tv-dashboard`, `/tablet`) que auto-scrollean y se refrescan solas para tenerlas siempre en pantalla.
+* **Interfaz Neomórfica (UI/UX)**: Diseño completamente renovado basado en Neomorfismo, con sombras suaves, componentes redondeados y modo responsivo absoluto.
+* **Sistema Avanzado de Tareas**: Tareas recurrentes, saltos de turno (`SaltoTarea`), asignaciones por usuario e historial de completado.
 
 ## Tecnologías Utilizadas (Stack)
-* **Backend**: Python 3, Flask, SQLAlchemy.
+* **Backend**: Python 3.12+, Flask, SQLAlchemy, Flask-Migrate.
 * **Base de Datos**: PostgreSQL.
 * **Bot de Telegram**: `pyTelegramBotAPI` con webhooks simulados (Safe Polling).
-* **Inteligencia Artificial (Voz a Texto)**: `openai-whisper`.
-* **Programación de Tareas**: `APScheduler` con soporte de zona horaria (`pytz`).
-* **Frontend**: HTML5, CSS3, JavaScript (Jinja2 Templates).
+* **Inteligencia Artificial**: `google-genai` (Gemini 2.0 Flash).
+* **Programación de Tareas**: `APScheduler` (Cron jobs para stock bajo y sincronización).
+* **Frontend**: HTML5, CSS3 (Neomorfismo), Vanilla JavaScript (Jinja2 Templates).
 * **Servidor (WSGI)**: Preparado para `Gunicorn` / `Waitress`.
-
-## Requisitos Previos
-1. **PostgreSQL**: Asegúrate de tener un servidor de PostgreSQL corriendo.
-2. **FFmpeg**: Requerido por Whisper para procesar archivos de audio. Instálalo en tu sistema operativo:
-   * Windows: `winget install ffmpeg` o descárgalo de la web oficial y agrégalo al PATH.
-   * Linux (Debian/Ubuntu): `sudo apt install ffmpeg`
-   * macOS: `brew install ffmpeg`
-3. **Python 3.10+**.
 
 ## Instrucciones de Instalación y Despliegue
 
@@ -54,40 +49,39 @@ Copia el archivo `.env.example` y renómbralo a `.env`:
 ```bash
 cp .env.example .env
 ```
-Abre el archivo `.env` y configura tus claves reales:
-* `TELEGRAM_TOKEN`: El token proporcionado por BotFather.
+Abre el archivo `.env` y configura tus claves:
+* `TELEGRAM_TOKEN`: El token de tu bot de Telegram.
 * `DATABASE_URL`: Tu cadena de conexión a PostgreSQL (Ej: `postgresql://usuario:password@localhost:5432/homestock`).
-* `SECRET_KEY`: Una cadena segura para encriptar las sesiones de Flask.
+* `SECRET_KEY`: Llave de encriptación para las sesiones de Flask.
+* `GEMINI_API_KEY`: Tu API Key de Google AI Studio.
 
 ### 5. Iniciar la Aplicación (Modo Desarrollo)
+Ejecuta las migraciones y lanza el servidor:
 ```bash
+flask db upgrade
 python app.py
 ```
-*La base de datos se inicializará automáticamente gracias a SQLAlchemy si las tablas no existen.*
+*El sistema inyectará automáticamente los datos semilla (Suscripciones base, configuraciones) al arrancar.*
 
-### 6. Despliegue en Producción (WSGI)
-El proyecto está optimizado con un sistema de _Lock_ (`bot_scheduler.lock`) para evitar la colisión de hilos de Telegram cuando se ejecuta bajo servidores WSGI que levantan múltiples trabajadores.
-Puedes iniciar el proyecto con Waitress en Windows:
+### 6. Despliegue en Producción
+El proyecto está optimizado con un sistema de _Lock_ (`bot_scheduler.lock`) para evitar la colisión de hilos de Telegram y Scheduler.
+En Render o Linux (Gunicorn):
 ```bash
-waitress-serve --port=5000 app:app
-```
-O con Gunicorn en Linux:
-```bash
-gunicorn -w 4 -b 0.0.0.0:5000 app:app
+gunicorn -w 2 -b 0.0.0.0:5000 app:app
 ```
 
-## Uso Básico
-1. Regístrate en la interfaz web (el primer usuario requerirá que un administrador lo apruebe, o bien se le puede dar permisos manualmente por BD si es el pionero).
-2. Ve a **Mi Perfil** y genera un **Token de Vinculación**.
-3. Abre Telegram y envíale al Bot el comando `/vincular [TU_TOKEN]`.
-4. ¡Listo! Ya puedes enviarle audios al Bot diciendo cosas como:
-   * "Agrega 2 paquetes de arroz a la despensa."
-   * "Saqué 1 lata de atún."
-   * "Compré 3 litros de leche en el supermercado."
+## Uso Básico del Telegram Bot
+1. Regístrate en la interfaz web y ve a **Mi Perfil** para generar un **Token de Vinculación**.
+2. Abre Telegram y envíale al Bot el comando `/vincular [TU_TOKEN]`.
+3. Ya puedes enviarle comandos de texto natural:
+   * "Compré 3 litros de leche en Coto por 2500"
+   * "Agrega el partido de hoy al calendario"
+   * También puedes enviarle **fotos de tickets de compra** y Gemini extraerá los gastos automáticamente.
 
 ## Seguridad
-* Todos los tokens y contraseñas de bases de datos han sido retirados del código base (utilizando `os.getenv`).
-* El acceso a las rutas críticas está protegido por un sistema de roles y login. No comitees nunca tu archivo `.env`.
+* Todos los endpoints de la API web están protegidos por CSRF tokens dinámicos en el frontend.
+* Las rutas de administración están protegidas con el decorador `@admin_required`.
+* Las credenciales nunca se exponen en código (gestión por `.env`).
 
 ---
-*Desarrollado con ❤️ para organizar el hogar.*
+*Desarrollado con ❤️ para centralizar el control del hogar.*

@@ -286,6 +286,7 @@ class EventoLogistico(db.Model):
     creador_id = db.Column(db.Integer, db.ForeignKey('usuarios.id'), nullable=False)
     asignado_id = db.Column(db.Integer, db.ForeignKey('usuarios.id'), nullable=True)
     frecuencia = db.Column(db.String(20), default='none')
+    color = db.Column(db.String(20), nullable=True, default='#6f42c1')
     
     creador = db.relationship('Usuario', foreign_keys=[creador_id], backref='eventos_creados')
     asignado = db.relationship('Usuario', foreign_keys=[asignado_id], backref='eventos_asignados')
@@ -356,6 +357,7 @@ class SuscripcionDeporte(db.Model):
     nombre = db.Column(db.String(100), nullable=False)
     external_api_id = db.Column(db.String(50), nullable=False)
     tipo = db.Column(db.String(20), nullable=False)  # 'equipo' o 'liga'
+    color = db.Column(db.String(20), nullable=True, default='#3b82f6')
 
     usuario = db.relationship('Usuario', backref='suscripciones_deporte')
 
@@ -365,7 +367,8 @@ class SuscripcionDeporte(db.Model):
             'usuario_id': self.usuario_id,
             'nombre': self.nombre,
             'external_api_id': self.external_api_id,
-            'tipo': self.tipo
+            'tipo': self.tipo,
+            'color': self.color
         }
 
 @login_manager.user_loader

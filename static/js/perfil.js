@@ -302,7 +302,7 @@ async function cargarSuscripciones() {
         }
         
         container.innerHTML = subs.map(s => `
-            <div class="neo-card" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; padding: 15px;">
+            <div class="neo-card" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; padding: 15px; border-left: 5px solid ${s.color || '#3b82f6'};">
                 <div>
                     <strong>${s.nombre}</strong>
                     <span class="badge badge-info" style="margin-left: 10px; text-transform: capitalize;">${s.tipo}</span>
@@ -320,6 +320,7 @@ async function agregarSuscripcion() {
     const id = document.getElementById('sub-id').value.trim();
     const nombre = document.getElementById('sub-nombre').value.trim();
     const tipo = document.getElementById('sub-tipo').value;
+    const color = document.getElementById('sub-color').value;
     
     if (!id || !nombre) {
         showToast('Completa ID y Nombre', 'error');
@@ -330,12 +331,13 @@ async function agregarSuscripcion() {
         const res = await fetch('/api/suscripciones', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ external_api_id: id, nombre, tipo })
+            body: JSON.stringify({ external_api_id: id, nombre, tipo, color })
         });
         if (!res.ok) throw new Error('Error al guardar');
         
         document.getElementById('sub-id').value = '';
         document.getElementById('sub-nombre').value = '';
+        document.getElementById('sub-color').value = '#3b82f6';
         
         showToast('Suscripción agregada', 'success');
         cargarSuscripciones();

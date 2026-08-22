@@ -51,10 +51,16 @@ def sync_eventos_deportivos(app):
                     if not fecha_str:
                         continue
                     
-                    # Parsear fecha y hora
+                    # Parsear fecha y hora a hora de Argentina (UTC-3)
                     try:
-                        if hora_str and hora_str != '00:00:00':
-                            fecha_hora = datetime.strptime(f"{fecha_str} {hora_str[:5]}", "%Y-%m-%d %H:%M")
+                        timestamp_str = evento.get('strTimestamp')
+                        if timestamp_str:
+                            # strTimestamp suele venir en formato "2026-09-01T00:15:00" y es UTC
+                            utc_dt = datetime.strptime(timestamp_str, "%Y-%m-%dT%H:%M:%S")
+                            fecha_hora = utc_dt - timedelta(hours=3)
+                        elif hora_str and hora_str != '00:00:00':
+                            utc_dt = datetime.strptime(f"{fecha_str} {hora_str[:5]}", "%Y-%m-%d %H:%M")
+                            fecha_hora = utc_dt - timedelta(hours=3)
                         else:
                             fecha_hora = datetime.strptime(fecha_str, "%Y-%m-%d")
                     except (ValueError, TypeError):
@@ -83,6 +89,7 @@ def sync_eventos_deportivos(app):
                         descripcion=f"Evento deportivo sincronizado automáticamente desde TheSportsDB ({sub.tipo}: {sub.nombre})",
                         fecha_inicio=fecha_hora,
                         creador_id=sub.usuario_id,
+                        color=sub.color,
                         frecuencia='none'
                     )
                     db.session.add(nuevo)

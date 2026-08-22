@@ -201,6 +201,7 @@ def crear_suscripcion():
     nombre = data.get('nombre', '').strip()
     external_api_id = data.get('external_api_id', '').strip()
     tipo = data.get('tipo', '').strip()
+    color = data.get('color', '#3b82f6').strip()
     
     if not nombre or not external_api_id or tipo not in ('equipo', 'liga'):
         return jsonify({'error': 'Datos incompletos. Se requiere nombre, external_api_id y tipo (equipo/liga)'}), 400
@@ -209,7 +210,8 @@ def crear_suscripcion():
         usuario_id=current_user.id,
         nombre=nombre,
         external_api_id=external_api_id,
-        tipo=tipo
+        tipo=tipo,
+        color=color
     )
     db.session.add(sub)
     db.session.commit()

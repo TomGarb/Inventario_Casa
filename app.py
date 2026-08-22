@@ -297,16 +297,16 @@ def seed_suscripciones():
             
             seeds = [
                 # Equipos
-                {'nombre': 'San Lorenzo', 'external_api_id': '135173', 'tipo': 'equipo'},
-                {'nombre': 'River Plate', 'external_api_id': '135171', 'tipo': 'equipo'},
-                {'nombre': 'Scuderia Ferrari HP', 'external_api_id': '134806', 'tipo': 'equipo'},
-                {'nombre': 'Argentina', 'external_api_id': '134509', 'tipo': 'equipo'},
-                {'nombre': 'Bayern Munich', 'external_api_id': '133664', 'tipo': 'equipo'},
-                {'nombre': 'Chelsea', 'external_api_id': '133610', 'tipo': 'equipo'},
+                {'nombre': 'San Lorenzo', 'external_api_id': '135173', 'tipo': 'equipo', 'color': '#0a1f44'},
+                {'nombre': 'River Plate', 'external_api_id': '135171', 'tipo': 'equipo', 'color': '#e60000'},
+                {'nombre': 'Scuderia Ferrari HP', 'external_api_id': '134806', 'tipo': 'equipo', 'color': '#ff2800'},
+                {'nombre': 'Argentina', 'external_api_id': '134509', 'tipo': 'equipo', 'color': '#75aadb'},
+                {'nombre': 'Bayern Munich', 'external_api_id': '133664', 'tipo': 'equipo', 'color': '#dc052d'},
+                {'nombre': 'Chelsea', 'external_api_id': '133610', 'tipo': 'equipo', 'color': '#034694'},
                 # Ligas
-                {'nombre': 'Formula 1', 'external_api_id': '4370', 'tipo': 'liga'},
-                {'nombre': 'UEFA Champions League', 'external_api_id': '4480', 'tipo': 'liga'},
-                {'nombre': 'NBA', 'external_api_id': '4387', 'tipo': 'liga'},
+                {'nombre': 'Formula 1', 'external_api_id': '4370', 'tipo': 'liga', 'color': '#e10600'},
+                {'nombre': 'UEFA Champions League', 'external_api_id': '4480', 'tipo': 'liga', 'color': '#0e1e5b'},
+                {'nombre': 'NBA', 'external_api_id': '4387', 'tipo': 'liga', 'color': '#c9082a'},
             ]
             
             for s in seeds:

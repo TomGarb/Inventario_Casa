@@ -35,7 +35,7 @@ def api_logistica_get():
     result = []
     
     for ev in eventos:
-        color = '#6f42c1' # Purple default
+        color = getattr(ev, 'color', None) or '#6f42c1' # Default to purple if no color
         
         # Build base event
         base_event = {
