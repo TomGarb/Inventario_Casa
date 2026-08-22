@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify, render_template, redirect, url_for, flash
+from flask import Blueprint, request, jsonify, render_template, redirect, url_for, flash, current_app
 from flask_login import login_required, current_user, login_user, logout_user
 from extensions import db
 from models.database import Usuario, Gasto, DetalleGasto, DivisionGasto, Producto, Ubicacion, SubUbicacion, Sala, Comercio, Movimiento, Tarea, ModeloTarea, HistorialTarea, SaltoTarea, EventoLogistico, Receta, IngredienteReceta, MenuSemanal, HorarioComidas, SuscripcionDeporte
@@ -6,7 +6,10 @@ from datetime import datetime, date, timedelta
 from sqlalchemy import extract
 import json
 import logging
+import random
+import string
 from utils import admin_required
+from services.api_eventos import sync_eventos_deportivos
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -221,3 +224,12 @@ def eliminar_suscripcion(id):
     db.session.delete(sub)
     db.session.commit()
     return jsonify({'mensaje': 'Suscripción eliminada'})
+
+@auth_bp.route('/api/sincronizar_deportes', methods=['POST'])
+@login_required
+def sincronizar_deportes_manual():
+    try:
+        sync_eventos_deportivos(current_app._get_current_object())
+        return jsonify({"status": "success", "message": "Eventos sincronizados correctamente"}), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500

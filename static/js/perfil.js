@@ -355,3 +355,30 @@ async function eliminarSuscripcion(id) {
         showToast('Error: ' + e.message, 'error');
     }
 }
+
+document.addEventListener('DOMContentLoaded', () => {
+    const btnSyncDeportes = document.getElementById('btn-sync-deportes');
+    if (btnSyncDeportes) {
+        btnSyncDeportes.addEventListener('click', async () => {
+            const originalText = btnSyncDeportes.innerHTML;
+            btnSyncDeportes.innerHTML = '⏳ Sincronizando...';
+            btnSyncDeportes.disabled = true;
+            
+            try {
+                const res = await fetch('/api/sincronizar_deportes', { method: 'POST' });
+                const data = await res.json();
+                
+                if (res.ok && data.status === 'success') {
+                    showToast(data.message, 'success');
+                } else {
+                    throw new Error(data.message || 'Error desconocido');
+                }
+            } catch (e) {
+                showToast('Error al sincronizar: ' + e.message, 'error');
+            } finally {
+                btnSyncDeportes.innerHTML = originalText;
+                btnSyncDeportes.disabled = false;
+            }
+        });
+    }
+});

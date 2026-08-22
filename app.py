@@ -1,10 +1,8 @@
 import logging
 import os
-import calendar
 import threading
 import telebot
 from google import genai
-import base64
 import json
 import pytz
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
@@ -15,16 +13,8 @@ from extensions import db, login_manager, csrf, migrate, bot
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import extract
 from dotenv import load_dotenv
-from collections import defaultdict
-from datetime import datetime, date, timedelta, timedelta
-from werkzeug.security import generate_password_hash, check_password_hash
+from datetime import datetime, date, timedelta
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
-import uuid
-import re
-import difflib
-import random
-import string
-from functools import wraps
 
 # ==========================================
 # 1. CONFIGURACIÓN E INICIALIZACIÓN
