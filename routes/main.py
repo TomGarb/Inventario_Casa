@@ -110,6 +110,10 @@ def get_movimientos():
 
 import os
 
+@main_bp.route('/tv/<pin>', methods=['GET'])
+def tv_dashboard_alias(pin):
+    return redirect(url_for('main.tv_dashboard', token=pin))
+
 @main_bp.route('/tv-dashboard', methods=['GET'])
 def tv_dashboard():
     # Simple token protection (e.g. ?token=micasa123)
@@ -118,7 +122,16 @@ def tv_dashboard():
     token = request.args.get('token')
     
     if token != expected_token:
-        return "Acceso Denegado. Token inválido.", 403
+        return f'''
+        <div style="background:#1e1e2f; color:white; font-family:sans-serif; height:100vh; display:flex; flex-direction:column; justify-content:center; align-items:center; text-align:center;">
+            <h1 style="color:#f43f5e; font-size: 3rem;">Acceso Denegado</h1>
+            <p style="font-size: 1.5rem;">Para acceder a la TV sin iniciar sesión, debes ingresar el PIN secreto en la URL.</p>
+            <p style="font-size: 1.5rem;">Usando el control remoto, entra a esta dirección exacta:</p>
+            <div style="background:#2dd4bf; color:black; padding:20px; font-size:2rem; font-weight:bold; border-radius:15px; margin: 20px;">
+                tusitio.com/tv/{expected_token}
+            </div>
+        </div>
+        ''', 403
         
     weather_api_key = os.environ.get('OPENWEATHER_API_KEY', '')
     weather_city = os.environ.get('OPENWEATHER_CITY', 'Buenos Aires, AR')
