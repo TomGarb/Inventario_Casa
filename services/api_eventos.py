@@ -7,7 +7,7 @@ import logging
 from datetime import datetime
 from extensions import db
 
-SPORTS_API_BASE = "https://www.thesportsdb.com/api/v1/json/1"
+SPORTS_API_BASE = "https://www.thesportsdb.com/api/v1/json/3"
 
 def sync_eventos_deportivos(app):
     """
