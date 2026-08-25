@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% block title %}Mis Casas | HomeStock{% endblock %}
+
+{% block content %}
+<div class="row" style="max-width: 800px; margin: 0 auto; padding-top: 20px;">
+    <div class="col-12">
+        <div class="dash-card">
+            <h2 class="dash-header" style="margin-bottom: 20px;">🏠 Mis Casas</h2>
+            
+            {% if not mostrar_nueva %}
+                <p style="color: var(--text-secondary); margin-bottom: 20px;">Selecciona la casa que deseas gestionar actualmente.</p>
+                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 20px; margin-bottom: 30px;">
+                    {% for relacion in mis_casas %}
+                        <div class="neo-card {% if relacion.casa.id == current_casa_id %}selected-casa{% endif %}" style="text-align: center; cursor: pointer; transition: 0.3s; {% if relacion.casa.id == current_casa_id %}border: 2px solid var(--primary-color);{% endif %}" onclick="seleccionarCasa({{ relacion.casa.id }})">
+                            <h3 style="margin-bottom: 10px; color: var(--text-primary);">{{ relacion.casa.nombre }}</h3>
+                            <p style="font-size: 0.85rem; color: var(--text-secondary);">Rol: <span style="text-transform: capitalize; color: var(--primary-color); font-weight: 500;">{{ relacion.rol }}</span></p>
+                            {% if relacion.casa.id == current_casa_id %}
+                                <div style="margin-top: 15px;">
+                                    <span class="badge badge-success" style="padding: 5px 15px;">Casa Activa</span>
+                                </div>
+                            {% endif %}
+                        </div>
+                    {% endfor %}
+                    
+                    <!-- Add New -->
+                    <div class="neo-card" style="text-align: center; cursor: pointer; display: flex; flex-direction: column; justify-content: center; align-items: center; border: 2px dashed var(--border-color); background: transparent; box-shadow: none;" onclick="window.location.href='/casas/nueva'">
+                        <div style="font-size: 2rem; color: var(--primary-color); margin-bottom: 10px;">➕</div>
+                        <h4 style="color: var(--text-secondary);">Crear Nueva Casa</h4>
+                    </div>
+                </div>
+
+                {% if current_casa_id %}
+                <div class="neo-card" style="margin-top: 30px;">
+                    <h3 style="margin-bottom: 15px;">🤝 Invitar Miembro</h3>
+                    <div style="display: flex; gap: 15px;">
+                        <input type="text" id="invitar-username" class="neo-input" placeholder="Nombre de usuario (ej. juan123)">
+                        <button class="btn neo-button-primary" onclick="invitarMiembro()">Enviar Invitación</button>
+                    </div>
+                </div>
+                {% endif %}
+
+            {% else %}
+                <!-- Crear Nueva Casa -->
+                <p style="color: var(--text-secondary); margin-bottom: 20px;">Crea un nuevo entorno para aislar tu inventario, tareas y gastos.</p>
+                <div class="form-group" style="margin-bottom: 20px;">
+                    <label>Nombre de la Casa</label>
+                    <input type="text" id="nueva-casa-nombre" class="neo-input" placeholder="Ej: Departamento CABA, Casa de Verano">
+                </div>
+                <div style="display: flex; gap: 15px;">
+                    <button class="btn neo-button-primary" onclick="crearCasa()">Crear Casa</button>
+                    <a href="/casas" class="btn neo-button-secondary" style="text-decoration: none;">Cancelar</a>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script>
+async function seleccionarCasa(id) {
+    try {
+        const res = await fetch('/casas/seleccionar', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ casa_id: id })
+        });
+        if (res.ok) {
+            window.location.href = '/inventario';
+        } else {
+            const data = await res.json();
+            showToast(data.error || 'Error al cambiar de casa', 'error');
+        }
+    } catch (e) {
+        showToast('Error de conexión', 'error');
+    }
+}
+
+async function crearCasa() {
+    const nombre = document.getElementById('nueva-casa-nombre').value.trim();
+    if(!nombre) {
+        showToast('Debes ingresar un nombre', 'warning');
+        return;
+    }
+    try {
+        const res = await fetch('/casas/nueva', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ nombre })
+        });
+        if (res.ok) {
+            window.location.href = '/inventario';
+        } else {
+            showToast('Error al crear', 'error');
+        }
+    } catch (e) {
+        showToast('Error de conexión', 'error');
+    }
+}
+
+async function invitarMiembro() {
+    const username = document.getElementById('invitar-username').value.trim();
+    if(!username) {
+        showToast('Ingresa un usuario', 'warning');
+        return;
+    }
+    try {
+        const res = await fetch('/api/casas/invitar', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ username })
+        });
+        const data = await res.json();
+        if (res.ok) {
+            showToast(data.mensaje, 'success');
+            document.getElementById('invitar-username').value = '';
+        } else {
+            showToast(data.error || 'Error al invitar', 'error');
+        }
+    } catch (e) {
+        showToast('Error de conexión', 'error');
+    }
+}
+</script>
+{% endblock %}

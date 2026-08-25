@@ -12,6 +12,7 @@ class Usuario(UserMixin, db.Model):
     telegram_link_token = db.Column(db.String(10), unique=True, nullable=True)
     is_admin = db.Column(db.Boolean, default=False)
     is_tablet = db.Column(db.Boolean, default=False)
+    casa_activa_id = db.Column(db.Integer, db.ForeignKey('casas.id'), nullable=True)
     
     # Nuevas preferencias de notificaciones
     recibir_resumen_matutino = db.Column(db.Boolean, default=True)
@@ -35,8 +36,33 @@ class Usuario(UserMixin, db.Model):
             'recibir_recordatorios_tareas': self.recibir_recordatorios_tareas
         }
 
+
+class Casa(db.Model):
+    __tablename__ = 'casas'
+    id = db.Column(db.Integer, primary_key=True)
+    nombre = db.Column(db.String(100), nullable=False)
+    fecha_creacion = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'nombre': self.nombre,
+            'fecha_creacion': self.fecha_creacion.isoformat() if self.fecha_creacion else None
+        }
+
+class UsuarioCasa(db.Model):
+    __tablename__ = 'usuario_casa'
+    usuario_id = db.Column(db.Integer, db.ForeignKey('usuarios.id'), primary_key=True)
+    casa_id = db.Column(db.Integer, db.ForeignKey('casas.id'), primary_key=True)
+    rol = db.Column(db.String(20), default='miembro') # admin, miembro
+    estado_invitacion = db.Column(db.String(20), default='aceptada') # pendiente, aceptada
+
+    usuario = db.relationship('Usuario', backref=db.backref('casas_rel', lazy=True))
+    casa = db.relationship('Casa', backref=db.backref('usuarios_rel', lazy=True))
+
 class ConfiguracionGlobal(db.Model):
     __tablename__ = 'configuracion_global'
+    casa_id = db.Column(db.Integer, db.ForeignKey('casas.id'))
     id = db.Column(db.Integer, primary_key=True)
     grupo_principal_telegram_id = db.Column(db.String(50), nullable=True)
     hora_alerta_stock = db.Column(db.String(5), default="10:00")
@@ -55,6 +81,7 @@ usuario_modelo_tarea = db.Table('usuario_modelo_tarea',
 
 class ModeloTarea(db.Model):
     __tablename__ = 'modelo_tareas'
+    casa_id = db.Column(db.Integer, db.ForeignKey('casas.id'))
     id = db.Column(db.Integer, primary_key=True)
     nombre = db.Column(db.String(100), nullable=False)
     prioridad = db.Column(db.String(50), default='Esencial')
@@ -80,6 +107,7 @@ class ModeloTarea(db.Model):
 
 class Tarea(db.Model):
     __tablename__ = 'tareas'
+    casa_id = db.Column(db.Integer, db.ForeignKey('casas.id'))
     id = db.Column(db.Integer, primary_key=True)
     nombre = db.Column(db.String(100), nullable=False)
     prioridad = db.Column(db.String(50), default='Esencial')
@@ -110,6 +138,7 @@ class Tarea(db.Model):
 
 class HistorialTarea(db.Model):
     __tablename__ = 'historial_tareas'
+    casa_id = db.Column(db.Integer, db.ForeignKey('casas.id'))
     id = db.Column(db.Integer, primary_key=True)
     tarea_id = db.Column(db.Integer, db.ForeignKey('tareas.id'), nullable=False)
     usuario_id = db.Column(db.Integer, db.ForeignKey('usuarios.id'), nullable=False)
@@ -117,6 +146,7 @@ class HistorialTarea(db.Model):
 
 class SaltoTarea(db.Model):
     __tablename__ = 'salto_tareas'
+    casa_id = db.Column(db.Integer, db.ForeignKey('casas.id'))
     id = db.Column(db.Integer, primary_key=True)
     tarea_id = db.Column(db.Integer, db.ForeignKey('tareas.id'), nullable=False)
     usuario_id = db.Column(db.Integer, db.ForeignKey('usuarios.id'), nullable=False)
@@ -125,6 +155,7 @@ class SaltoTarea(db.Model):
 
 class Sala(db.Model):
     __tablename__ = 'salas'
+    casa_id = db.Column(db.Integer, db.ForeignKey('casas.id'))
     id = db.Column(db.Integer, primary_key=True)
     nombre = db.Column(db.String(100), nullable=False)
     piso = db.Column(db.String(50), nullable=True)
@@ -140,6 +171,7 @@ class Sala(db.Model):
 
 class Ubicacion(db.Model):
     __tablename__ = 'ubicaciones'
+    casa_id = db.Column(db.Integer, db.ForeignKey('casas.id'))
     id = db.Column(db.Integer, primary_key=True)
     nombre = db.Column(db.String(100), nullable=False)
     sala_id = db.Column(db.Integer, db.ForeignKey('salas.id'), nullable=False)
@@ -156,6 +188,7 @@ class Ubicacion(db.Model):
 
 class SubUbicacion(db.Model):
     __tablename__ = 'sub_ubicaciones'
+    casa_id = db.Column(db.Integer, db.ForeignKey('casas.id'))
     id = db.Column(db.Integer, primary_key=True)
     nombre = db.Column(db.String(100), nullable=False)
     ubicacion_id = db.Column(db.Integer, db.ForeignKey('ubicaciones.id'), nullable=False)
@@ -170,6 +203,7 @@ class SubUbicacion(db.Model):
 
 class Comercio(db.Model):
     __tablename__ = 'comercios'
+    casa_id = db.Column(db.Integer, db.ForeignKey('casas.id'))
     id = db.Column(db.Integer, primary_key=True)
     nombre = db.Column(db.String(100), nullable=False)
     productos = db.relationship('Producto', backref='rel_comercio', lazy=True)
@@ -182,6 +216,7 @@ class Comercio(db.Model):
 
 class Producto(db.Model):
     __tablename__ = 'productos'
+    casa_id = db.Column(db.Integer, db.ForeignKey('casas.id'))
     id = db.Column(db.Integer, primary_key=True)
     nombre = db.Column(db.String(100), nullable=False)
     descripcion = db.Column(db.String(255), nullable=True)
@@ -225,6 +260,7 @@ class Producto(db.Model):
 
 class Movimiento(db.Model):
     __tablename__ = 'movimientos'
+    casa_id = db.Column(db.Integer, db.ForeignKey('casas.id'))
     id = db.Column(db.Integer, primary_key=True)
     descripcion = db.Column(db.String(255), nullable=False)
     fecha = db.Column(db.DateTime, default=datetime.utcnow)
@@ -247,6 +283,7 @@ class Movimiento(db.Model):
 
 class Gasto(db.Model):
     __tablename__ = 'gastos'
+    casa_id = db.Column(db.Integer, db.ForeignKey('casas.id'))
     id = db.Column(db.Integer, primary_key=True)
     usuario_id = db.Column(db.Integer, db.ForeignKey('usuarios.id'), nullable=False)
     monto = db.Column(db.Float, nullable=False)
@@ -260,6 +297,7 @@ class Gasto(db.Model):
 
 class DetalleGasto(db.Model):
     __tablename__ = 'detalle_gastos'
+    casa_id = db.Column(db.Integer, db.ForeignKey('casas.id'))
     id = db.Column(db.Integer, primary_key=True)
     gasto_id = db.Column(db.Integer, db.ForeignKey('gastos.id'), nullable=False)
     descripcion = db.Column(db.String(200), nullable=False)
@@ -268,6 +306,7 @@ class DetalleGasto(db.Model):
 
 class DivisionGasto(db.Model):
     __tablename__ = 'division_gastos'
+    casa_id = db.Column(db.Integer, db.ForeignKey('casas.id'))
     id = db.Column(db.Integer, primary_key=True)
     gasto_id = db.Column(db.Integer, db.ForeignKey('gastos.id'), nullable=False)
     usuario_id = db.Column(db.Integer, db.ForeignKey('usuarios.id'), nullable=False)
@@ -278,6 +317,7 @@ class DivisionGasto(db.Model):
 
 class EventoLogistico(db.Model):
     __tablename__ = 'eventos_logisticos'
+    casa_id = db.Column(db.Integer, db.ForeignKey('casas.id'))
     id = db.Column(db.Integer, primary_key=True)
     titulo = db.Column(db.String(100), nullable=False)
     descripcion = db.Column(db.Text, nullable=True)
@@ -293,6 +333,7 @@ class EventoLogistico(db.Model):
 
 class HorarioComidas(db.Model):
     __tablename__ = 'horario_comidas'
+    casa_id = db.Column(db.Integer, db.ForeignKey('casas.id'))
     id = db.Column(db.Integer, primary_key=True)
     tipo_comida = db.Column(db.String(50), nullable=False) # Desayuno, Almuerzo, Merienda, Cena
     hora_inicio = db.Column(db.Time, nullable=False)
@@ -300,6 +341,7 @@ class HorarioComidas(db.Model):
 
 class IngredienteReceta(db.Model):
     __tablename__ = 'ingrediente_receta'
+    casa_id = db.Column(db.Integer, db.ForeignKey('casas.id'))
     receta_id = db.Column(db.Integer, db.ForeignKey('recetas.id'), primary_key=True)
     producto_id = db.Column(db.Integer, db.ForeignKey('productos.id'), primary_key=True)
     cantidad_requerida = db.Column(db.Float, nullable=False, default=1.0)
@@ -309,6 +351,7 @@ class IngredienteReceta(db.Model):
 
 class Receta(db.Model):
     __tablename__ = 'recetas'
+    casa_id = db.Column(db.Integer, db.ForeignKey('casas.id'))
     id = db.Column(db.Integer, primary_key=True)
     nombre = db.Column(db.String(150), nullable=False)
     tipo = db.Column(db.String(50), nullable=False) # Desayuno, Almuerzo, Merienda, Cena
@@ -318,6 +361,7 @@ class Receta(db.Model):
 
 class MenuSemanal(db.Model):
     __tablename__ = 'menu_semanal'
+    casa_id = db.Column(db.Integer, db.ForeignKey('casas.id'))
     id = db.Column(db.Integer, primary_key=True)
     dia_semana = db.Column(db.String(20), nullable=False) # Lunes a Domingo
     tipo_comida = db.Column(db.String(50), nullable=False) # Desayuno, Almuerzo, Merienda, Cena
@@ -329,6 +373,7 @@ class MenuSemanal(db.Model):
 
 class MetaAhorro(db.Model):
     __tablename__ = 'metas_ahorro'
+    casa_id = db.Column(db.Integer, db.ForeignKey('casas.id'))
     id = db.Column(db.Integer, primary_key=True)
     nombre = db.Column(db.String(100), nullable=False)
     monto_objetivo = db.Column(db.Float, nullable=False)
@@ -352,6 +397,7 @@ class MetaAhorro(db.Model):
 
 class SuscripcionDeporte(db.Model):
     __tablename__ = 'suscripciones_deporte'
+    casa_id = db.Column(db.Integer, db.ForeignKey('casas.id'))
     id = db.Column(db.Integer, primary_key=True)
     usuario_id = db.Column(db.Integer, db.ForeignKey('usuarios.id'), nullable=False)
     nombre = db.Column(db.String(100), nullable=False)

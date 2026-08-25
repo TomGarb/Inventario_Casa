@@ -1,11 +1,7 @@
 from flask import Blueprint, request, jsonify, render_template, redirect, url_for, flash, current_app
 from flask_login import login_required, current_user, login_user, logout_user
 from extensions import db
-from models.database import Usuario, Gasto, DetalleGasto, DivisionGasto, Producto, Ubicacion, SubUbicacion, Sala, Comercio, Movimiento, Tarea, ModeloTarea, HistorialTarea, SaltoTarea, EventoLogistico, Receta, IngredienteReceta, MenuSemanal, HorarioComidas, SuscripcionDeporte
-from datetime import datetime, date, timedelta
-from sqlalchemy import extract
-import json
-import logging
+from models.database import Usuario, SuscripcionDeporte
 import random
 import string
 from utils import admin_required

@@ -1,11 +1,9 @@
-from flask import Blueprint, request, jsonify, render_template, redirect, url_for, flash
-from flask_login import login_required, current_user, login_user, logout_user
+from flask import Blueprint, request, jsonify, render_template, redirect, url_for
+from flask_login import login_required, current_user
 from extensions import db
-from models.database import Usuario, Gasto, DetalleGasto, DivisionGasto, Producto, Ubicacion, SubUbicacion, Sala, Comercio, Movimiento, Tarea, ModeloTarea, HistorialTarea, SaltoTarea, EventoLogistico, Receta, IngredienteReceta, MenuSemanal, HorarioComidas, MetaAhorro
-from datetime import datetime, date, timedelta
+from models.database import Usuario, Gasto, Producto, Movimiento, Tarea, EventoLogistico, MenuSemanal, MetaAhorro
+from datetime import datetime, timedelta
 from sqlalchemy import extract
-import json
-import logging
 import pytz
 from utils import calcular_balances_globales, calcular_proxima_fecha, calcular_proximo_turno
 
@@ -58,11 +56,15 @@ def dashboard():
     # 5. Ultimos movimientos
     movimientos = Movimiento.query.order_by(Movimiento.fecha.desc()).limit(5).all()
 
+    # 6. Total en Lista de Compras
+    total_en_lista = Producto.query.filter_by(en_lista=True).count()
+
     return render_template('views/dashboard.html', 
         active_page='dashboard',
         mis_tareas=mis_tareas,
         total_tareas_hoy=total_tareas_hoy,
         total_faltantes=total_faltantes,
+        total_en_lista=total_en_lista,
         deuda_compartida=deuda_compartida,
         eventos_agenda=eventos_agenda,
         alertas_stock=alertas_stock,

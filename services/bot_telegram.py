@@ -1,5 +1,4 @@
 from functools import wraps
-import os
 import re
 import uuid
 import json
@@ -7,14 +6,14 @@ import logging
 from collections import defaultdict
 from datetime import datetime, date, timedelta
 import telebot
-from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
-from models.database import Usuario, Gasto, DetalleGasto, DivisionGasto, Producto, Ubicacion, SubUbicacion, Sala, Comercio, Movimiento, Tarea, ModeloTarea, HistorialTarea, SaltoTarea, EventoLogistico, Receta, IngredienteReceta, MenuSemanal, HorarioComidas
+from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
+from models.database import Usuario, Gasto, DetalleGasto, DivisionGasto, Producto, Ubicacion, Sala, Comercio, Movimiento, Tarea, HistorialTarea, EventoLogistico, Receta, MenuSemanal, HorarioComidas
 from extensions import db, bot
 from utils import is_authorized, formatear_fecha_amigable, consumir_receta
 import difflib
 import pytz
 from google import genai
-from services.gemini_service import clasificar_intencion, procesar_gasto_texto, check_api_quota_error, extraer_datos_evento, GEMINI_API_KEY
+from services.gemini_service import check_api_quota_error, extraer_datos_evento, GEMINI_API_KEY
 
 _bot_app = None
 
@@ -31,7 +30,21 @@ def get_app():
 def with_app_context(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
+        from app import bot_tenant_var
         with get_app().app_context():
+            # If the first arg is a message/call, get chat id
+            chat_id = None
+            if args and hasattr(args[0], 'chat'):
+                chat_id = args[0].chat.id
+            elif args and hasattr(args[0], 'message'):
+                chat_id = args[0].message.chat.id
+            
+            if chat_id:
+                from models.database import Usuario
+                u = Usuario.query.filter_by(telegram_chat_id=str(chat_id)).first()
+                if u and u.casa_activa_id:
+                    bot_tenant_var.set(str(u.casa_activa_id))
+                    
             return func(*args, **kwargs)
     return wrapper
 
@@ -713,7 +726,6 @@ def registrar_handlers(bot, app):
     @bot.message_handler(commands=['vincular'])
     @with_app_context
     def cmd_vincular(message):
-        import logging
         from sqlalchemy.exc import IntegrityError
         try:
             partes = message.text.split(maxsplit=1)

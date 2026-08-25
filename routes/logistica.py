@@ -1,11 +1,8 @@
-from flask import Blueprint, request, jsonify, render_template, redirect, url_for, flash
-from flask_login import login_required, current_user, login_user, logout_user
+from flask import Blueprint, request, jsonify, render_template
+from flask_login import login_required, current_user
 from extensions import db
-from models.database import Usuario, Gasto, DetalleGasto, DivisionGasto, Producto, Ubicacion, SubUbicacion, Sala, Comercio, Movimiento, Tarea, ModeloTarea, HistorialTarea, SaltoTarea, EventoLogistico, Receta, IngredienteReceta, MenuSemanal, HorarioComidas
-from datetime import datetime, date, timedelta
-from sqlalchemy import extract
-import json
-import logging
+from models.database import EventoLogistico
+from datetime import datetime, timedelta
 
 logistica_bp = Blueprint('logistica', __name__)
 
@@ -31,7 +28,11 @@ def api_logistica_get():
         start_date = None
         end_date = None
 
-    eventos = EventoLogistico.query.all()
+    casas_ids = [rel.casa_id for rel in current_user.casas_rel]
+    if not casas_ids:
+        return jsonify([])
+        
+    eventos = EventoLogistico.query.filter(EventoLogistico.casa_id.in_(casas_ids)).all()
     result = []
     
     for ev in eventos:
@@ -145,11 +146,13 @@ def api_logistica_post():
             dt_fin_naive = datetime.strptime(data['end'], "%Y-%m-%dT%H:%M")
             f_fin = tz.localize(dt_fin_naive)
             
+        from flask import session
         nuevo_evento = EventoLogistico(
             titulo=data['title'],
             fecha_inicio=f_inicio,
             fecha_fin=f_fin,
             creador_id=current_user.id,
+            casa_id=session.get('current_casa_id', current_user.casa_activa_id),
             frecuencia=data.get('frecuencia', 'none'),
             asignado_id=data.get('asignado_id') if data.get('asignado_id') else None
         )

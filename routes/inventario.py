@@ -1,11 +1,6 @@
-from flask import Blueprint, request, jsonify, render_template, redirect, url_for, flash
-from flask_login import login_required, current_user, login_user, logout_user
+from flask import Blueprint, request, jsonify, render_template
 from extensions import db, bot
-from models.database import Usuario, Gasto, DetalleGasto, DivisionGasto, Producto, Ubicacion, SubUbicacion, Sala, Comercio, Movimiento, Tarea, ModeloTarea, HistorialTarea, SaltoTarea, EventoLogistico, Receta, IngredienteReceta, MenuSemanal, HorarioComidas
-from datetime import datetime, date, timedelta
-from sqlalchemy import extract
-import json
-import logging
+from models.database import Producto, Ubicacion, SubUbicacion, Sala, Comercio, Movimiento
 import os
 from utils import crud_create, crud_update
 from services.bot_telegram import enviar_listas_agrupadas, enviar_al_grupo

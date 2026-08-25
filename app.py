@@ -1,20 +1,41 @@
 import logging
 import os
-import threading
 import telebot
-from google import genai
-import json
 import pytz
-from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 from apscheduler.schedulers.background import BackgroundScheduler
-from flask_wtf.csrf import CSRFProtect
-from flask import Flask, request, jsonify, render_template, redirect, url_for, flash
+from flask import Flask, request, jsonify, redirect, url_for, session
 from extensions import db, login_manager, csrf, migrate, bot
-from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import extract
+
+from sqlalchemy import event, bindparam
+from sqlalchemy.orm import with_loader_criteria
+from contextvars import ContextVar
+bot_tenant_var = ContextVar('bot_tenant_var', default=None)
+
+def get_current_tenant_id():
+    tenant_id = None
+    try:
+        from flask import request, session
+        from flask_login import current_user
+        if request:
+            if session.get('current_casa_id'):
+                tenant_id = int(session['current_casa_id'])
+            elif current_user and current_user.is_authenticated and current_user.casa_activa_id:
+                tenant_id = int(current_user.casa_activa_id)
+    except Exception:
+        pass
+        
+    if not tenant_id:
+        val = bot_tenant_var.get()
+        if val: tenant_id = int(val)
+        
+    return tenant_id if tenant_id else -1
+
+tenant_param = bindparam('tenant_id', callable_=get_current_tenant_id)
+
+
 from dotenv import load_dotenv
-from datetime import datetime, date, timedelta
-from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
+from datetime import datetime, timedelta
+from flask_login import current_user
 
 # ==========================================
 # 1. CONFIGURACIÓN E INICIALIZACIÓN
@@ -41,7 +62,28 @@ if app.config['SQLALCHEMY_DATABASE_URI'].startswith("postgres"):
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db.init_app(app)
-from flask_migrate import Migrate
+with app.app_context():
+    @event.listens_for(db.session, "do_orm_execute")
+    def _do_orm_execute(orm_execute_state):
+        if not (orm_execute_state.is_select or orm_execute_state.is_update or orm_execute_state.is_delete):
+            return
+        orm_execute_state.statement = orm_execute_state.statement.options(
+            with_loader_criteria(
+                db.Model,
+                lambda cls: cls.casa_id == tenant_param if hasattr(cls, 'casa_id') and cls.__name__ not in ['Casa', 'Usuario', 'UsuarioCasa', 'EventoLogistico'] else True,
+                include_aliases=True
+            )
+        )
+        
+    @event.listens_for(db.mapper, "before_insert")
+    def receive_before_insert(mapper, connection, target):
+        if hasattr(target, 'casa_id') and target.__class__.__name__ not in ['Casa', 'Usuario', 'UsuarioCasa', 'EventoLogistico']:
+            if not target.casa_id:
+                t_id = get_current_tenant_id()
+                if t_id > 0:
+                    target.casa_id = t_id
+
+
 migrate.init_app(app, db)
 
 login_manager.init_app(app)
@@ -53,7 +95,7 @@ from models.database import Usuario, Tarea, Producto, EventoLogistico
 @login_manager.user_loader
 def load_user(user_id):
     # Cambia 'Usuario' por el nombre de tu clase en la base de datos (ej. User)
-    return Usuario.query.get(int(user_id))
+    return db.session.get(Usuario, int(user_id))
 
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN', '')
 TELEGRADMIN_CHAT_ID = os.getenv('ADMIN_CHAT_ID')
@@ -84,6 +126,21 @@ def require_login():
         return redirect(url_for('auth.login_page'))
         
     # Restricciones para el usuario Tablet
+    
+    if current_user.is_authenticated and not getattr(current_user, 'is_tablet', False):
+        if 'current_casa_id' not in session and current_user.casa_activa_id:
+            session['current_casa_id'] = current_user.casa_activa_id
+            
+        allowed_casa_routes = ['casas.seleccionar', 'casas.nueva', 'casas.api_casas', 'auth.logout_page', 'static']
+        if not session.get('current_casa_id') and request.endpoint not in allowed_casa_routes and not request.path.startswith('/api/'):
+            # Si no tiene casa y no va a una ruta permitida
+            if current_user.casas_rel: # if they have houses
+                session['current_casa_id'] = current_user.casas_rel[0].casa_id
+                current_user.casa_activa_id = session['current_casa_id']
+                db.session.commit()
+            else:
+                pass # Later redirect to select/create house
+
     if current_user.is_authenticated and getattr(current_user, 'is_tablet', False):
         allowed_tablet_endpoints = [
             'main.tablet_dashboard', 
@@ -107,7 +164,7 @@ def require_login():
 
 
 
-from services.bot_telegram import enviar_al_grupo, enviar_al_usuario, safe_telegram_send
+from services.bot_telegram import enviar_al_usuario, safe_telegram_send
 
 def check_tareas_pendientes():
     with app.app_context():
@@ -310,7 +367,11 @@ def seed_suscripciones():
             ]
             
             for s in seeds:
-                db.session.add(SuscripcionDeporte(usuario_id=admin.id, **s))
+                db.session.add(SuscripcionDeporte(
+                    usuario_id=admin.id, 
+                    casa_id=admin.casa_activa_id,
+                    **s
+                ))
             
             db.session.commit()
             logging.info(f"[Seed] {len(seeds)} suscripciones deportivas inyectadas para {admin.username}.")

@@ -3,8 +3,7 @@ import json
 import logging
 from google import genai
 from datetime import datetime
-from models.database import Usuario, Gasto, DetalleGasto
-from extensions import db
+from models.database import Usuario
 
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 

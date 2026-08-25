@@ -53,15 +53,48 @@
             <div class="nav-buttons">
                 {% if current_user.is_authenticated %}
                 <a href="{{ url_for('main.dashboard') }}" class="nav-btn {% if active_page == 'dashboard' %}active{% endif %}"><span>📊</span> Dashboard</a>
-                <a href="{{ url_for('inventario.inventario') }}" class="nav-btn {% if active_page == 'inventario' %}active{% endif %}"><span>📦</span> Inventario</a>
-                <a href="{{ url_for('inventario.compras') }}" class="nav-btn {% if active_page == 'compras' %}active{% endif %}"><span>🛒</span> Compras</a>
-                <a href="{{ url_for('tareas.tareas_view') }}" class="nav-btn {% if active_page == 'tareas' %}active{% endif %}"><span>🧹</span> Tareas</a>
-                <a href="{{ url_for('finanzas.finanzas_page') }}" class="nav-btn {% if active_page == 'finanzas' %}active{% endif %}"><span>💸</span> Finanzas</a>
-                <a href="{{ url_for('logistica.logistica_page') }}" class="nav-btn {% if active_page == 'logistica' %}active{% endif %}"><span>📅</span> Logística</a>
-                <a href="{{ url_for('menus.menus_page') }}" class="nav-btn {% if active_page == 'menus' %}active{% endif %}"><span>🍽️</span> Menús</a>
-                <a href="{{ url_for('main.metricas') }}" class="nav-btn {% if active_page == 'metricas' %}active{% endif %}"><span>📊</span> Métricas</a>
-                <a href="{{ url_for('auth.perfil') }}" class="nav-btn {% if active_page == 'perfil' %}active{% endif %}"><span>👤</span> Perfil</a>
-                <a href="{{ url_for('auth.logout') }}" class="nav-btn"><span>🚪</span> Salir</a>
+                
+                <div class="nav-dropdown">
+                    <button class="nav-dropbtn nav-btn {% if active_page in ['inventario', 'compras', 'menus'] %}active{% endif %}">
+                        <span>📦</span> Operaciones <span class="arrow">▼</span>
+                    </button>
+                    <div class="nav-dropdown-content neo-card">
+                        <a href="{{ url_for('inventario.inventario') }}" class="nav-btn {% if active_page == 'inventario' %}active{% endif %}"><span>📦</span> Inventario</a>
+                        <a href="{{ url_for('inventario.compras') }}" class="nav-btn {% if active_page == 'compras' %}active{% endif %}"><span>🛒</span> Compras</a>
+                        <a href="{{ url_for('menus.menus_page') }}" class="nav-btn {% if active_page == 'menus' %}active{% endif %}"><span>🍽️</span> Menús</a>
+                    </div>
+                </div>
+
+                <div class="nav-dropdown">
+                    <button class="nav-dropbtn nav-btn {% if active_page in ['tareas', 'logistica'] %}active{% endif %}">
+                        <span>📅</span> Planificación <span class="arrow">▼</span>
+                    </button>
+                    <div class="nav-dropdown-content neo-card">
+                        <a href="{{ url_for('tareas.tareas_view') }}" class="nav-btn {% if active_page == 'tareas' %}active{% endif %}"><span>🧹</span> Tareas</a>
+                        <a href="{{ url_for('logistica.logistica_page') }}" class="nav-btn {% if active_page == 'logistica' %}active{% endif %}"><span>📅</span> Logística</a>
+                    </div>
+                </div>
+
+                <div class="nav-dropdown">
+                    <button class="nav-dropbtn nav-btn {% if active_page in ['finanzas', 'casas', 'metricas'] %}active{% endif %}">
+                        <span>⚙️</span> Gestión <span class="arrow">▼</span>
+                    </button>
+                    <div class="nav-dropdown-content neo-card">
+                        <a href="{{ url_for('finanzas.finanzas_page') }}" class="nav-btn {% if active_page == 'finanzas' %}active{% endif %}"><span>💸</span> Finanzas</a>
+                        <a href="{{ url_for('casas.gestionar_casas') }}" class="nav-btn {% if active_page == 'casas' %}active{% endif %}"><span>🏠</span> Casas</a>
+                        <a href="{{ url_for('main.metricas') }}" class="nav-btn {% if active_page == 'metricas' %}active{% endif %}"><span>📊</span> Métricas</a>
+                    </div>
+                </div>
+
+                <div class="nav-dropdown">
+                    <button class="nav-dropbtn nav-btn {% if active_page == 'perfil' %}active{% endif %}">
+                        <span>👤</span> Cuenta <span class="arrow">▼</span>
+                    </button>
+                    <div class="nav-dropdown-content neo-card">
+                        <a href="{{ url_for('auth.perfil') }}" class="nav-btn {% if active_page == 'perfil' %}active{% endif %}"><span>👤</span> Perfil</a>
+                        <a href="{{ url_for('auth.logout') }}" class="nav-btn"><span>🚪</span> Salir</a>
+                    </div>
+                </div>
                 {% else %}
                 <a href="{{ url_for('auth.login_page') }}" class="nav-btn {% if active_page == 'login' %}active{% endif %}"><span>🔑</span> Login</a>
                 {% endif %}

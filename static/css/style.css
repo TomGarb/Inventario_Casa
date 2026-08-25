@@ -802,3 +802,332 @@ select option {
     gap: 10px;
     margin-top: 15px;
 }
+
+/* =========================
+   NAV DROPDOWNS
+   ========================= */
+.nav-dropdown {
+    position: relative;
+    display: inline-block;
+}
+
+.nav-dropbtn {
+    cursor: pointer;
+    background: transparent;
+    border: none;
+    outline: none;
+    font-family: inherit;
+    /* other styles are inherited from .nav-btn */
+}
+
+.nav-dropbtn .arrow {
+    font-size: 0.7rem;
+    margin-left: 0.2rem;
+    transition: transform 0.2s ease;
+}
+
+.nav-dropdown-content {
+    display: none;
+    position: absolute;
+    z-index: 1000;
+    min-width: 170px;
+    padding: 10px;
+    flex-direction: column;
+    gap: 5px;
+    opacity: 0;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+    transform: translateY(10px);
+}
+
+.nav-dropdown:hover .nav-dropdown-content {
+    display: flex;
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.nav-dropdown:hover .nav-dropbtn .arrow {
+    transform: rotate(180deg);
+}
+
+/* Ensure links in dropdown look good */
+.nav-dropdown-content .nav-btn {
+    width: 100%;
+    justify-content: flex-start;
+}
+
+@media (max-width: 767px) {
+    /* For mobile nav (bottom fixed), expand dropdowns upwards */
+    .nav-dropdown-content {
+        bottom: 100%;
+        left: 50%;
+        transform: translateX(-50%) translateY(10px);
+        margin-bottom: 10px;
+    }
+    
+    .nav-dropdown:hover .nav-dropdown-content {
+        transform: translateX(-50%) translateY(0);
+    }
+    
+    .nav-buttons {
+        gap: 0.5rem;
+    }
+    
+    .nav-btn {
+        padding: 0.5rem;
+        font-size: 0.8rem;
+    }
+    .nav-btn span {
+        margin: 0;
+    }
+    /* Hide text on mobile to save space, only show emojis in main bar */
+    .nav-dropdown > .nav-dropbtn {
+        flex-direction: column;
+    }
+    .nav-dropdown > .nav-dropbtn .arrow {
+        display: none;
+    }
+    
+    /* But inside dropdown, show text and left align */
+    .nav-dropdown-content .nav-btn {
+        font-size: 0.95rem;
+        padding: 0.7rem 1rem;
+    }
+}
+
+/* =========================
+   CAROUSEL COVER FLOW
+   ========================= */
+.carousel-wrapper {
+    position: relative;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    flex: 1; /* take remaining height */
+    margin-top: 10px;
+}
+
+.carousel-btn {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 20;
+    background: var(--col-bg);
+    border: 1px solid var(--border-color);
+    color: var(--primary-color);
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    font-size: 1.5rem;
+    cursor: pointer;
+    box-shadow: 5px 5px 10px rgba(0, 0, 0, 0.3), -5px -5px 10px rgba(255, 255, 255, 0.05);
+    transition: all 0.2s ease;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.carousel-btn:hover {
+    background: var(--card-bg);
+    box-shadow: inset 3px 3px 6px rgba(0,0,0,0.3), inset -3px -3px 6px rgba(255,255,255,0.05);
+}
+
+.left-btn { left: 10px; }
+.right-btn { right: 10px; }
+
+.carousel-track {
+    display: flex;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    scroll-behavior: smooth;
+    gap: 20px;
+    padding: 20px 20vw; /* Push first and last cards to center */
+    width: 100%;
+    height: 100%;
+    align-items: center;
+}
+
+.carousel-track::-webkit-scrollbar {
+    display: none; /* Hide scrollbar for Chrome/Safari */
+}
+
+.carousel-track {
+    -ms-overflow-style: none; /* IE/Edge */
+    scrollbar-width: none; /* Firefox */
+}
+
+.carousel-slide {
+    scroll-snap-align: center;
+    flex: 0 0 60vw; /* Take 60% of viewport width */
+    max-width: 400px;
+    height: 450px; /* fixed height for uniformity */
+    transition: transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1), opacity 0.4s ease, box-shadow 0.4s ease;
+    opacity: 0.5;
+    transform: scale(0.85);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    align-items: center;
+    text-align: center;
+    padding: 30px;
+    box-sizing: border-box;
+}
+
+.carousel-slide.active-slide {
+    opacity: 1;
+    transform: scale(1);
+    z-index: 10;
+    box-shadow: 12px 12px 24px rgba(0, 0, 0, 0.4), 
+                -12px -12px 24px rgba(255, 255, 255, 0.05);
+}
+
+.slide-icon {
+    font-size: 4rem;
+    color: var(--primary-color);
+    margin-bottom: 10px;
+}
+
+.carousel-slide h2 {
+    margin: 0 0 15px 0;
+    font-size: 1.8rem;
+    color: var(--text-primary);
+}
+
+.slide-desc {
+    color: var(--text-secondary);
+    font-size: 1rem;
+    flex-grow: 1;
+    margin-bottom: 20px;
+}
+
+.slide-status {
+    width: 100%;
+    padding: 15px;
+    background: rgba(0, 0, 0, 0.15);
+    border-radius: 12px;
+    margin-bottom: 25px;
+    font-size: 1.05rem;
+}
+
+.slide-btn {
+    width: 100%;
+    padding: 15px;
+    font-size: 1.1rem;
+    text-transform: uppercase;
+    font-weight: bold;
+    letter-spacing: 1px;
+}
+
+@media (max-width: 767px) {
+    .carousel-slide {
+        flex: 0 0 75vw;
+        height: auto;
+        min-height: 400px;
+        padding: 20px;
+    }
+    .carousel-track {
+        padding: 20px 12.5vw;
+    }
+    .carousel-btn {
+        display: none; /* Hide buttons on mobile, rely on swipe */
+    }
+}
+
+/* =========================
+   DASHBOARD LAUNCHPAD
+   ========================= */
+.launchpad-container {
+    display: flex;
+    flex-direction: column;
+    gap: 30px;
+}
+
+.dashboard-hero {
+    text-align: center;
+    padding: 30px 20px;
+    background: linear-gradient(135deg, rgba(30,30,40,0.8), rgba(25,25,35,0.8));
+}
+
+.dashboard-hero h2 {
+    margin-bottom: 15px;
+    color: var(--primary-color);
+    font-size: 2rem;
+}
+
+.dashboard-hero p {
+    font-size: 1.2rem;
+    color: var(--text-secondary);
+    margin: 0;
+}
+
+.launchpad-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 25px;
+    padding-bottom: 30px;
+}
+
+.launchpad-card {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    padding: 25px;
+}
+
+.launchpad-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 8px 8px 16px rgba(0, 0, 0, 0.6), 
+                -8px -8px 16px rgba(255, 255, 255, 0.05),
+                inset 0 0 0 rgba(0, 0, 0, 0.5), 
+                inset 0 0 0 rgba(255, 255, 255, 0.05);
+}
+
+.launchpad-header {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    margin-bottom: 15px;
+}
+
+.launchpad-icon {
+    font-size: 2rem;
+}
+
+.launchpad-header h3 {
+    margin: 0;
+    font-size: 1.3rem;
+    color: var(--text-primary);
+}
+
+.launchpad-desc {
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+    line-height: 1.5;
+    margin-bottom: 20px;
+    flex-grow: 1;
+}
+
+.launchpad-status {
+    margin-bottom: 20px;
+    font-size: 0.95rem;
+    background: rgba(0,0,0,0.2);
+    padding: 10px;
+    border-radius: 8px;
+}
+
+.launchpad-card .btn {
+    width: 100%;
+    text-align: center;
+}
+
+@media (max-width: 768px) {
+    .launchpad-grid {
+        grid-template-columns: 1fr;
+    }
+    .dashboard-hero h2 {
+        font-size: 1.6rem;
+    }
+    .dashboard-hero p {
+        font-size: 1rem;
+    }
+}

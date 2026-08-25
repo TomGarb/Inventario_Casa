@@ -1,123 +1,142 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="dashboard-grid two-cols">
+<div class="launchpad-container">
 
     <!-- HERO WIDGET -->
-    <div class="neo-card dashboard-hero" style="text-align: center; padding: 30px; background: linear-gradient(135deg, var(--card-bg), var(--bg-color));">
-        <h1 style="margin-bottom: 10px; color: var(--primary-color);">👋 Hola, {{ current_user.username }}</h1>
-        <p style="font-size: 1.2rem; color: var(--text-secondary);">
-            Hoy tienes <strong>{{ total_tareas_hoy }}</strong> tareas pendientes, 
-            la heladera necesita <strong>{{ total_faltantes }}</strong> productos y 
-            debes <strong>${{ "%.2f"|format(deuda_compartida) }}</strong> en gastos compartidos.
+    <div class="neo-card dashboard-hero">
+        <h2>👋 Hola, {{ current_user.username }}</h2>
+        <p>
+            Hoy tienes <strong>{{ total_tareas_hoy }}</strong> tareas, 
+            faltan <strong>{{ total_faltantes }}</strong> productos y 
+            debes <strong>${{ "%.2f"|format(deuda_compartida) }}</strong>.
         </p>
     </div>
 
-    <!-- QUICK ACTIONS -->
-    <div class="quick-actions-flex">
-        <button class="neo-button-primary" onclick="window.location.href='/finanzas'">
-            <i class="fas fa-camera"></i> Escanear Ticket
-        </button>
-        <button class="neo-button-primary" onclick="window.location.href='/compras'">
-            <i class="fas fa-cart-plus"></i> Añadir a Lista
-        </button>
-        <button class="neo-button-primary" onclick="window.location.href='/tareas'">
-            <i class="fas fa-broom"></i> Nueva Tarea
-        </button>
-        <button class="neo-button-primary" onclick="window.location.href='/logistica'">
-            <i class="fas fa-calendar-plus"></i> Agendar Evento
-        </button>
-    </div>
-
-    <!-- COLUMNA IZQUIERDA: MI DÍA -->
-    <div style="display: flex; flex-direction: column; gap: 20px;">
-        <div class="neo-card">
-            <h3>📝 Mis Tareas de Hoy</h3>
-            {% if mis_tareas %}
-                <ul style="list-style: none; padding: 0; margin-top: 15px;">
-                {% for item in mis_tareas %}
-                    <li style="padding: 10px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
-                        <span>{{ item.tarea.nombre }}</span>
-                        {% if item.vencida %}
-                            <span class="badge badge-danger">Vencida</span>
-                        {% else %}
-                            <span class="badge badge-warning">Hoy</span>
-                        {% endif %}
-                    </li>
-                {% endfor %}
-                </ul>
-            {% else %}
-                <p style="color: var(--text-secondary); margin-top: 15px;">¡Estás al día! No tienes tareas pendientes hoy. ✨</p>
-            {% endif %}
-        </div>
-
-        <div class="neo-card">
-            <h3>🚗 Eventos Próximas 24hs</h3>
-            {% if eventos_agenda %}
-                <ul style="list-style: none; padding: 0; margin-top: 15px;">
-                {% for evento in eventos_agenda %}
-                    <li style="padding: 10px; border-bottom: 1px solid var(--border-color);">
-                        <strong>{{ evento.titulo }}</strong> <br>
-                        <small style="color: var(--text-secondary);"><i class="fas fa-clock"></i> {{ evento.fecha_inicio.strftime('%H:%M') }}</small>
-                    </li>
-                {% endfor %}
-                </ul>
-            {% else %}
-                <p style="color: var(--text-secondary); margin-top: 15px;">No hay eventos logísticos programados.</p>
-            {% endif %}
-        </div>
-    </div>
-
-    <!-- COLUMNA DERECHA: ALERTAS -->
-    <div style="display: flex; flex-direction: column; gap: 20px;">
-        <div class="neo-card">
-            <h3>⚠️ Alertas de Reposición</h3>
-            {% if alertas_stock %}
-                <ul style="list-style: none; padding: 0; margin-top: 15px;">
-                {% for p in alertas_stock[:5] %}
-                    <li style="padding: 10px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between;">
-                        <span>{{ p.nombre }}</span>
-                        <span class="badge badge-danger">{{ p.stock_actual }} / {{ p.stock_minimo }}</span>
-                    </li>
-                {% endfor %}
-                {% if alertas_stock|length > 5 %}
-                    <li style="text-align: center; margin-top: 10px;"><small><a href="/inventario" style="color: var(--primary-color);">Ver {{ alertas_stock|length - 5 }} más...</a></small></li>
-                {% endif %}
-                </ul>
-            {% else %}
-                <p style="color: var(--text-secondary); margin-top: 15px;">Stock en niveles óptimos.</p>
-            {% endif %}
-        </div>
-
-        <div class="neo-card">
-            <h3>💸 Estado Financiero</h3>
-            <p style="margin-top: 15px;">
-                {% if mi_balance < 0 %}
-                    <span style="color: var(--danger-color); font-weight: bold;">Debes: ${{ "%.2f"|format(mi_balance|abs) }}</span>
-                {% elif mi_balance > 0 %}
-                    <span style="color: var(--success-color); font-weight: bold;">Te deben: ${{ "%.2f"|format(mi_balance) }}</span>
+    <!-- MÓDULOS LAUNCHPAD GRID -->
+    <div class="launchpad-grid">
+        
+        <!-- INVENTARIO -->
+        <div class="neo-card launchpad-card">
+            <div class="launchpad-header">
+                <span class="launchpad-icon">📦</span>
+                <h3>Inventario</h3>
+            </div>
+            <p class="launchpad-desc">Gestiona el stock de la casa, visualiza vencimientos y organiza por ubicaciones.</p>
+            <div class="launchpad-status">
+                {% if total_faltantes > 0 %}
+                    <strong style="color: var(--danger-color);">🔴 {{ total_faltantes }} productos en stock crítico</strong>
                 {% else %}
-                    <span style="color: var(--text-secondary);">Estás al día con los gastos.</span>
+                    <strong style="color: var(--success-color);">🟢 Stock en niveles óptimos</strong>
                 {% endif %}
-            </p>
+            </div>
+            <a href="{{ url_for('inventario.inventario') }}" class="btn neo-button-secondary">Abrir Inventario ➔</a>
         </div>
 
-        <div class="neo-card">
-            <h3>📜 Últimos Movimientos</h3>
-            {% if movimientos %}
-                <ul style="list-style: none; padding: 0; margin-top: 15px; font-size: 0.9rem;">
-                {% for mov in movimientos %}
-                    <li style="padding: 8px 0; border-bottom: 1px solid var(--border-color);">
-                        {{ mov.descripcion }} <br>
-                        <small style="color: var(--text-secondary);">{{ mov.fecha.strftime('%d/%m %H:%M') }}</small>
-                    </li>
-                {% endfor %}
-                </ul>
-            {% else %}
-                <p style="color: var(--text-secondary); margin-top: 15px;">No hay movimientos recientes.</p>
-            {% endif %}
+        <!-- COMPRAS -->
+        <div class="neo-card launchpad-card">
+            <div class="launchpad-header">
+                <span class="launchpad-icon">🛒</span>
+                <h3>Compras</h3>
+            </div>
+            <p class="launchpad-desc">Listas inteligentes por comercio y mapas interactivos.</p>
+            <div class="launchpad-status">
+                {% if total_en_lista > 0 %}
+                    <strong style="color: var(--warning-color);">🟡 {{ total_en_lista }} items en la lista</strong>
+                {% else %}
+                    <strong style="color: var(--success-color);">🟢 Nada que comprar hoy</strong>
+                {% endif %}
+            </div>
+            <a href="{{ url_for('inventario.compras') }}" class="btn neo-button-secondary">Abrir Compras ➔</a>
         </div>
+
+        <!-- FINANZAS -->
+        <div class="neo-card launchpad-card">
+            <div class="launchpad-header">
+                <span class="launchpad-icon">💸</span>
+                <h3>Finanzas</h3>
+            </div>
+            <p class="launchpad-desc">Escaneo de tickets por IA y división de gastos compartidos.</p>
+            <div class="launchpad-status">
+                {% if mi_balance < 0 %}
+                    <strong style="color: var(--danger-color);">🔴 Debes: ${{ "%.2f"|format(mi_balance|abs) }}</strong>
+                {% elif mi_balance > 0 %}
+                    <strong style="color: var(--success-color);">🟢 Te deben: ${{ "%.2f"|format(mi_balance) }}</strong>
+                {% else %}
+                    <strong style="color: var(--text-secondary);">⚪ Estás al día</strong>
+                {% endif %}
+            </div>
+            <a href="{{ url_for('finanzas.finanzas_page') }}" class="btn neo-button-secondary">Abrir Finanzas ➔</a>
+        </div>
+
+        <!-- TAREAS -->
+        <div class="neo-card launchpad-card">
+            <div class="launchpad-header">
+                <span class="launchpad-icon">🧹</span>
+                <h3>Tareas</h3>
+            </div>
+            <p class="launchpad-desc">Sistema de turnos rotativos y rutinas del hogar.</p>
+            <div class="launchpad-status">
+                {% if total_tareas_hoy > 0 %}
+                    <strong style="color: var(--warning-color);">🟡 {{ total_tareas_hoy }} tareas pendientes hoy</strong>
+                {% else %}
+                    <strong style="color: var(--success-color);">🟢 Al día con las tareas</strong>
+                {% endif %}
+            </div>
+            <a href="{{ url_for('tareas.tareas_view') }}" class="btn neo-button-secondary">Abrir Tareas ➔</a>
+        </div>
+
+        <!-- LOGÍSTICA -->
+        <div class="neo-card launchpad-card">
+            <div class="launchpad-header">
+                <span class="launchpad-icon">📅</span>
+                <h3>Logística</h3>
+            </div>
+            <p class="launchpad-desc">Calendario de eventos, visitas y mantenimiento.</p>
+            <div class="launchpad-status">
+                {% if eventos_agenda and eventos_agenda|length > 0 %}
+                    <strong style="color: var(--primary-color);">🔵 Hoy: {{ eventos_agenda[0].titulo }}</strong>
+                {% else %}
+                    <strong style="color: var(--text-secondary);">⚪ Sin eventos próximos</strong>
+                {% endif %}
+            </div>
+            <a href="{{ url_for('logistica.logistica_page') }}" class="btn neo-button-secondary">Abrir Logística ➔</a>
+        </div>
+
+        <!-- MENÚS -->
+        <div class="neo-card launchpad-card">
+            <div class="launchpad-header">
+                <span class="launchpad-icon">🍽️</span>
+                <h3>Menús</h3>
+            </div>
+            <p class="launchpad-desc">Planificador semanal basado en stock existente.</p>
+            <div class="launchpad-status">
+                {% if menu_hoy %}
+                    <strong style="color: var(--primary-color);">🔵 Hoy: {{ menu_hoy.receta.nombre }}</strong>
+                {% else %}
+                    <strong style="color: var(--text-secondary);">⚪ Sin menú asignado hoy</strong>
+                {% endif %}
+            </div>
+            <a href="{{ url_for('menus.menus_page') }}" class="btn neo-button-secondary">Abrir Menús ➔</a>
+        </div>
+
+        <!-- MÉTRICAS -->
+        <div class="neo-card launchpad-card">
+            <div class="launchpad-header">
+                <span class="launchpad-icon">📊</span>
+                <h3>Métricas</h3>
+            </div>
+            <p class="launchpad-desc">Hub analítico, gráficos de ahorro y metas.</p>
+            <div class="launchpad-status">
+                {% if progreso_meta != None %}
+                    <strong style="color: var(--primary-color);">🔵 Meta: {{ progreso_meta }}% completado</strong>
+                {% else %}
+                    <strong style="color: var(--text-secondary);">⚪ Sin metas activas</strong>
+                {% endif %}
+            </div>
+            <a href="{{ url_for('main.metricas') }}" class="btn neo-button-secondary">Abrir Métricas ➔</a>
+        </div>
+
     </div>
-
 </div>
 {% endblock %}
