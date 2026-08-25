@@ -57,8 +57,8 @@ class UsuarioCasa(db.Model):
     rol = db.Column(db.String(20), default='miembro') # admin, miembro
     estado_invitacion = db.Column(db.String(20), default='aceptada') # pendiente, aceptada
 
-    usuario = db.relationship('Usuario', backref=db.backref('casas_rel', lazy=True))
-    casa = db.relationship('Casa', backref=db.backref('usuarios_rel', lazy=True))
+    usuario = db.relationship('Usuario', backref=db.backref('casas_rel', lazy=True, cascade="all, delete-orphan"))
+    casa = db.relationship('Casa', backref=db.backref('usuarios_rel', lazy=True, cascade="all, delete-orphan"))
 
 class ConfiguracionGlobal(db.Model):
     __tablename__ = 'configuracion_global'
