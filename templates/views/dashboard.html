@@ -5,7 +5,11 @@
 
     <!-- HERO WIDGET -->
     <div class="neo-card dashboard-hero">
+        {% set active_casa = current_user.casas_rel | selectattr("casa_id", "equalto", current_user.casa_activa_id) | first %}
         <h2>👋 Hola, {{ current_user.username }}</h2>
+        <p style="color: var(--primary-color); font-weight: 500; font-size: 1.1rem; margin-top: 5px; margin-bottom: 15px;">
+            🏠 Estás viendo la casa: {{ active_casa.casa.nombre if active_casa else 'Sin Casa' }}
+        </p>
         <p>
             Hoy tienes <strong>{{ total_tareas_hoy }}</strong> tareas, 
             faltan <strong>{{ total_faltantes }}</strong> productos y 

@@ -123,9 +123,15 @@ def generar_token():
 @auth_bp.route('/api/usuarios', methods=['GET'])
 @admin_required
 def get_usuarios():
-    # Solo mostrar usuarios de la casa actual
-    usuarios = Usuario.query.join(UsuarioCasa).filter(UsuarioCasa.casa_id == current_user.casa_activa_id).all()
-    return jsonify([u.to_dict() for u in usuarios])
+    # Solo mostrar usuarios de la casa actual y su rol específico en la casa
+    from models.database import UsuarioCasa
+    relaciones = UsuarioCasa.query.filter_by(casa_id=current_user.casa_activa_id).all()
+    resultado = []
+    for rel in relaciones:
+        u_dict = rel.usuario.to_dict()
+        u_dict['is_admin'] = (rel.rol == 'admin') # Sobreescribimos con el rol de la casa
+        resultado.append(u_dict)
+    return jsonify(resultado)
 
 @auth_bp.route('/api/usuarios', methods=['POST'])
 @admin_required
@@ -148,11 +154,19 @@ def crear_usuario():
 @admin_required
 def delete_usuario(id_user):
     if current_user.id == id_user:
-        return jsonify({'error': 'No puedes eliminarte a ti mismo'}), 400
+        return jsonify({'error': 'No puedes eliminarte a ti mismo de la casa (usa Gestion de Casas)'}), 400
     u = db.get_or_404(Usuario, id_user)
-    db.session.delete(u)
-    db.session.commit()
-    return jsonify({'mensaje': 'Usuario eliminado'})
+    
+    from models.database import UsuarioCasa
+    rel = UsuarioCasa.query.filter_by(usuario_id=id_user, casa_id=current_user.casa_activa_id).first()
+    if rel:
+        db.session.delete(rel)
+        if u.casa_activa_id == current_user.casa_activa_id:
+            # Si era su casa activa, cambiarla
+            otra = UsuarioCasa.query.filter_by(usuario_id=id_user).first()
+            u.casa_activa_id = otra.casa_id if otra else None
+        db.session.commit()
+    return jsonify({'mensaje': 'Usuario removido de la casa'})
 
 
 @auth_bp.route('/api/usuarios/<int:id_user>', methods=['PUT'])
@@ -161,10 +175,15 @@ def update_usuario(id_user):
     data = request.get_json()
     u = db.get_or_404(Usuario, id_user)
     
+    from models.database import UsuarioCasa
+    rel = UsuarioCasa.query.filter_by(usuario_id=id_user, casa_id=current_user.casa_activa_id).first()
+    if not rel:
+        return jsonify({'error': 'Usuario no pertenece a la casa'}), 404
+        
     if 'is_admin' in data:
         if current_user.id == id_user and not data['is_admin']:
             return jsonify({'error': 'No puedes quitarte tu propio rol de admin'}), 400
-        u.is_admin = data['is_admin']
+        rel.rol = 'admin' if data['is_admin'] else 'miembro'
         
     if 'password' in data and data['password']:
         u.set_password(data['password'])

@@ -11,14 +11,24 @@
                 <p style="color: var(--text-secondary); margin-bottom: 20px;">Selecciona la casa que deseas gestionar actualmente.</p>
                 <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 20px; margin-bottom: 30px;">
                     {% for relacion in mis_casas %}
-                        <div class="neo-card {% if relacion.casa.id == current_casa_id %}selected-casa{% endif %}" style="text-align: center; cursor: pointer; transition: 0.3s; {% if relacion.casa.id == current_casa_id %}border: 2px solid var(--primary-color);{% endif %}" onclick="seleccionarCasa({{ relacion.casa.id }})">
-                            <h3 style="margin-bottom: 10px; color: var(--text-primary);">{{ relacion.casa.nombre }}</h3>
-                            <p style="font-size: 0.85rem; color: var(--text-secondary);">Rol: <span style="text-transform: capitalize; color: var(--primary-color); font-weight: 500;">{{ relacion.rol }}</span></p>
-                            {% if relacion.casa.id == current_casa_id %}
-                                <div style="margin-top: 15px;">
-                                    <span class="badge badge-success" style="padding: 5px 15px;">Casa Activa</span>
-                                </div>
+                        <div class="neo-card {% if relacion.casa.id == current_casa_id %}selected-casa{% endif %}" style="text-align: center; cursor: pointer; transition: 0.3s; position: relative; {% if relacion.casa.id == current_casa_id %}border: 2px solid var(--primary-color);{% endif %}">
+                            
+                            {% if relacion.rol == 'admin' %}
+                            <div style="position: absolute; top: 10px; right: 10px; display: flex; gap: 5px;">
+                                <button onclick="abrirModalEditar({{ relacion.casa.id }}, '{{ relacion.casa.nombre }}', event)" title="Editar Casa" style="background:none; border:none; color:var(--text-secondary); cursor:pointer; font-size:1.1rem;">✏️</button>
+                                <button onclick="abrirModalEliminar({{ relacion.casa.id }}, '{{ relacion.casa.nombre }}', event)" title="Eliminar Casa" style="background:none; border:none; color:var(--danger-color); cursor:pointer; font-size:1.1rem;">🗑️</button>
+                            </div>
                             {% endif %}
+
+                            <div onclick="seleccionarCasa({{ relacion.casa.id }})">
+                                <h3 style="margin-bottom: 10px; margin-top: 15px; color: var(--text-primary);">{{ relacion.casa.nombre }}</h3>
+                                <p style="font-size: 0.85rem; color: var(--text-secondary);">Rol: <span style="text-transform: capitalize; color: var(--primary-color); font-weight: 500;">{{ relacion.rol }}</span></p>
+                                {% if relacion.casa.id == current_casa_id %}
+                                    <div style="margin-top: 15px;">
+                                        <span class="badge badge-success" style="padding: 5px 15px;">Casa Activa</span>
+                                    </div>
+                                {% endif %}
+                            </div>
                         </div>
                     {% endfor %}
                     
@@ -31,7 +41,7 @@
 
                 {% if current_casa_id %}
                 <div class="neo-card" style="margin-top: 30px;">
-                    <h3 style="margin-bottom: 15px;">🤝 Invitar Miembro</h3>
+                    <h3 style="margin-bottom: 15px;">📩 Invitar Miembro</h3>
                     <div style="display: flex; gap: 15px;">
                         <input type="text" id="invitar-username" class="neo-input" placeholder="Nombre de usuario (ej. juan123)">
                         <button class="btn neo-button-primary" onclick="invitarMiembro()">Enviar Invitación</button>
@@ -55,7 +65,112 @@
     </div>
 </div>
 
+<!-- Modal Editar -->
+<div id="modal-editar-casa" class="modal oculto">
+    <div class="modal-content" style="max-width: 400px;">
+        <h2 style="color: var(--primary-color); margin-bottom: 15px;">✏️ Editar Casa</h2>
+        <input type="hidden" id="edit-casa-id">
+        <div class="form-group">
+            <label>Nombre de la Casa</label>
+            <input type="text" id="edit-casa-nombre" class="neo-input" style="width: 100%;">
+        </div>
+        <div class="modal-actions" style="margin-top: 25px; display: flex; justify-content: flex-end; gap: 10px;">
+            <button class="btn neo-button-secondary" onclick="cerrarModal('modal-editar-casa')">Cancelar</button>
+            <button class="btn neo-button-primary" onclick="guardarEdicionCasa()">Guardar</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Eliminar -->
+<div id="modal-eliminar-casa" class="modal oculto">
+    <div class="modal-content" style="max-width: 500px;">
+        <h2 style="color: var(--danger-color); margin-bottom: 15px;">⚠️ Eliminar Casa</h2>
+        <input type="hidden" id="delete-casa-id">
+        <p style="margin-bottom: 15px; color: var(--text-primary);">
+            Estás a punto de eliminar la casa: <strong id="delete-casa-nombre" style="color: var(--primary-color);"></strong>
+        </p>
+        <div style="background: rgba(220, 38, 38, 0.1); border-left: 4px solid var(--danger-color); padding: 15px; margin-bottom: 20px; border-radius: 4px;">
+            <strong>RIESGO INMINENTE:</strong> Al eliminar esta casa, se borrarán PERMANENTEMENTE todos los datos asociados. Esto incluye:
+            <ul style="margin-top: 10px; margin-left: 20px; color: var(--text-secondary);">
+                <li>Todo el Inventario y Productos</li>
+                <li>Listas de Compras</li>
+                <li>Menús Semanales y Recetas</li>
+                <li>Tareas, Historial de Tareas y Gastos Compartidos</li>
+                <li>Eventos de Logística y Mascotas</li>
+            </ul>
+            <p style="margin-top: 10px;">Los usuarios serán desvinculados. Esta acción <strong>NO se puede deshacer</strong>.</p>
+        </div>
+        <div class="form-group">
+            <label>Para confirmar, escribe "ELIMINAR" abajo:</label>
+            <input type="text" id="confirm-delete-text" class="neo-input" style="width: 100%; border: 1px solid var(--danger-color);">
+        </div>
+        <div class="modal-actions" style="margin-top: 25px; display: flex; justify-content: flex-end; gap: 10px;">
+            <button class="btn neo-button-secondary" onclick="cerrarModal('modal-eliminar-casa')">Cancelar</button>
+            <button class="btn" style="background: var(--danger-color); color: white;" onclick="confirmarEliminarCasa()">Sí, Eliminar Todo</button>
+        </div>
+    </div>
+</div>
+
 <script>
+function abrirModalEditar(id, nombre, event) {
+    event.stopPropagation();
+    document.getElementById('edit-casa-id').value = id;
+    document.getElementById('edit-casa-nombre').value = nombre;
+    document.getElementById('modal-editar-casa').classList.remove('oculto');
+}
+
+function abrirModalEliminar(id, nombre, event) {
+    event.stopPropagation();
+    document.getElementById('delete-casa-id').value = id;
+    document.getElementById('delete-casa-nombre').innerText = nombre;
+    document.getElementById('confirm-delete-text').value = '';
+    document.getElementById('modal-eliminar-casa').classList.remove('oculto');
+}
+
+function cerrarModal(modalId) {
+    document.getElementById(modalId).classList.add('oculto');
+}
+
+async function guardarEdicionCasa() {
+    const id = document.getElementById('edit-casa-id').value;
+    const nombre = document.getElementById('edit-casa-nombre').value.trim();
+    if(!nombre) { showToast('Ingresa un nombre', 'warning'); return; }
+    
+    try {
+        const res = await fetch(`/casas/${id}/edit`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ nombre })
+        });
+        if(res.ok) window.location.reload();
+        else {
+            const data = await res.json();
+            showToast(data.error || 'Error', 'error');
+        }
+    } catch(e) { showToast('Error de conexión', 'error'); }
+}
+
+async function confirmarEliminarCasa() {
+    const confirmText = document.getElementById('confirm-delete-text').value.trim();
+    if (confirmText !== 'ELIMINAR') {
+        showToast('Escribe ELIMINAR para confirmar', 'warning');
+        return;
+    }
+    
+    const id = document.getElementById('delete-casa-id').value;
+    try {
+        const res = await fetch(`/casas/${id}/delete`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'}
+        });
+        if(res.ok) window.location.reload();
+        else {
+            const data = await res.json();
+            showToast(data.error || 'Error', 'error');
+        }
+    } catch(e) { showToast('Error de conexión', 'error'); }
+}
+
 async function seleccionarCasa(id) {
     try {
         const res = await fetch('/casas/seleccionar', {

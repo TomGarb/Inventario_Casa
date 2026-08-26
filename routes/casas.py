@@ -79,3 +79,84 @@ def invitar():
     db.session.add(nueva_rel)
     db.session.commit()
     return jsonify({'success': True, 'mensaje': f'Usuario {username} agregado a la casa.'})
+
+@casas_bp.route('/casas/<int:casa_id>/edit', methods=['POST'])
+@login_required
+def editar_casa(casa_id):
+    data = request.get_json()
+    nombre = data.get('nombre')
+    
+    # Check if admin
+    relacion = UsuarioCasa.query.filter_by(usuario_id=current_user.id, casa_id=casa_id, rol='admin').first()
+    if not relacion:
+        return jsonify({'error': 'No tienes permisos de administrador en esta casa'}), 403
+        
+    casa = Casa.query.get_or_404(casa_id)
+    if nombre:
+        casa.nombre = nombre
+        db.session.commit()
+        return jsonify({'success': True})
+    return jsonify({'error': 'Nombre inválido'}), 400
+
+@casas_bp.route('/casas/<int:casa_id>/delete', methods=['POST'])
+@login_required
+def eliminar_casa(casa_id):
+    # Check if admin
+    relacion = UsuarioCasa.query.filter_by(usuario_id=current_user.id, casa_id=casa_id, rol='admin').first()
+    if not relacion:
+        return jsonify({'error': 'No tienes permisos de administrador en esta casa'}), 403
+        
+    casa = Casa.query.get_or_404(casa_id)
+    
+    # Import all models to manually delete by casa_id
+    from models.database import (DetalleGasto, DivisionGasto, Gasto, IngredienteReceta, Receta, MenuSemanal, 
+                                 HistorialTarea, SaltoTarea, Tarea, ModeloTarea, Movimiento, Producto, SubUbicacion, 
+                                 Ubicacion, Sala, Comercio, EventoLogistico, HorarioComidas, MetaAhorro, 
+                                 SuscripcionDeporte, Mascota, ConfiguracionGlobal)
+                                 
+    # 1. Leaves to Roots (Order matters for foreign keys if no ON DELETE CASCADE in DB)
+    DetalleGasto.query.filter_by(casa_id=casa.id).delete()
+    DivisionGasto.query.filter_by(casa_id=casa.id).delete()
+    Gasto.query.filter_by(casa_id=casa.id).delete()
+    
+    IngredienteReceta.query.filter_by(casa_id=casa.id).delete()
+    Receta.query.filter_by(casa_id=casa.id).delete()
+    MenuSemanal.query.filter_by(casa_id=casa.id).delete()
+    
+    HistorialTarea.query.filter_by(casa_id=casa.id).delete()
+    SaltoTarea.query.filter_by(casa_id=casa.id).delete()
+    Tarea.query.filter_by(casa_id=casa.id).delete()
+    ModeloTarea.query.filter_by(casa_id=casa.id).delete()
+    
+    Movimiento.query.filter_by(casa_id=casa.id).delete()
+    Producto.query.filter_by(casa_id=casa.id).delete()
+    
+    SubUbicacion.query.filter_by(casa_id=casa.id).delete()
+    Ubicacion.query.filter_by(casa_id=casa.id).delete()
+    
+    Sala.query.filter_by(casa_id=casa.id).delete()
+    Comercio.query.filter_by(casa_id=casa.id).delete()
+    
+    EventoLogistico.query.filter_by(casa_id=casa.id).delete()
+    HorarioComidas.query.filter_by(casa_id=casa.id).delete()
+    MetaAhorro.query.filter_by(casa_id=casa.id).delete()
+    SuscripcionDeporte.query.filter_by(casa_id=casa.id).delete()
+    Mascota.query.filter_by(casa_id=casa.id).delete()
+    
+    ConfiguracionGlobal.query.filter_by(casa_id=casa.id).delete()
+    UsuarioCasa.query.filter_by(casa_id=casa.id).delete()
+    
+    # Update users who had this house as active
+    usuarios_afectados = Usuario.query.filter_by(casa_activa_id=casa.id).all()
+    for u in usuarios_afectados:
+        # Give them another house if they have one, else None
+        otra_casa = UsuarioCasa.query.filter_by(usuario_id=u.id).first()
+        u.casa_activa_id = otra_casa.casa_id if otra_casa else None
+        if current_user.id == u.id:
+            session['current_casa_id'] = u.casa_activa_id
+
+    # Finally, delete the house itself
+    db.session.delete(casa)
+    db.session.commit()
+    
+    return jsonify({'success': True})
