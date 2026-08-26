@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% set active_page = 'mascotas' %}
+{% block content %}
+<div class="view-header" style="text-align: center; margin-bottom: 30px;">
+    <h2>🐾 Cuidado de Mascotas</h2>
+    <p style="color: var(--text-secondary);">Agregador transversal de tareas, inventario y salud animal.</p>
+</div>
+
+<!-- Perfil Mascotas -->
+<div class="mascotas-perfiles" style="display: flex; gap: 20px; overflow-x: auto; padding-bottom: 15px; margin-bottom: 20px;">
+    {% for m in mascotas %}
+    <div class="neo-card" style="min-width: 200px; text-align: center; padding: 15px;">
+        <div style="font-size: 3rem; margin-bottom: 10px;">
+            {% if m.especie and 'gato' in m.especie.lower() %}🐱
+            {% elif m.especie and 'perro' in m.especie.lower() %}🐶
+            {% else %}🐾{% endif %}
+        </div>
+        <h3 style="color: var(--primary-color); margin-bottom: 5px;">{{ m.nombre }}</h3>
+        <p style="font-size: 0.9rem; color: var(--text-secondary);">{{ m.edad_str }}</p>
+    </div>
+    {% else %}
+    <div class="neo-card" style="width: 100%; text-align: center; padding: 30px;">
+        <p style="color: var(--text-secondary);">Aún no has añadido mascotas a esta casa.</p>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Módulos Transversales -->
+<div class="launchpad-grid" style="grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));">
+    
+    <!-- Salud y Logística -->
+    <div class="neo-card launchpad-card">
+        <div class="launchpad-header">
+            <span class="launchpad-icon">🩺</span>
+            <h3>Salud y Logística</h3>
+        </div>
+        <div class="launchpad-desc">
+            {% if logistica %}
+                <ul style="list-style: none; padding: 0; display: flex; flex-direction: column; gap: 10px;">
+                {% for evento in logistica[:3] %}
+                    <li style="padding: 10px; background: rgba(255,255,255,0.05); border-radius: 8px;">
+                        <strong style="color: var(--warning-color);">{{ evento.fecha_inicio.strftime('%d %b') }}</strong>: {{ evento.titulo }}
+                    </li>
+                {% endfor %}
+                </ul>
+            {% else %}
+                <p>No hay eventos veterinarios próximos.</p>
+            {% endif %}
+        </div>
+        <a href="{{ url_for('logistica.logistica_page') }}" class="btn neo-button-secondary" style="margin-top: 15px; text-align: center;">📅 Añadir Evento</a>
+    </div>
+
+    <!-- Inventario y Stock -->
+    <div class="neo-card launchpad-card">
+        <div class="launchpad-header">
+            <span class="launchpad-icon">🥩</span>
+            <h3>Inventario K9</h3>
+        </div>
+        <div class="launchpad-desc">
+            {% if inventario %}
+                <ul style="list-style: none; padding: 0; display: flex; flex-direction: column; gap: 10px;">
+                {% for prod in inventario %}
+                    <li style="display: flex; justify-content: space-between; align-items: center; padding: 10px; background: rgba(255,255,255,0.05); border-radius: 8px;">
+                        <span>{{ prod.nombre }}</span>
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <strong style="color: {% if prod.stock_actual <= prod.stock_minimo %}var(--danger-color){% else %}var(--success-color){% endif %};">{{ prod.stock_actual }}</strong>
+                            <form action="{{ url_for('inventario.consumir_producto', id=prod.id) }}" method="POST" style="display: inline;">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                <button type="submit" class="btn neo-button-secondary" style="padding: 2px 8px; font-size: 0.8rem;" title="Restar 1">-1</button>
+                            </form>
+                        </div>
+                    </li>
+                {% endfor %}
+                </ul>
+            {% else %}
+                <p>No hay alimentos o accesorios en el inventario actual.</p>
+            {% endif %}
+        </div>
+        <a href="{{ url_for('inventario.inventario') }}" class="btn neo-button-secondary" style="margin-top: 15px; text-align: center;">📦 Ver Inventario</a>
+    </div>
+
+    <!-- Rutinas -->
+    <div class="neo-card launchpad-card">
+        <div class="launchpad-header">
+            <span class="launchpad-icon">🦮</span>
+            <h3>Rutinas</h3>
+        </div>
+        <div class="launchpad-desc">
+            {% if tareas %}
+                <ul style="list-style: none; padding: 0; display: flex; flex-direction: column; gap: 10px;">
+                {% for t in tareas %}
+                    <li style="padding: 10px; background: rgba(255,255,255,0.05); border-radius: 8px;">
+                        <strong>{{ t.modelo.nombre }}</strong><br>
+                        <span style="font-size: 0.85rem; color: var(--text-secondary);">Turno actual: {{ t.modelo.asignado_actual.username if t.modelo.asignado_actual else 'Sin asignar' }}</span>
+                    </li>
+                {% endfor %}
+                </ul>
+            {% else %}
+                <p>No hay rutinas de paseo o comida configuradas.</p>
+            {% endif %}
+        </div>
+        <a href="{{ url_for('tareas.tareas_view') }}" class="btn neo-button-secondary" style="margin-top: 15px; text-align: center;">🧹 Ver Tareas</a>
+    </div>
+</div>
+{% endblock %}

@@ -314,12 +314,13 @@ def configurar_bot_telegram():
             
         try:
             print("🟢 CONFIGURANDO WEBHOOK DE TELEGRAM...")
+            print("CONFIGURANDO WEBHOOK DE TELEGRAM...")
             bot.remove_webhook()
             WEBHOOK_URL = "https://inventario-casa-m8an.onrender.com/webhook/telegram"
             bot.set_webhook(url=WEBHOOK_URL)
             logging.info(f"[Bot Telemetría] Webhook configurado con éxito en: {WEBHOOK_URL}")
         except Exception as e:
-            print(f"🔴 ERROR FATAL AL CONFIGURAR WEBHOOK: {e}")
+            print(f"ERROR FATAL AL CONFIGURAR WEBHOOK: {e}")
             logging.error(f"[Bot Telemetría] Error crítico configurando Webhook: {e}", exc_info=True)
 
 # ================= WSGI ARRANQUE SEGURO =================

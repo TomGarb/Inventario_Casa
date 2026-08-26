@@ -45,6 +45,16 @@ class Casa(db.Model):
     codigo_invitacion = db.Column(db.String(20), unique=True, index=True, nullable=True)
     password_hash = db.Column(db.String(255), nullable=True)
 
+class Mascota(db.Model):
+    __tablename__ = 'mascotas'
+    id = db.Column(db.Integer, primary_key=True)
+    casa_id = db.Column(db.Integer, db.ForeignKey('casas.id'), nullable=False)
+    nombre = db.Column(db.String(100), nullable=False)
+    especie = db.Column(db.String(50))
+    fecha_nacimiento = db.Column(db.Date, nullable=True)
+    
+    casa = db.relationship('Casa', backref=db.backref('mascotas_rel', lazy=True, cascade="all, delete-orphan"))
+
     def to_dict(self):
         return {
             'id': self.id,
