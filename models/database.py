@@ -42,6 +42,8 @@ class Casa(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     nombre = db.Column(db.String(100), nullable=False)
     fecha_creacion = db.Column(db.DateTime, default=datetime.utcnow)
+    codigo_invitacion = db.Column(db.String(20), unique=True, index=True, nullable=True)
+    password_hash = db.Column(db.String(255), nullable=True)
 
     def to_dict(self):
         return {

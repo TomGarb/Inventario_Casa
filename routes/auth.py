@@ -34,15 +34,64 @@ def register_page():
     if request.method == 'POST':
         username = request.form.get('username')
         password = request.form.get('password')
+        tipo_accion = request.form.get('tipo_accion')
+        password_casa = request.form.get('password_casa')
+        
         if Usuario.query.filter_by(username=username).first():
             flash('El nombre de usuario ya existe', 'danger')
-        else:
+            return render_template('register.html')
+            
+        import string, random
+        from werkzeug.security import generate_password_hash, check_password_hash
+        from models.database import Casa, UsuarioCasa
+        
+        if tipo_accion == 'unirse':
+            codigo_casa = request.form.get('codigo_casa')
+            casa = Casa.query.filter_by(codigo_invitacion=codigo_casa).first()
+            if not casa:
+                flash('Código de invitación inválido', 'danger')
+                return render_template('register.html')
+            if not casa.password_hash or not check_password_hash(casa.password_hash, password_casa):
+                flash('Contraseña de la casa incorrecta', 'danger')
+                return render_template('register.html')
+                
             new_user = Usuario(username=username)
             new_user.set_password(password)
             db.session.add(new_user)
+            db.session.flush() # To get ID
+            new_user.casa_activa_id = casa.id
+            
+            uc = UsuarioCasa(usuario_id=new_user.id, casa_id=casa.id, rol='miembro', estado_invitacion='aceptada')
+            db.session.add(uc)
             db.session.commit()
             login_user(new_user)
             return redirect(url_for('main.dashboard'))
+            
+        elif tipo_accion == 'crear':
+            nombre_casa = request.form.get('nombre_casa')
+            codigo = ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
+            
+            casa = Casa(
+                nombre=nombre_casa,
+                codigo_invitacion=codigo,
+                password_hash=generate_password_hash(password_casa)
+            )
+            db.session.add(casa)
+            db.session.flush()
+            
+            new_user = Usuario(username=username)
+            new_user.set_password(password)
+            db.session.add(new_user)
+            db.session.flush()
+            new_user.casa_activa_id = casa.id
+            
+            uc = UsuarioCasa(usuario_id=new_user.id, casa_id=casa.id, rol='admin', estado_invitacion='aceptada')
+            db.session.add(uc)
+            db.session.commit()
+            login_user(new_user)
+            return redirect(url_for('main.dashboard'))
+        else:
+            flash('Acción no válida', 'danger')
             
     return render_template('register.html')
 
@@ -57,7 +106,9 @@ def logout():
 @auth_bp.route('/perfil')
 @login_required
 def perfil():
-    return render_template('views/perfil.html', active_page='perfil')
+    from models.database import Casa
+    casa_actual = Casa.query.get(current_user.casa_activa_id) if current_user.casa_activa_id else None
+    return render_template('views/perfil.html', active_page='perfil', casa_actual=casa_actual)
 
 
 @auth_bp.route('/api/generar_token', methods=['POST'])
@@ -72,9 +123,9 @@ def generar_token():
 @auth_bp.route('/api/usuarios', methods=['GET'])
 @admin_required
 def get_usuarios():
-    usuarios = Usuario.query.all()
+    # Solo mostrar usuarios de la casa actual
+    usuarios = Usuario.query.join(UsuarioCasa).filter(UsuarioCasa.casa_id == current_user.casa_activa_id).all()
     return jsonify([u.to_dict() for u in usuarios])
-
 
 @auth_bp.route('/api/usuarios', methods=['POST'])
 @admin_required

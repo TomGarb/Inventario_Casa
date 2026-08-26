@@ -2,23 +2,88 @@
 {% set active_page = 'login' %}
 {% block content %}
 <div class="auth-container">
-    <div class="auth-card">
-        <h2>Crear Cuenta</h2>
+    <div class="auth-card neo-card" style="max-width: 500px; padding: 30px;">
+        <h2 style="text-align: center; margin-bottom: 20px;">Crear Cuenta</h2>
         <form class="auth-form" method="POST" action="{{ url_for('auth.register_page') }}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+            
             <div class="form-group">
                 <label for="username">Usuario</label>
-                <input type="text" id="username" name="username" class="form-control" required autocomplete="username">
+                <input type="text" id="username" name="username" class="form-control neo-input" required autocomplete="username">
             </div>
             <div class="form-group">
                 <label for="password">Contraseña</label>
-                <input type="password" id="password" name="password" class="form-control" required autocomplete="new-password">
+                <input type="password" id="password" name="password" class="form-control neo-input" required autocomplete="new-password">
             </div>
-            <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 15px;">Registrarse</button>
+
+            <hr style="margin: 20px 0; border: 1px solid rgba(255,255,255,0.1);">
+
+            <h3 style="font-size: 1.1rem; margin-bottom: 15px;">Entorno de Inicio</h3>
+            
+            <div class="form-group" style="display: flex; gap: 20px; justify-content: center; margin-bottom: 20px;">
+                <label style="cursor: pointer; display: flex; align-items: center; gap: 8px;">
+                    <input type="radio" name="tipo_accion" value="crear" id="radio-crear" checked onchange="toggleForm()">
+                    <span>🏠 Crear nueva casa</span>
+                </label>
+                <label style="cursor: pointer; display: flex; align-items: center; gap: 8px;">
+                    <input type="radio" name="tipo_accion" value="unirse" id="radio-unirse" onchange="toggleForm()">
+                    <span>🔗 Unirme a una casa</span>
+                </label>
+            </div>
+
+            <!-- Sección Crear Casa -->
+            <div id="seccion-crear">
+                <div class="form-group">
+                    <label for="nombre_casa">Nombre de la Casa</label>
+                    <input type="text" id="nombre_casa" name="nombre_casa" class="form-control neo-input">
+                </div>
+            </div>
+
+            <!-- Sección Unirse a Casa -->
+            <div id="seccion-unirse" style="display: none;">
+                <div class="form-group">
+                    <label for="codigo_casa">Código de Invitación</label>
+                    <input type="text" id="codigo_casa" name="codigo_casa" class="form-control neo-input" placeholder="Ej: A1B2C3D4">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="password_casa" id="label_password_casa">Contraseña de la Casa</label>
+                <input type="password" id="password_casa" name="password_casa" class="form-control neo-input" required>
+            </div>
+
+            <button type="submit" class="btn neo-button-primary" style="width: 100%; margin-top: 20px;">Completar Registro</button>
         </form>
-        <p style="margin-top: 15px; text-align: center; color: var(--text-primary);">
+        <p style="margin-top: 20px; text-align: center; color: var(--text-primary);">
             ¿Ya tienes cuenta? <a href="{{ url_for('auth.login_page') }}" style="color: var(--primary-color);">Inicia sesión aquí</a>
         </p>
     </div>
 </div>
+
+<script>
+function toggleForm() {
+    const isCrear = document.getElementById('radio-crear').checked;
+    const secCrear = document.getElementById('seccion-crear');
+    const secUnirse = document.getElementById('seccion-unirse');
+    const labelPwd = document.getElementById('label_password_casa');
+    const inputNombre = document.getElementById('nombre_casa');
+    const inputCodigo = document.getElementById('codigo_casa');
+
+    if (isCrear) {
+        secCrear.style.display = 'block';
+        secUnirse.style.display = 'none';
+        labelPwd.innerText = 'Crea una contraseña para tu casa';
+        inputNombre.required = true;
+        inputCodigo.required = false;
+    } else {
+        secCrear.style.display = 'none';
+        secUnirse.style.display = 'block';
+        labelPwd.innerText = 'Contraseña de la casa (Provista por el admin)';
+        inputNombre.required = false;
+        inputCodigo.required = true;
+    }
+}
+// Init toggle on load
+document.addEventListener('DOMContentLoaded', toggleForm);
+</script>
 {% endblock %}
