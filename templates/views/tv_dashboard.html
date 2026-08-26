@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
@@ -15,10 +15,13 @@
     <meta name="tv-token" content="{{ token }}">
 </head>
 <body>
+    <div style="position: absolute; top: 20px; left: 30px; font-size: 2rem; color: #f43f5e; font-weight: bold; text-shadow: 2px 2px 5px rgba(0,0,0,0.5);">
+        🏠 {{ casa_nombre }}
+    </div>
     <div class="tv-grid">
         
         <!-- Widget: Reloj y Clima -->
-        <div class="tv-widget clock-widget">
+        <div class="tv-widget clock-widget" style="position: relative; margin-top: 20px;">
             <div id="tv-clock">--:--</div>
             <div id="tv-date">Cargando fecha...</div>
             <div id="tv-weather">

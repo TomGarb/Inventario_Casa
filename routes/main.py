@@ -118,19 +118,17 @@ def tv_dashboard_alias(pin):
 
 @main_bp.route('/tv-dashboard', methods=['GET'])
 def tv_dashboard():
-    # Simple token protection (e.g. ?token=micasa123)
-    # The token can be set in .env as TV_DASHBOARD_TOKEN, default 'micasa123'
-    expected_token = os.environ.get('TV_DASHBOARD_TOKEN', 'micasa123')
     token = request.args.get('token')
+    casa = Casa.query.filter(Casa.codigo_invitacion == token).first() if token else None
     
-    if token != expected_token:
+    if not casa:
         return f'''
         <div style="background:#1e1e2f; color:white; font-family:sans-serif; height:100vh; display:flex; flex-direction:column; justify-content:center; align-items:center; text-align:center;">
             <h1 style="color:#f43f5e; font-size: 3rem;">Acceso Denegado</h1>
-            <p style="font-size: 1.5rem;">Para acceder a la TV sin iniciar sesión, debes ingresar el PIN secreto en la URL.</p>
-            <p style="font-size: 1.5rem;">Usando el control remoto, entra a esta dirección exacta:</p>
+            <p style="font-size: 1.5rem;">Para acceder a la TV de tu casa, debes usar el Código de Invitación de la misma.</p>
+            <p style="font-size: 1.5rem;">Entra a esta dirección exacta en tu TV:</p>
             <div style="background:#2dd4bf; color:black; padding:20px; font-size:2rem; font-weight:bold; border-radius:15px; margin: 20px;">
-                tusitio.com/tv/{expected_token}
+                tusitio.com/tv-dashboard?token=TU_CODIGO
             </div>
         </div>
         ''', 403
@@ -141,73 +139,68 @@ def tv_dashboard():
     return render_template('views/tv_dashboard.html', 
                            weather_api_key=weather_api_key, 
                            weather_city=weather_city,
-                           token=token)
+                           token=token,
+                           casa_nombre=casa.nombre)
 
 @main_bp.route('/api/tv_data', methods=['GET'])
 def get_tv_data():
-    expected_token = os.environ.get('TV_DASHBOARD_TOKEN', 'micasa123')
     token = request.args.get('token')
+    casa = Casa.query.filter(Casa.codigo_invitacion == token).first() if token else None
     
-    if token != expected_token:
+    if not casa:
         return jsonify({'error': 'Acceso Denegado'}), 403
         
-    tz = pytz.timezone('America/Argentina/Buenos_Aires')
-    hoy = datetime.now(tz).date()
-    
-    # 1. Alertas de Stock
-    alertas_stock = Producto.query.filter(Producto.es_temporal == False, Producto.stock_actual <= Producto.stock_minimo).all()
-    stock_data = [{'nombre': p.nombre, 'stock_actual': p.stock_actual, 'stock_minimo': p.stock_minimo} for p in alertas_stock]
-    
-    # 2. Menús del Día
-    menus_hoy = MenuSemanal.query.filter(MenuSemanal.fecha_asignada == hoy).all()
-    menu_data = [{'tipo': m.tipo_comida, 'receta': m.receta.nombre} for m in menus_hoy]
-    
-    # 3. Logística (Próximos 3 eventos desde hoy)
-    ahora = datetime.now(tz)
-    fin_manana = (ahora + timedelta(days=1)).replace(hour=23, minute=59, second=59)
-    eventos = EventoLogistico.query.filter(
-        EventoLogistico.fecha_inicio >= ahora,
-        EventoLogistico.fecha_inicio <= fin_manana
-    ).order_by(EventoLogistico.fecha_inicio.asc()).limit(3).all()
-    logistica_data = [{'titulo': e.titulo, 'hora': e.fecha_inicio.strftime('%H:%M')} for e in eventos]
-    
-    # 4. Tareas (Vencidas y Hoy)
-    tareas_data = []
-    tareas = Tarea.query.all()
-    for t in tareas:
-        current_date = t.fecha_ultima_ejecucion or (hoy - timedelta(days=1))
-        proxima = calcular_proxima_fecha(t, current_date)
-        if t.tipo_frecuencia == 'fecha_fija':
-            try: proxima = datetime.strptime(t.valor_frecuencia, '%Y-%m-%d').date()
-            except: proxima = hoy
-            
-        if proxima <= hoy:
-            prox_user_id = calcular_proximo_turno(t)
-            prox_user = db.session.get(Usuario, prox_user_id) if prox_user_id else None
-            nombre_asignado = prox_user.username if prox_user else "Todos"
-            
-            tareas_data.append({
-                'nombre': t.nombre,
-                'asignado': nombre_asignado,
-                'vencida': (hoy - proxima).days > 0,
-                'prioridad': t.prioridad
-            })
-            
-    # Sort tareas: Vencidas and Urgentes first
-    tareas_data.sort(key=lambda x: (not x['vencida'], x['prioridad'] != 'Urgente'))
-    
-    return jsonify({
-        'stock': stock_data,
-        'menus': menu_data,
-        'logistica': logistica_data,
-        'tareas': tareas_data[:6]
-    })
-
+    from app import bot_tenant_var
+    token_var = bot_tenant_var.set(casa.id)
+    try:
+        tz = pytz.timezone('America/Argentina/Buenos_Aires')
+        hoy = datetime.now(tz).date()
+        
+        # 1. Alertas de Stock
+        alertas_stock = Producto.query.filter(Producto.es_temporal == False, Producto.stock_actual <= Producto.stock_minimo).all()
+        stock_data = [{'nombre': p.nombre, 'stock_actual': p.stock_actual, 'stock_minimo': p.stock_minimo} for p in alertas_stock]
+        
+        # 2. Menús del Día
+        menus_hoy = MenuSemanal.query.filter(MenuSemanal.fecha_asignada == hoy).all()
+        menu_data = [{'tipo': m.tipo_comida, 'receta': m.receta.nombre} for m in menus_hoy]
+        
+        # 3. Logística (Próximos 3 eventos desde hoy)
+        # We need a cross-tenant equivalent if we want to show it, or just for this house.
+        # Since EventoLogistico ignores the global filter, we MUST manually filter by casa_id!
+        ahora = datetime.now(tz)
+        eventos = EventoLogistico.query.filter(EventoLogistico.casa_id == casa.id, EventoLogistico.fecha_inicio >= ahora).order_by(EventoLogistico.fecha_inicio.asc()).limit(3).all()
+        logistica_data = [{'titulo': e.titulo, 'fecha': e.fecha_inicio.strftime('%Y-%m-%d %H:%M')} for e in eventos]
+        
+        # 4. Tareas de hoy
+        tareas = Tarea.query.filter_by(completada=False).all()
+        tareas_hoy = []
+        for t in tareas:
+            current_date = t.fecha_ultima_ejecucion or (hoy - timedelta(days=1))
+            proxima = calcular_proxima_fecha(t, current_date)
+            if t.tipo_frecuencia == 'fecha_fija':
+                try: proxima = datetime.strptime(t.valor_frecuencia, '%Y-%m-%d').date()
+                except: proxima = hoy
+                
+            if proxima <= hoy:
+                tareas_hoy.append({
+                    'nombre': t.modelo.nombre if t.modelo else t.nombre,
+                    'asignado': t.modelo.asignado_actual.username if (t.modelo and t.modelo.asignado_actual) else 'Sin asignar'
+                })
+                
+        return jsonify({
+            'stock': stock_data,
+            'menus': menu_data,
+            'logistica': logistica_data,
+            'tareas': tareas_hoy
+        })
+    finally:
+        bot_tenant_var.reset(token_var)
 
 @main_bp.route('/tablet-dashboard', methods=['GET'])
 @login_required
 def tablet_dashboard():
-    return render_template('views/tablet_dashboard.html')
+    casa = Casa.query.get(current_user.casa_activa_id)
+    return render_template('views/tablet_dashboard.html', casa_nombre=casa.nombre if casa else 'Sin Casa')
 
 
 @main_bp.route('/api/tablet_data', methods=['GET'])
