@@ -21,6 +21,8 @@ services:
       - db
     env_file:
       - .env
+    volumes:          # <-- AÑADE ESTA LÍNEA
+      - .:/app
     restart: unless-stopped
 
 volumes:
