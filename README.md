@@ -1,87 +1,60 @@
-# HomeStock 📦🎙️
+# HomeStock 🏠📊
 
-HomeStock es un ERP doméstico y gestor inteligente diseñado para registrar, consultar y administrar todas las áreas de tu hogar de manera sencilla. Integra un Bot de Telegram con Inteligencia Artificial (Gemini 2.0 Flash) para interpretar texto y leer tickets de compra, un calendario logístico, módulo de finanzas compartidas y dashboards multi-dispositivo.
+HomeStock es un ERP doméstico y gestor inteligente diseñado para registrar, consultar y administrar todas las áreas de tu hogar de manera sencilla. Integra arquitectura Multi-Tenant, un Bot de Telegram con Inteligencia Artificial (Gemini), un calendario logístico, módulo de finanzas compartidas y dashboards centralizados.
 
-## Características Principales
-* **Inteligencia Artificial Multimodal (Gemini)**: Procesamiento de texto natural para detectar intenciones y lectura de tickets de supermercado mediante OCR para carga automática de gastos. *(Nota: El soporte de audio se encuentra deshabilitado para optimizar cuota de IA).*
-* **Manejo de Intenciones NLP**: Detección inteligente de intenciones (Inventario, Finanzas, Logística, Tareas) directo desde Telegram.
-* **Módulo de Finanzas (Tipo Splitwise)**: Carga de gastos, subida de tickets por foto, y división automática de deudas entre los habitantes del hogar.
-* **Logística y Entretenimiento (TheSportsDB)**: Calendario compartido del hogar. Permite sincronizar y agregar automáticamente los próximos partidos de tus equipos y ligas favoritas (F1, NBA, Fútbol).
-* **Métricas y Gamificación**: Sistema de "Metas de Ahorro" con barras de progreso visuales y estadísticas de gastos mensuales.
-* **Gestor de Menú y Recetas**: Creación de recetas (Desayuno, Almuerzo, Cena), armado de menús semanales automáticos y su cruce con el inventario para deducir qué ingredientes faltan.
-* **Dashboards Multi-Dispositivo (TV y Tablet)**: Vistas animadas dedicadas (`/tv-dashboard`, `/tablet`) que auto-scrollean y se refrescan solas para tenerlas siempre en pantalla.
-* **Interfaz Neomórfica (UI/UX)**: Diseño completamente renovado basado en Neomorfismo, con sombras suaves, componentes redondeados y modo responsivo absoluto.
-* **Sistema Avanzado de Tareas**: Tareas recurrentes, saltos de turno (`SaltoTarea`), asignaciones por usuario e historial de completado.
+## ✨ Nuevas Funcionalidades (Última Versión)
 
-## Tecnologías Utilizadas (Stack)
-* **Backend**: Python 3.12+, Flask, SQLAlchemy, Flask-Migrate.
-* **Base de Datos**: PostgreSQL.
-* **Bot de Telegram**: `pyTelegramBotAPI` con webhooks simulados (Safe Polling).
-* **Inteligencia Artificial**: `google-genai` (Gemini 2.0 Flash).
-* **Programación de Tareas**: `APScheduler` (Cron jobs para stock bajo y sincronización).
-* **Frontend**: HTML5, CSS3 (Neomorfismo), Vanilla JavaScript (Jinja2 Templates).
-* **Servidor (WSGI)**: Preparado para `Gunicorn` / `Waitress`.
+### 🏘️ Arquitectura Multi-Tenant (Casas Aisladas)
+* **Aislamiento Seguro (RLS por ORM):** El sistema permite gestionar múltiples "Casas". Todo el inventario, tareas, finanzas y agendas están estrictamente aislados por la casa activa.
+* **Onboarding Dinámico:** Al registrarse, un usuario debe **Crear** una casa nueva (convirtiéndose en Administrador) o **Unirse** a una existente mediante un *Código de Invitación* y contraseña.
+* **Gestión de Casas:** Los administradores pueden cambiar el nombre de su casa, expulsar usuarios, o eliminar la casa por completo (borrado en cascada seguro).
+* **Visibilidad Transversal:** Puedes cambiar fácilmente de entorno activo desde el menú. El Dashboard y la Navbar siempre te indicarán en qué casa estás operando.
 
-## Instrucciones de Instalación y Despliegue
+### 🐾 Ecosistema de Mascotas (Pet Care)
+* **Hub Transversal:** Un módulo dedicado (`/mascotas`) que actúa como agregador de la salud animal.
+* **Integración Total:** Vincula automáticamente el inventario (Alimentos, Pipetas, Accesorios), las rutinas diarias (Paseos, Comidas rotativas) y la agenda logística (Turnos de Veterinario y Vacunas) en un solo panel de control.
+* **Vistas Dinámicas:** Cálculo automático de edades y consumo rápido de alimento (-1 ración).
 
-### 1. Clonar el repositorio
-```bash
-git clone https://github.com/tu-usuario/homestock.git
-cd homestock
-```
+### 🚀 Interfaz Renovada (Launchpad)
+* **Dashboard "Launchpad":** El viejo carrusel ha sido reemplazado por un grid Launchpad Neomórfico que te permite saltar a las secciones más críticas de la casa (Inventario, Finanzas, Mascotas, Tareas).
+* **Navegación Agrupada:** Barra de navegación superior condensada bajo dropdowns inteligentes (Operaciones, Planificación, Gestión) operados por puro CSS.
 
-### 2. Configurar el Entorno Virtual
-```bash
-python -m venv venv
-# En Windows:
-venv\Scripts\activate
-# En Linux/Mac:
-source venv/bin/activate
-```
+## 🛠️ Características Clásicas
 
-### 3. Instalar las dependencias
-```bash
-pip install -r requirements.txt
-```
+* **Inteligencia Artificial Multimodal (Gemini):** Detección de intenciones desde Telegram y lectura de tickets de supermercado mediante OCR para carga automática de gastos.
+* **Módulo de Finanzas (Tipo Splitwise):** Carga de gastos compartidos y división automática de deudas entre los habitantes de la casa. Metas de ahorro.
+* **Gestor de Menú y Recetas:** Creación de recetas, armado de menús semanales automáticos y deducción cruzada de ingredientes faltantes en el inventario.
+* **Logística y Entretenimiento:** Sincronización automática de eventos, citas y calendarios de partidos deportivos (F1, NBA, Fútbol) vía TheSportsDB.
+* **Sistema Avanzado de Tareas:** Tareas recurrentes, saltos de turno (`SaltoTarea`), asignaciones por usuario.
+* **Integración Telegram Bidireccional:** Añade productos, reporta consumos o recibe recordatorios de tareas matutinos.
 
-### 4. Configurar las Variables de Entorno
-Copia el archivo `.env.example` y renómbralo a `.env`:
-```bash
-cp .env.example .env
-```
-Abre el archivo `.env` y configura tus claves:
-* `TELEGRAM_TOKEN`: El token de tu bot de Telegram.
-* `DATABASE_URL`: Tu cadena de conexión a PostgreSQL (Ej: `postgresql://usuario:password@localhost:5432/homestock`).
-* `SECRET_KEY`: Llave de encriptación para las sesiones de Flask.
-* `GEMINI_API_KEY`: Tu API Key de Google AI Studio.
+## 📖 Guía Rápida de Uso
 
-### 5. Iniciar la Aplicación (Modo Desarrollo)
-Ejecuta las migraciones y lanza el servidor:
-```bash
-flask db upgrade
-python app.py
-```
-*El sistema inyectará automáticamente los datos semilla (Suscripciones base, configuraciones) al arrancar.*
+### Primeros Pasos (Multi-Casa)
+1. Ve a `/register`. Podrás elegir entre crear una casa nueva o unirte a una existente.
+2. Si **Creas** una casa: Ve a **Mi Perfil > Gestión de la Casa**, copia el **Código de Invitación** y compártelo con tus familiares/roomies para que se unan.
+3. Puedes cambiar de casa en la barra de navegación superior si administras varias.
 
-### 6. Despliegue en Producción
-El proyecto está optimizado con un sistema de _Lock_ (`bot_scheduler.lock`) para evitar la colisión de hilos de Telegram y Scheduler.
-En Render o Linux (Gunicorn):
-```bash
-gunicorn -w 2 -b 0.0.0.0:5000 app:app
-```
+### Gestión de Usuarios y Permisos
+* En tu Perfil, si eres Administrador de la casa activa, verás la tabla **Gestión de Usuarios**.
+* Desde ahí puedes otorgar/quitar rol de Administrador a un miembro (restringido solo a la casa actual) o **Eliminarlo**, lo que expulsará a esa persona de tu casa sin borrar su cuenta de HomeStock.
+* También puedes **Editar o Eliminar la Casa** entera desde el menú principal de Casas. Al eliminarla, se hará un borrado estricto de todos los inventarios y deudas.
 
-## Uso Básico del Telegram Bot
-1. Regístrate en la interfaz web y ve a **Mi Perfil** para generar un **Token de Vinculación**.
-2. Abre Telegram y envíale al Bot el comando `/vincular [TU_TOKEN]`.
-3. Ya puedes enviarle comandos de texto natural:
-   * "Compré 3 litros de leche en Coto por 2500"
-   * "Agrega el partido de hoy al calendario"
-   * También puedes enviarle **fotos de tickets de compra** y Gemini extraerá los gastos automáticamente.
+### Uso del Inventario y Mascotas
+* Entra al menú **📦 Operaciones**.
+* En **Inventario**, puedes crear productos, indicarles ubicaciones y stock mínimo.
+* En **Mascotas**, si creaste productos con la palabra "Alimento", "Perro" o "Gato", aparecerán vinculados automáticamente para que controles su stock. Desde ahí puedes registrar su próximo turno veterinario.
 
-## Seguridad
-* Todos los endpoints de la API web están protegidos por CSRF tokens dinámicos en el frontend.
-* Las rutas de administración están protegidas con el decorador `@admin_required`.
-* Las credenciales nunca se exponen en código (gestión por `.env`).
+### Uso del Telegram Bot
+1. Ve a **Mi Perfil** y genera un **Token de Vinculación**.
+2. Escribe a tu Bot en Telegram: `/vincular [TU_TOKEN]`.
+3. Ya puedes hablarle con naturalidad: *"Compré 3 litros de leche en Coto por 2500"*, *"Recuérdame pagar la luz mañana"*, o enviarle la foto de un ticket.
+
+## 💻 Stack Tecnológico
+* **Backend:** Python 3.12+, Flask, SQLAlchemy, Flask-Migrate.
+* **Base de Datos:** PostgreSQL (Soporte Nativo Multi-Tenant vía SQLAlchemy Loader Criteria).
+* **IA:** `google-genai` (Gemini 2.0 Flash).
+* **Frontend:** HTML5, CSS3 (Neomorfismo Avanzado), Vanilla JS.
 
 ---
-*Desarrollado con ❤️ para centralizar el control del hogar.*
+*Desarrollado para centralizar el control del hogar.*
