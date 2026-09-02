@@ -20,6 +20,28 @@
         <div id="panel-cuenta" class="tab-panel active">
             <div class="dash-card">
                 <h3 class="dash-header">Bienvenido, {{ current_user.username }}</h3>
+
+                {% if not telegram_configured or not gemini_configured %}
+                <div style="background: rgba(244, 63, 94, 0.1); border: 1px solid var(--danger-color); padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                    <h4 style="color: var(--danger-color); margin-top: 0; margin-bottom: 10px;">⚠️ APIs Faltantes detectadas</h4>
+                    <p style="font-size: 0.9rem; margin-bottom: 10px;">El sistema está funcionando en modo local sin algunas de las inteligencias externas. Para activar todo el potencial del ecosistema, añade las llaves faltantes en tu servidor:</p>
+                    <ul style="font-size: 0.85rem; color: var(--text-secondary); margin-left: 20px; margin-bottom: 15px;">
+                        {% if not gemini_configured %}
+                        <li style="margin-bottom: 5px;"><strong>GEMINI_API_KEY:</strong> Faltante. Obténla en <a href="https://aistudio.google.com/app/apikey" target="_blank" style="color: var(--primary-color);">Google AI Studio</a>.</li>
+                        {% endif %}
+                        {% if not telegram_configured %}
+                        <li style="margin-bottom: 5px;"><strong>TELEGRAM_TOKEN:</strong> Faltante. Habla con <a href="https://t.me/BotFather" target="_blank" style="color: var(--primary-color);">@BotFather</a> y usa /newbot.</li>
+                        {% endif %}
+                    </ul>
+                    <p style="font-size: 0.9rem; margin-bottom: 5px;"><strong>¿Cómo cargarlas?</strong></p>
+                    <ol style="font-size: 0.85rem; color: var(--text-secondary); margin-left: 20px; margin-bottom: 0;">
+                        <li>Abre el archivo <code>.env</code> en la carpeta raíz del proyecto (junto a docker-compose.yml).</li>
+                        <li>Añade o edita las variables: <code>GEMINI_API_KEY=tu_llave</code> y/o <code>TELEGRAM_TOKEN=tu_token</code>.</li>
+                        <li>En la consola de tu servidor ejecuta: <code>docker-compose restart</code></li>
+                    </ol>
+                </div>
+                {% endif %}
+
                 <p>Estado de Telegram: 
                     {% if current_user.telegram_chat_id %}
                         <span style="color: var(--success-color); font-weight: bold;">Vinculado ✅</span>

@@ -106,9 +106,18 @@ def logout():
 @auth_bp.route('/perfil')
 @login_required
 def perfil():
+    import os
     from models.database import Casa
     casa_actual = Casa.query.get(current_user.casa_activa_id) if current_user.casa_activa_id else None
-    return render_template('views/perfil.html', active_page='perfil', casa_actual=casa_actual)
+    
+    telegram_configured = bool(os.getenv('TELEGRAM_TOKEN'))
+    gemini_configured = bool(os.getenv('GEMINI_API_KEY'))
+    
+    return render_template('views/perfil.html', 
+                           active_page='perfil', 
+                           casa_actual=casa_actual,
+                           telegram_configured=telegram_configured,
+                           gemini_configured=gemini_configured)
 
 
 @auth_bp.route('/api/generar_token', methods=['POST'])
