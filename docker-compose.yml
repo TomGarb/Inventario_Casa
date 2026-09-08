@@ -21,8 +21,30 @@ services:
       - db
     env_file:
       - .env
-    volumes:          # <-- AÑADE ESTA LÍNEA
-      - .:/app
+    environment:
+      - RUN_MODE=web
+    restart: unless-stopped
+
+  bot:
+    build: .
+    depends_on:
+      - db
+    env_file:
+      - .env
+    environment:
+      - RUN_MODE=bot
+    command: ["python", "run_bot.py"]
+    restart: unless-stopped
+
+  scheduler:
+    build: .
+    depends_on:
+      - db
+    env_file:
+      - .env
+    environment:
+      - RUN_MODE=scheduler
+    command: ["python", "run_scheduler.py"]
     restart: unless-stopped
 
 volumes:

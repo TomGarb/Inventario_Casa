@@ -432,8 +432,10 @@ from services.bot_telegram import registrar_handlers
 if bot:
     registrar_handlers(bot, app)
 
-# Intentar arrancar tareas de fondo solo una vez (compatible con WSGI)
-start_background_tasks()
+# Intentar arrancar tareas de fondo solo si estamos en modo monolito
+RUN_MODE = os.environ.get('RUN_MODE', 'monolith')
+if RUN_MODE == 'monolith':
+    start_background_tasks()
 
 # Seed data después de arranque
 seed_suscripciones()
