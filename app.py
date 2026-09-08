@@ -338,13 +338,25 @@ def _limpiar_lock():
 atexit.register(_limpiar_lock)
 
 def seed_suscripciones():
-    """Inyecta suscripciones deportivas iniciales si la tabla está vacía."""
+    """Inyecta suscripciones deportivas iniciales si la tabla está vacía y elimina duplicados."""
     with app.app_context():
         from models.database import SuscripcionDeporte, Usuario
         import sqlalchemy
         try:
-            if SuscripcionDeporte.query.first() is not None:
-                return  # Ya hay datos
+            # 1. Limpiar duplicados si ya se crearon previamente
+            try:
+                db.session.execute(sqlalchemy.text("""
+                    DELETE FROM suscripciones_deportes a USING suscripciones_deportes b
+                    WHERE a.id > b.id AND a.usuario_id = b.usuario_id AND a.external_api_id = b.external_api_id
+                """))
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
+
+            # 2. Consultar con SQL puro para evitar el filtro multi-tenant en el hilo principal
+            count = db.session.execute(sqlalchemy.text("SELECT COUNT(*) FROM suscripciones_deportes")).scalar()
+            if count and count > 0:
+                return  # Ya hay datos, no reinyectar
             
             admin = Usuario.query.filter_by(is_admin=True).first()
             if not admin:
@@ -378,7 +390,7 @@ def seed_suscripciones():
             logging.info(f"[Seed] {len(seeds)} suscripciones deportivas inyectadas para {admin.username}.")
         except sqlalchemy.exc.ProgrammingError:
             db.session.rollback()
-            logging.info("[Seed] La tabla SuscripcionDeporte no existe aún, saltando inyección de datos (probablemente durante migración).")
+            logging.info("[Seed] La tabla SuscripcionDeporte no existe aún, saltando inyección de datos.")
         except Exception as e:
             db.session.rollback()
             logging.warning(f"[Seed] Error inyectando datos semilla: {e}")
@@ -437,8 +449,9 @@ RUN_MODE = os.environ.get('RUN_MODE', 'monolith')
 if RUN_MODE == 'monolith':
     start_background_tasks()
 
-# Seed data después de arranque
-seed_suscripciones()
+# Seed data después de arranque solo en servicio web o monolito
+if RUN_MODE in ('monolith', 'web'):
+    seed_suscripciones()
 
 # ==========================================
 # 12. ENDPOINTS NUEVOS MODULOS (STUBS) Y WEBHOOK

@@ -601,7 +601,8 @@ select option {
     height: 28px;
 }
 
-.toggle-input {
+.toggle-input,
+.widget-toggle-input {
     opacity: 0;
     width: 0;
     height: 0;
@@ -633,11 +634,13 @@ select option {
     box-shadow: 0 2px 4px rgba(0,0,0,0.2);
 }
 
-.toggle-input:checked + .toggle-switch {
+.toggle-input:checked + .toggle-switch,
+.widget-toggle-input:checked + .toggle-switch {
     background-color: var(--primary-color);
 }
 
-.toggle-input:checked + .toggle-switch:before {
+.toggle-input:checked + .toggle-switch:before,
+.widget-toggle-input:checked + .toggle-switch:before {
     transform: translateX(22px);
 }
 
