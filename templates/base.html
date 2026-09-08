@@ -40,7 +40,7 @@
         });
     </script>
 </head>
-<body>
+<body class="{{ current_user.tema_ui if current_user.is_authenticated and current_user.tema_ui else 'tema-neomorfico' }}">
     <div class="app-container">
         <!-- Top App Header (Móvil) -->
         <header class="app-header">

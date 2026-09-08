@@ -59,6 +59,14 @@ def dashboard():
     # 6. Total en Lista de Compras
     total_en_lista = Producto.query.filter_by(en_lista=True).count()
 
+    import json
+    user_widgets = ["inventario", "compras", "finanzas", "tareas", "logistica", "menus", "metricas", "mascotas"]
+    if getattr(current_user, 'widgets_dashboard', None):
+        try:
+            user_widgets = json.loads(current_user.widgets_dashboard)
+        except Exception:
+            pass
+
     return render_template('views/dashboard.html', 
         active_page='dashboard',
         mis_tareas=mis_tareas,
@@ -69,7 +77,8 @@ def dashboard():
         eventos_agenda=eventos_agenda,
         alertas_stock=alertas_stock,
         movimientos=movimientos,
-        mi_balance=mi_balance
+        mi_balance=mi_balance,
+        user_widgets=user_widgets
     )
 
 @main_bp.route('/api/dashboard_stats', methods=['GET'])

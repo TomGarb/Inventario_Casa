@@ -14,10 +14,12 @@ class Usuario(UserMixin, db.Model):
     is_tablet = db.Column(db.Boolean, default=False)
     casa_activa_id = db.Column(db.Integer, db.ForeignKey('casas.id'), nullable=True)
     
-    # Nuevas preferencias de notificaciones
+    # Nuevas preferencias de notificaciones y UI
     recibir_resumen_matutino = db.Column(db.Boolean, default=True)
     recibir_alertas_vencimiento = db.Column(db.Boolean, default=True)
     recibir_recordatorios_tareas = db.Column(db.Boolean, default=True)
+    tema_ui = db.Column(db.String(50), default='tema-neomorfico')
+    widgets_dashboard = db.Column(db.Text, default='["inventario","compras","finanzas","tareas","logistica","menus","metricas","mascotas"]')
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
@@ -33,7 +35,9 @@ class Usuario(UserMixin, db.Model):
             'is_admin': self.is_admin,
             'recibir_resumen_matutino': self.recibir_resumen_matutino,
             'recibir_alertas_vencimiento': self.recibir_alertas_vencimiento,
-            'recibir_recordatorios_tareas': self.recibir_recordatorios_tareas
+            'recibir_recordatorios_tareas': self.recibir_recordatorios_tareas,
+            'tema_ui': self.tema_ui or 'tema-neomorfico',
+            'widgets_dashboard': self.widgets_dashboard or '["inventario","compras","finanzas","tareas","logistica","menus","metricas","mascotas"]'
         }
 
 

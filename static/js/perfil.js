@@ -428,3 +428,70 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 });
+
+/* ==========================================
+   PERSONALIZACIÓN: TEMAS Y WIDGETS DASHBOARD
+   ========================================== */
+async function seleccionarTema(nombreTema) {
+    // 1. Aplicar tema inmediatamente en el body (Live preview instantáneo)
+    document.body.className = nombreTema;
+
+    // 2. Actualizar estilos visuales de las tarjetas de tema
+    document.querySelectorAll('.theme-card').forEach(card => {
+        card.classList.remove('active');
+        const badge = card.querySelector('.theme-badge');
+        if (badge) badge.innerText = '';
+    });
+
+    const activeCard = document.querySelector(`.theme-card[onclick*="${nombreTema}"]`);
+    if (activeCard) {
+        activeCard.classList.add('active');
+        const badge = activeCard.querySelector('.theme-badge');
+        if (badge) badge.innerText = 'Activo ✓';
+    }
+
+    // 3. Persistir preferencia en la base de datos
+    try {
+        const res = await fetch('/api/preferencias_ui', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ tema_ui: nombreTema })
+        });
+        if (res.ok) {
+            showToast('Tema visual actualizado', 'success');
+        } else {
+            showToast('No se pudo guardar el tema', 'error');
+        }
+    } catch (e) {
+        console.error("Error guardando tema", e);
+        showToast('Error de red al guardar tema', 'error');
+    }
+}
+
+async function actualizarWidgetsDashboard() {
+    const inputs = document.querySelectorAll('.widget-toggle-input');
+    const seleccionados = [];
+
+    inputs.forEach(input => {
+        if (input.checked) {
+            seleccionados.push(input.getAttribute('data-widget'));
+        }
+    });
+
+    try {
+        const res = await fetch('/api/preferencias_ui', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ widgets_dashboard: seleccionados })
+        });
+        if (res.ok) {
+            showToast('Configuración de Dashboard guardada', 'success');
+        } else {
+            showToast('Error al actualizar widgets', 'error');
+        }
+    } catch (e) {
+        console.error("Error guardando widgets", e);
+        showToast('Error de red al guardar widgets', 'error');
+    }
+}
+

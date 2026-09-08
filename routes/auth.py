@@ -107,17 +107,27 @@ def logout():
 @login_required
 def perfil():
     import os
+    import json
     from models.database import Casa
     casa_actual = Casa.query.get(current_user.casa_activa_id) if current_user.casa_activa_id else None
     
     telegram_configured = bool(os.getenv('TELEGRAM_TOKEN'))
     gemini_configured = bool(os.getenv('GEMINI_API_KEY'))
     
+    widgets_list = ["inventario", "compras", "finanzas", "tareas", "logistica", "menus", "metricas", "mascotas"]
+    if current_user.widgets_dashboard:
+        try:
+            widgets_list = json.loads(current_user.widgets_dashboard)
+        except Exception:
+            pass
+    
     return render_template('views/perfil.html', 
                            active_page='perfil', 
                            casa_actual=casa_actual,
                            telegram_configured=telegram_configured,
-                           gemini_configured=gemini_configured)
+                           gemini_configured=gemini_configured,
+                           user_widgets=widgets_list,
+                           user_tema=current_user.tema_ui or 'tema-neomorfico')
 
 
 @auth_bp.route('/api/generar_token', methods=['POST'])
@@ -229,6 +239,33 @@ def guardar_preferencias():
     
     db.session.commit()
     return jsonify({'mensaje': 'Preferencias guardadas exitosamente'})
+
+
+@auth_bp.route('/api/preferencias_ui', methods=['POST'])
+@login_required
+def guardar_preferencias_ui():
+    import json
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'No se recibieron datos'}), 400
+        
+    if 'tema_ui' in data:
+        tema = data['tema_ui']
+        temas_validos = ['tema-neomorfico', 'tema-bento-oscuro', 'tema-minimalista-claro', 'tema-noche-oled', 'tema-bosque-zen']
+        if tema in temas_validos:
+            current_user.tema_ui = tema
+            
+    if 'widgets_dashboard' in data:
+        widgets = data['widgets_dashboard']
+        if isinstance(widgets, list):
+            current_user.widgets_dashboard = json.dumps(widgets)
+            
+    db.session.commit()
+    return jsonify({
+        'mensaje': 'Preferencias de diseño actualizadas',
+        'tema_ui': current_user.tema_ui,
+        'widgets_dashboard': current_user.widgets_dashboard
+    })
 
 
 @auth_bp.route('/api/perfil/configuracion', methods=['GET', 'POST'])

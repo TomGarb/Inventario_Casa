@@ -8,6 +8,7 @@
 <div class="perfil-container">
     <div class="perfil-sidebar">
         <button class="perfil-tab-btn active" data-target="panel-cuenta">👤 Cuenta & Seguridad</button>
+        <button class="perfil-tab-btn" data-target="panel-apariencia">🎨 Apariencia & Dashboard</button>
         <button class="perfil-tab-btn" data-target="panel-notif">🔔 Notificaciones</button>
         <button class="perfil-tab-btn" data-target="panel-entret">🎬 Entretenimiento</button>
         {% if current_user.is_admin %}
@@ -70,6 +71,157 @@
                 <div style="margin-top: 20px; border-top: 1px solid var(--border-color); padding-top: 15px;">
                     <h4>Seguridad</h4>
                     <button class="btn btn-secondary" onclick="openChangePasswordModal({{ current_user.id }}, '{{ current_user.username }}')" style="margin-top: 10px;">🔑 Cambiar mi Contraseña</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab: Apariencia y Dashboard -->
+        <div id="panel-apariencia" class="tab-panel">
+            <div class="dash-card">
+                <h3 class="dash-header">🎨 Tema Visual del Sistema</h3>
+                <p style="color: var(--text-secondary); margin-bottom: 20px;">
+                    Elige el estilo visual que más te guste. Los cambios se aplican de inmediato en tu navegador y se guardan para tus próximas visitas.
+                </p>
+
+                <div class="theme-selector-grid">
+                    <!-- Tema 1: Neomórfico -->
+                    <div class="theme-card {% if user_tema == 'tema-neomorfico' %}active{% endif %}" onclick="seleccionarTema('tema-neomorfico')">
+                        <div class="theme-preview-swatch swatch-neomorfico">
+                            <span class="swatch-bubble"></span>
+                            <span class="swatch-bubble"></span>
+                        </div>
+                        <div class="theme-info">
+                            <h4>🌟 Neomórfico 3D</h4>
+                            <p>El diseño clásico con relieve y sombras suaves.</p>
+                        </div>
+                        <span class="theme-badge">{% if user_tema == 'tema-neomorfico' %}Activo ✓{% endif %}</span>
+                    </div>
+
+                    <!-- Tema 2: Bento Oscuro -->
+                    <div class="theme-card {% if user_tema == 'tema-bento-oscuro' %}active{% endif %}" onclick="seleccionarTema('tema-bento-oscuro')">
+                        <div class="theme-preview-swatch swatch-bento">
+                            <span class="swatch-bubble" style="background: #bfaacb;"></span>
+                            <span class="swatch-bubble" style="background: #f6b5bc;"></span>
+                            <span class="swatch-bubble" style="background: #5f878f;"></span>
+                        </div>
+                        <div class="theme-info">
+                            <h4>🍱 Bento Smart Home</h4>
+                            <p>Modo oscuro mate, tarjetas planas pastel y bordes curvos.</p>
+                        </div>
+                        <span class="theme-badge">{% if user_tema == 'tema-bento-oscuro' %}Activo ✓{% endif %}</span>
+                    </div>
+
+                    <!-- Tema 3: Minimalista Claro -->
+                    <div class="theme-card {% if user_tema == 'tema-minimalista-claro' %}active{% endif %}" onclick="seleccionarTema('tema-minimalista-claro')">
+                        <div class="theme-preview-swatch swatch-minimal">
+                            <span class="swatch-bubble" style="background: #0969da;"></span>
+                            <span class="swatch-bubble" style="background: #f6f8fa;"></span>
+                        </div>
+                        <div class="theme-info">
+                            <h4>🍏 Minimalista Claro</h4>
+                            <p>Blanco puro, tipografía nítida y estética limpia tipo Apple.</p>
+                        </div>
+                        <span class="theme-badge">{% if user_tema == 'tema-minimalista-claro' %}Activo ✓{% endif %}</span>
+                    </div>
+
+                    <!-- Tema 4: Noche OLED -->
+                    <div class="theme-card {% if user_tema == 'tema-noche-oled' %}active{% endif %}" onclick="seleccionarTema('tema-noche-oled')">
+                        <div class="theme-preview-swatch swatch-oled">
+                            <span class="swatch-bubble" style="background: #000000; border: 1px solid #444;"></span>
+                            <span class="swatch-bubble" style="background: #38bdf8;"></span>
+                        </div>
+                        <div class="theme-info">
+                            <h4>🌑 Noche OLED</h4>
+                            <p>Negro absoluto de alto contraste. Ultra ahorro de batería.</p>
+                        </div>
+                        <span class="theme-badge">{% if user_tema == 'tema-noche-oled' %}Activo ✓{% endif %}</span>
+                    </div>
+
+                    <!-- Tema 5: Bosque Zen -->
+                    <div class="theme-card {% if user_tema == 'tema-bosque-zen' %}active{% endif %}" onclick="seleccionarTema('tema-bosque-zen')">
+                        <div class="theme-preview-swatch swatch-bosque">
+                            <span class="swatch-bubble" style="background: #243329;"></span>
+                            <span class="swatch-bubble" style="background: #4ade80;"></span>
+                        </div>
+                        <div class="theme-info">
+                            <h4>🌲 Bosque Zen</h4>
+                            <p>Verdes orgánicos y tonos tierra para una lectura relajante.</p>
+                        </div>
+                        <span class="theme-badge">{% if user_tema == 'tema-bosque-zen' %}Activo ✓{% endif %}</span>
+                    </div>
+                </div>
+
+                <hr style="border: 0; border-top: 1px solid var(--border-color); margin: 30px 0;">
+
+                <h3 class="dash-header">🖥️ Módulos Visibles en el Dashboard</h3>
+                <p style="color: var(--text-secondary); margin-bottom: 20px;">
+                    Enciende o apaga las tarjetas que deseas visualizar en la pantalla de inicio de tu hogar:
+                </p>
+
+                <div class="widgets-toggle-grid">
+                    <label class="toggle-container">
+                        <span class="toggle-label">📦 Inventario de Productos</span>
+                        <div class="toggle-wrapper">
+                            <input type="checkbox" class="widget-toggle-input" data-widget="inventario" {% if 'inventario' in user_widgets %}checked{% endif %} onchange="actualizarWidgetsDashboard()">
+                            <div class="toggle-switch"></div>
+                        </div>
+                    </label>
+
+                    <label class="toggle-container">
+                        <span class="toggle-label">🛒 Lista de Compras</span>
+                        <div class="toggle-wrapper">
+                            <input type="checkbox" class="widget-toggle-input" data-widget="compras" {% if 'compras' in user_widgets %}checked{% endif %} onchange="actualizarWidgetsDashboard()">
+                            <div class="toggle-switch"></div>
+                        </div>
+                    </label>
+
+                    <label class="toggle-container">
+                        <span class="toggle-label">💸 Finanzas y Gastos</span>
+                        <div class="toggle-wrapper">
+                            <input type="checkbox" class="widget-toggle-input" data-widget="finanzas" {% if 'finanzas' in user_widgets %}checked{% endif %} onchange="actualizarWidgetsDashboard()">
+                            <div class="toggle-switch"></div>
+                        </div>
+                    </label>
+
+                    <label class="toggle-container">
+                        <span class="toggle-label">🧹 Tareas del Hogar</span>
+                        <div class="toggle-wrapper">
+                            <input type="checkbox" class="widget-toggle-input" data-widget="tareas" {% if 'tareas' in user_widgets %}checked{% endif %} onchange="actualizarWidgetsDashboard()">
+                            <div class="toggle-switch"></div>
+                        </div>
+                    </label>
+
+                    <label class="toggle-container">
+                        <span class="toggle-label">📅 Calendario Logístico</span>
+                        <div class="toggle-wrapper">
+                            <input type="checkbox" class="widget-toggle-input" data-widget="logistica" {% if 'logistica' in user_widgets %}checked{% endif %} onchange="actualizarWidgetsDashboard()">
+                            <div class="toggle-switch"></div>
+                        </div>
+                    </label>
+
+                    <label class="toggle-container">
+                        <span class="toggle-label">🍽️ Planificador de Menús</span>
+                        <div class="toggle-wrapper">
+                            <input type="checkbox" class="widget-toggle-input" data-widget="menus" {% if 'menus' in user_widgets %}checked{% endif %} onchange="actualizarWidgetsDashboard()">
+                            <div class="toggle-switch"></div>
+                        </div>
+                    </label>
+
+                    <label class="toggle-container">
+                        <span class="toggle-label">📊 Métricas y Metas</span>
+                        <div class="toggle-wrapper">
+                            <input type="checkbox" class="widget-toggle-input" data-widget="metricas" {% if 'metricas' in user_widgets %}checked{% endif %} onchange="actualizarWidgetsDashboard()">
+                            <div class="toggle-switch"></div>
+                        </div>
+                    </label>
+
+                    <label class="toggle-container">
+                        <span class="toggle-label">🐾 Mascotas (Pet Care)</span>
+                        <div class="toggle-wrapper">
+                            <input type="checkbox" class="widget-toggle-input" data-widget="mascotas" {% if 'mascotas' in user_widgets %}checked{% endif %} onchange="actualizarWidgetsDashboard()">
+                            <div class="toggle-switch"></div>
+                        </div>
+                    </label>
                 </div>
             </div>
         </div>

@@ -18,10 +18,12 @@
     </div>
 
     <!-- MÓDULOS LAUNCHPAD GRID -->
+    <!-- MÓDULOS LAUNCHPAD GRID -->
     <div class="launchpad-grid">
         
         <!-- INVENTARIO -->
-        <div class="neo-card launchpad-card">
+        {% if 'inventario' in user_widgets %}
+        <div class="neo-card launchpad-card bento-card-lavender" data-widget="inventario">
             <div class="launchpad-header">
                 <span class="launchpad-icon">📦</span>
                 <h3>Inventario</h3>
@@ -36,9 +38,11 @@
             </div>
             <a href="{{ url_for('inventario.inventario') }}" class="btn neo-button-secondary">Abrir Inventario ➔</a>
         </div>
+        {% endif %}
 
         <!-- COMPRAS -->
-        <div class="neo-card launchpad-card">
+        {% if 'compras' in user_widgets %}
+        <div class="neo-card launchpad-card bento-card-salmon" data-widget="compras">
             <div class="launchpad-header">
                 <span class="launchpad-icon">🛒</span>
                 <h3>Compras</h3>
@@ -53,9 +57,11 @@
             </div>
             <a href="{{ url_for('inventario.compras') }}" class="btn neo-button-secondary">Abrir Compras ➔</a>
         </div>
+        {% endif %}
 
         <!-- FINANZAS -->
-        <div class="neo-card launchpad-card">
+        {% if 'finanzas' in user_widgets %}
+        <div class="neo-card launchpad-card bento-card-teal" data-widget="finanzas">
             <div class="launchpad-header">
                 <span class="launchpad-icon">💸</span>
                 <h3>Finanzas</h3>
@@ -72,9 +78,11 @@
             </div>
             <a href="{{ url_for('finanzas.finanzas_page') }}" class="btn neo-button-secondary">Abrir Finanzas ➔</a>
         </div>
+        {% endif %}
 
         <!-- TAREAS -->
-        <div class="neo-card launchpad-card">
+        {% if 'tareas' in user_widgets %}
+        <div class="neo-card launchpad-card bento-card-taupe" data-widget="tareas">
             <div class="launchpad-header">
                 <span class="launchpad-icon">🧹</span>
                 <h3>Tareas</h3>
@@ -89,9 +97,11 @@
             </div>
             <a href="{{ url_for('tareas.tareas_view') }}" class="btn neo-button-secondary">Abrir Tareas ➔</a>
         </div>
+        {% endif %}
 
         <!-- LOGÍSTICA -->
-        <div class="neo-card launchpad-card">
+        {% if 'logistica' in user_widgets %}
+        <div class="neo-card launchpad-card bento-card-rose" data-widget="logistica">
             <div class="launchpad-header">
                 <span class="launchpad-icon">📅</span>
                 <h3>Logística</h3>
@@ -106,9 +116,11 @@
             </div>
             <a href="{{ url_for('logistica.logistica_page') }}" class="btn neo-button-secondary">Abrir Logística ➔</a>
         </div>
+        {% endif %}
 
         <!-- MENÚS -->
-        <div class="neo-card launchpad-card">
+        {% if 'menus' in user_widgets %}
+        <div class="neo-card launchpad-card bento-card-blue" data-widget="menus">
             <div class="launchpad-header">
                 <span class="launchpad-icon">🍽️</span>
                 <h3>Menús</h3>
@@ -123,9 +135,11 @@
             </div>
             <a href="{{ url_for('menus.menus_page') }}" class="btn neo-button-secondary">Abrir Menús ➔</a>
         </div>
+        {% endif %}
 
         <!-- MÉTRICAS -->
-        <div class="neo-card launchpad-card">
+        {% if 'metricas' in user_widgets %}
+        <div class="neo-card launchpad-card bento-card-sand" data-widget="metricas">
             <div class="launchpad-header">
                 <span class="launchpad-icon">📊</span>
                 <h3>Métricas</h3>
@@ -140,9 +154,11 @@
             </div>
             <a href="{{ url_for('main.metricas') }}" class="btn neo-button-secondary">Abrir Métricas ➔</a>
         </div>
+        {% endif %}
 
         <!-- MASCOTAS -->
-        <div class="neo-card launchpad-card">
+        {% if 'mascotas' in user_widgets %}
+        <div class="neo-card launchpad-card bento-card-plum" data-widget="mascotas">
             <div class="launchpad-header">
                 <span class="launchpad-icon">🐾</span>
                 <h3>Mascotas</h3>
@@ -153,6 +169,7 @@
             </div>
             <a href="{{ url_for('mascotas.mascotas_page') }}" class="btn neo-button-secondary">Abrir Mascotas ➔</a>
         </div>
+        {% endif %}
     </div>
 </div>
 {% endblock %}
