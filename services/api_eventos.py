@@ -23,6 +23,7 @@ def sync_eventos_deportivos(app):
             return
         
         creados = 0
+        actualizados = 0
         existentes = 0
         errores = 0
         
@@ -73,6 +74,12 @@ def sync_eventos_deportivos(app):
                     if len(titulo) > 100:
                         titulo = titulo[:97] + "..."
                     
+                    casa_id = sub.casa_id
+                    if not casa_id and getattr(sub, 'usuario', None):
+                        casa_id = getattr(sub.usuario, 'casa_activa_id', None)
+                    if not casa_id and getattr(sub, 'usuario', None) and getattr(sub.usuario, 'casas_rel', None):
+                        casa_id = sub.usuario.casas_rel[0].casa_id
+
                     # Verificar si ya existe
                     existe = EventoLogistico.query.filter(
                         EventoLogistico.titulo == titulo,
@@ -80,6 +87,9 @@ def sync_eventos_deportivos(app):
                     ).first()
                     
                     if existe:
+                        if not existe.casa_id and casa_id:
+                            existe.casa_id = casa_id
+                            actualizados += 1
                         existentes += 1
                         continue
                     
@@ -88,7 +98,9 @@ def sync_eventos_deportivos(app):
                         titulo=titulo,
                         descripcion=f"Evento deportivo sincronizado automáticamente desde TheSportsDB ({sub.tipo}: {sub.nombre})",
                         fecha_inicio=fecha_hora,
+                        fecha_fin=fecha_hora + timedelta(hours=2),
                         creador_id=sub.usuario_id,
+                        casa_id=casa_id,
                         color=sub.color,
                         frecuencia='none'
                     )
@@ -102,7 +114,7 @@ def sync_eventos_deportivos(app):
                 logging.error(f"[SportsSync] Error procesando {sub.nombre}: {e}")
                 errores += 1
         
-        if creados > 0:
+        if creados > 0 or actualizados > 0:
             db.session.commit()
             
-        logging.info(f"[SportsSync] Sincronización completada: {creados} creados, {existentes} ya existían, {errores} errores.")
+        logging.info(f"[SportsSync] Sincronización completada: {creados} creados, {actualizados} actualizados, {existentes} ya existían, {errores} errores.")

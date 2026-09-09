@@ -341,7 +341,8 @@ def handle_logistica_callback(call):
                 descripcion=datos_evento.get('descripcion', ''),
                 fecha_inicio=f_inicio,
                 fecha_fin=f_fin,
-                creador_id=user.id
+                creador_id=user.id,
+                casa_id=user.casa_activa_id
             )
             db.session.add(nuevo_evento)
             db.session.commit()
@@ -1617,11 +1618,13 @@ def procesar_estado_logistica(message):
                 raise ValueError("No se especificaron usuarios válidos para asignar.")
                 
             usuario_creador = Usuario.query.filter_by(telegram_chat_id=str(message.from_user.id)).first()
+            casa_id = usuario_creador.casa_activa_id if usuario_creador else None
             nuevo_evento = EventoLogistico(
                 titulo=titulo,
                 fecha_inicio=fecha_inicio,
                 fecha_fin=fecha_inicio + timedelta(hours=1),
                 creador_id=usuario_creador.id if usuario_creador else usuarios_asignar[0].id,
+                casa_id=casa_id,
                 asignado_id=usuarios_asignar[0].id if usuarios_asignar else None
             )
             db.session.add(nuevo_evento)

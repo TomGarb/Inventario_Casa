@@ -1,9 +1,10 @@
-from flask import Blueprint, request, jsonify, render_template
+from flask import Blueprint, request, jsonify, render_template, session
 from flask_login import login_required, current_user
 from extensions import db
-from models.database import EventoLogistico
+from models.database import EventoLogistico, UsuarioCasa
 from datetime import datetime, timedelta
 import pytz
+from sqlalchemy import or_
 
 logistica_bp = Blueprint('logistica', __name__)
 
@@ -25,24 +26,56 @@ def api_logistica_get():
     try:
         start_date = parser.isoparse(start_str).replace(tzinfo=None) if start_str else None
         end_date = parser.isoparse(end_str).replace(tzinfo=None) if end_str else None
-    except:
+    except Exception:
         start_date = None
         end_date = None
 
     casas_ids = [rel.casa_id for rel in current_user.casas_rel]
-    if not casas_ids:
-        return jsonify([])
+    if not casas_ids and current_user.casa_activa_id:
+        casas_ids = [current_user.casa_activa_id]
+
+    usuarios_casas = [rel.usuario_id for rel in UsuarioCasa.query.filter(UsuarioCasa.casa_id.in_(casas_ids)).all()] if casas_ids else []
+    if current_user.id not in usuarios_casas:
+        usuarios_casas.append(current_user.id)
+
+    # Auto-asociar eventos huérfanos sin casa_id (por ejemplo, deportivos previamente sincronizados) a la casa activa
+    casa_activa = session.get('current_casa_id', current_user.casa_activa_id) or (casas_ids[0] if casas_ids else None)
+    if casa_activa:
+        huerfanos = EventoLogistico.query.filter(
+            EventoLogistico.casa_id.is_(None),
+            EventoLogistico.creador_id.in_(usuarios_casas)
+        ).all()
+        if huerfanos:
+            for h in huerfanos:
+                h.casa_id = casa_activa
+            try:
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
+
+    condiciones = [EventoLogistico.casa_id.is_(None)]
+    if casas_ids:
+        condiciones.append(EventoLogistico.casa_id.in_(casas_ids))
         
-    eventos = EventoLogistico.query.filter(EventoLogistico.casa_id.in_(casas_ids)).all()
+    eventos = EventoLogistico.query.filter(or_(*condiciones)).all()
     result = []
     
     for ev in eventos:
         color = getattr(ev, 'color', None) or '#6f42c1' # Default to purple if no color
         
         # Build base event
+        creador_nombre = ev.creador.username if getattr(ev, 'creador', None) else None
+        asignado_nombre = ev.asignado.username if getattr(ev, 'asignado', None) else None
+        if asignado_nombre:
+            display_title = f"{ev.titulo} ({asignado_nombre})"
+        elif creador_nombre and not ev.titulo.startswith('['):
+            display_title = f"{ev.titulo} ({creador_nombre})"
+        else:
+            display_title = ev.titulo
+
         base_event = {
             'id': ev.id,
-            'title': f"{ev.titulo} ({ev.asignado.username})" if getattr(ev, 'asignado', None) else (f"{ev.titulo} ({ev.creador.username})" if getattr(ev, 'creador', None) else ev.titulo),
+            'title': display_title,
             'raw_title': ev.titulo,
             'frecuencia': ev.frecuencia,
             'asignado_id': ev.asignado_id,
@@ -53,7 +86,8 @@ def api_logistica_get():
         if ev.frecuencia == 'none' or not ev.frecuencia:
             # Not recurring, just check if within bounds
             if start_date and end_date:
-                if ev.fecha_inicio >= end_date or (ev.fecha_fin and ev.fecha_fin <= start_date):
+                fecha_limite_fin = ev.fecha_fin or ev.fecha_inicio
+                if ev.fecha_inicio >= end_date or fecha_limite_fin < start_date:
                     continue
             
             ev_dict = base_event.copy()

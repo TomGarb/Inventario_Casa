@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify, render_template, redirect, url_for, flash, current_app
+from flask import Blueprint, request, jsonify, render_template, redirect, url_for, flash, current_app, session
 from flask_login import login_required, current_user, login_user, logout_user
 from extensions import db
 from models.database import Usuario, SuscripcionDeporte
@@ -352,8 +352,10 @@ def crear_suscripcion():
     if not nombre or not external_api_id or tipo not in ('equipo', 'liga'):
         return jsonify({'error': 'Datos incompletos. Se requiere nombre, external_api_id y tipo (equipo/liga)'}), 400
     
+    casa_id = session.get('current_casa_id', current_user.casa_activa_id)
     sub = SuscripcionDeporte(
         usuario_id=current_user.id,
+        casa_id=casa_id,
         nombre=nombre,
         external_api_id=external_api_id,
         tipo=tipo,
