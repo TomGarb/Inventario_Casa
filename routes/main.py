@@ -1,7 +1,9 @@
+import os
+import json
 from flask import Blueprint, request, jsonify, render_template, redirect, url_for
 from flask_login import login_required, current_user
 from extensions import db
-from models.database import Usuario, Gasto, Producto, Movimiento, Tarea, EventoLogistico, MenuSemanal, MetaAhorro
+from models.database import Usuario, Gasto, Producto, Movimiento, Tarea, EventoLogistico, MenuSemanal, MetaAhorro, Casa
 from datetime import datetime, timedelta
 from sqlalchemy import extract
 import pytz
@@ -67,6 +69,11 @@ def dashboard():
         except Exception:
             pass
 
+    # 7. Menú de hoy para widgets
+    dias = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo']
+    dia_actual = dias[hoy.weekday()]
+    menu_hoy = MenuSemanal.query.filter_by(dia_semana=dia_actual).first()
+
     return render_template('views/dashboard.html', 
         active_page='dashboard',
         mis_tareas=mis_tareas,
@@ -78,7 +85,9 @@ def dashboard():
         alertas_stock=alertas_stock,
         movimientos=movimientos,
         mi_balance=mi_balance,
-        user_widgets=user_widgets
+        user_widgets=user_widgets,
+        dashboard_layout=getattr(current_user, 'dashboard_layout', 'layout-launchpad') or 'layout-launchpad',
+        menu_hoy=menu_hoy
     )
 
 @main_bp.route('/api/dashboard_stats', methods=['GET'])
@@ -145,11 +154,19 @@ def tv_dashboard():
     weather_api_key = os.environ.get('OPENWEATHER_API_KEY', '')
     weather_city = os.environ.get('OPENWEATHER_CITY', 'Buenos Aires, AR')
     
+    widgets_tv = ["clima", "stock", "tareas", "menus", "deportes", "logistica", "finanzas"]
+    if getattr(casa, 'widgets_tv', None):
+        try:
+            widgets_tv = json.loads(casa.widgets_tv)
+        except Exception:
+            pass
+
     return render_template('views/tv_dashboard.html', 
                            weather_api_key=weather_api_key, 
                            weather_city=weather_city,
                            token=token,
-                           casa_nombre=casa.nombre)
+                           casa_nombre=casa.nombre,
+                           widgets_tv=widgets_tv)
 
 @main_bp.route('/api/tv_data', methods=['GET'])
 def get_tv_data():
@@ -174,8 +191,6 @@ def get_tv_data():
         menu_data = [{'tipo': m.tipo_comida, 'receta': m.receta.nombre} for m in menus_hoy]
         
         # 3. Logística (Próximos 3 eventos desde hoy)
-        # We need a cross-tenant equivalent if we want to show it, or just for this house.
-        # Since EventoLogistico ignores the global filter, we MUST manually filter by casa_id!
         ahora = datetime.now(tz)
         eventos = EventoLogistico.query.filter(EventoLogistico.casa_id == casa.id, EventoLogistico.fecha_inicio >= ahora).order_by(EventoLogistico.fecha_inicio.asc()).limit(3).all()
         logistica_data = [{'titulo': e.titulo, 'fecha': e.fecha_inicio.strftime('%Y-%m-%d %H:%M')} for e in eventos]
@@ -209,7 +224,16 @@ def get_tv_data():
 @login_required
 def tablet_dashboard():
     casa = Casa.query.get(current_user.casa_activa_id)
-    return render_template('views/tablet_dashboard.html', casa_nombre=casa.nombre if casa else 'Sin Casa')
+    widgets_tablet = ["compras", "tareas", "menus", "mascotas"]
+    if casa and getattr(casa, 'widgets_tablet', None):
+        try:
+            widgets_tablet = json.loads(casa.widgets_tablet)
+        except Exception:
+            pass
+
+    return render_template('views/tablet_dashboard.html', 
+                           casa_nombre=casa.nombre if casa else 'Sin Casa',
+                           widgets_tablet=widgets_tablet)
 
 
 @main_bp.route('/api/tablet_data', methods=['GET'])

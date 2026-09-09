@@ -120,6 +120,20 @@ def perfil():
             widgets_list = json.loads(current_user.widgets_dashboard)
         except Exception:
             pass
+
+    tv_list = ["clima", "stock", "tareas", "menus", "deportes", "logistica", "finanzas"]
+    tablet_list = ["compras", "tareas", "menus", "mascotas"]
+    if casa_actual:
+        if getattr(casa_actual, 'widgets_tv', None):
+            try:
+                tv_list = json.loads(casa_actual.widgets_tv)
+            except Exception:
+                pass
+        if getattr(casa_actual, 'widgets_tablet', None):
+            try:
+                tablet_list = json.loads(casa_actual.widgets_tablet)
+            except Exception:
+                pass
     
     return render_template('views/perfil.html', 
                            active_page='perfil', 
@@ -127,7 +141,10 @@ def perfil():
                            telegram_configured=telegram_configured,
                            gemini_configured=gemini_configured,
                            user_widgets=widgets_list,
-                           user_tema=current_user.tema_ui or 'tema-neomorfico')
+                           user_tema=current_user.tema_ui or 'tema-neomorfico',
+                           user_layout=current_user.dashboard_layout or 'layout-launchpad',
+                           casa_widgets_tv=tv_list,
+                           casa_widgets_tablet=tablet_list)
 
 
 @auth_bp.route('/api/generar_token', methods=['POST'])
@@ -260,11 +277,28 @@ def guardar_preferencias_ui():
         if isinstance(widgets, list):
             current_user.widgets_dashboard = json.dumps(widgets)
             
+    if 'dashboard_layout' in data:
+        layout = data['dashboard_layout']
+        layouts_validos = ['layout-launchpad', 'layout-command-center', 'layout-daily-flow', 'layout-spatial']
+        if layout in layouts_validos:
+            current_user.dashboard_layout = layout
+
+    from models.database import Casa
+    casa_actual = Casa.query.get(current_user.casa_activa_id) if current_user.casa_activa_id else None
+    if casa_actual:
+        if 'widgets_tv' in data and isinstance(data['widgets_tv'], list):
+            casa_actual.widgets_tv = json.dumps(data['widgets_tv'])
+        if 'widgets_tablet' in data and isinstance(data['widgets_tablet'], list):
+            casa_actual.widgets_tablet = json.dumps(data['widgets_tablet'])
+
     db.session.commit()
     return jsonify({
         'mensaje': 'Preferencias de diseño actualizadas',
         'tema_ui': current_user.tema_ui,
-        'widgets_dashboard': current_user.widgets_dashboard
+        'widgets_dashboard': current_user.widgets_dashboard,
+        'dashboard_layout': current_user.dashboard_layout or 'layout-launchpad',
+        'widgets_tv': casa_actual.widgets_tv if casa_actual else None,
+        'widgets_tablet': casa_actual.widgets_tablet if casa_actual else None
     })
 
 

@@ -495,3 +495,88 @@ async function actualizarWidgetsDashboard() {
     }
 }
 
+async function seleccionarLayout(nombreLayout) {
+    document.querySelectorAll('.layout-card').forEach(card => {
+        card.classList.remove('active');
+        const badge = card.querySelector('.layout-badge');
+        if (badge) badge.innerText = '';
+    });
+
+    const activeCard = document.querySelector(`.layout-card[onclick*="${nombreLayout}"]`);
+    if (activeCard) {
+        activeCard.classList.add('active');
+        const badge = activeCard.querySelector('.layout-badge');
+        if (badge) badge.innerText = 'Activo ✓';
+    }
+
+    try {
+        const res = await fetch('/api/preferencias_ui', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ dashboard_layout: nombreLayout })
+        });
+        if (res.ok) {
+            showToast('Diseño del Dashboard actualizado', 'success');
+        } else {
+            showToast('No se pudo guardar el diseño', 'error');
+        }
+    } catch (e) {
+        console.error("Error guardando diseño", e);
+        showToast('Error de red al guardar diseño', 'error');
+    }
+}
+
+async function actualizarWidgetsTV() {
+    const inputs = document.querySelectorAll('.tv-widget-toggle-input');
+    const seleccionados = [];
+
+    inputs.forEach(input => {
+        if (input.checked) {
+            seleccionados.push(input.getAttribute('data-widget'));
+        }
+    });
+
+    try {
+        const res = await fetch('/api/preferencias_ui', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ widgets_tv: seleccionados })
+        });
+        if (res.ok) {
+            showToast('Módulos de TV actualizados para esta casa', 'success');
+        } else {
+            showToast('Error al actualizar módulos de TV', 'error');
+        }
+    } catch (e) {
+        console.error("Error guardando widgets TV", e);
+        showToast('Error de red al guardar módulos TV', 'error');
+    }
+}
+
+async function actualizarWidgetsTablet() {
+    const inputs = document.querySelectorAll('.tablet-widget-toggle-input');
+    const seleccionados = [];
+
+    inputs.forEach(input => {
+        if (input.checked) {
+            seleccionados.push(input.getAttribute('data-widget'));
+        }
+    });
+
+    try {
+        const res = await fetch('/api/preferencias_ui', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ widgets_tablet: seleccionados })
+        });
+        if (res.ok) {
+            showToast('Módulos de Tablet actualizados para esta casa', 'success');
+        } else {
+            showToast('Error al actualizar módulos de Tablet', 'error');
+        }
+    } catch (e) {
+        console.error("Error guardando widgets Tablet", e);
+        showToast('Error de red al guardar módulos Tablet', 'error');
+    }
+}
+

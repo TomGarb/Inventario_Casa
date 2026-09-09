@@ -1,0 +1,94 @@
+{# ========================================================
+   LAYOUT 3: DAILY FLOW (ESTILO DE VIDA & HÁBITOS)
+   ======================================================== #}
+<div class="daily-flow-container">
+    <div class="flow-header neo-card">
+        <h2>🌅 Tu Día en {{ active_casa.casa.nombre if active_casa else 'Casa' }}</h2>
+        <p style="color: var(--text-secondary); margin: 0;">Resumen intuitivo para mantener tu hogar en armonía</p>
+    </div>
+
+    <!-- Pastillas de Prioridad Superior -->
+    <div class="flow-stories-container">
+        <div class="flow-story-pill {% if total_faltantes > 0 %}urgent{% endif %}">
+            <span class="story-icon">🛒</span>
+            <div>
+                <div class="story-title">Compras</div>
+                <div class="story-subtitle">{{ total_faltantes }} faltantes</div>
+            </div>
+        </div>
+        <div class="flow-story-pill {% if total_tareas_hoy > 0 %}warning{% endif %}">
+            <span class="story-icon">🧹</span>
+            <div>
+                <div class="story-title">Tareas</div>
+                <div class="story-subtitle">{{ total_tareas_hoy }} para hoy</div>
+            </div>
+        </div>
+        <div class="flow-story-pill">
+            <span class="story-icon">🍽️</span>
+            <div>
+                <div class="story-title">Cocina</div>
+                <div class="story-subtitle">{{ menu_hoy.receta.nombre if menu_hoy else 'A definir' }}</div>
+            </div>
+        </div>
+        <div class="flow-story-pill">
+            <span class="story-icon">🐾</span>
+            <div>
+                <div class="story-title">Mascotas</div>
+                <div class="story-subtitle">Paseos y cuidado</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Anillos de Progreso y Salud -->
+    <div class="flow-progress-grid">
+        <div class="neo-card flow-ring-card">
+            <h3>🎯 Cumplimiento de Hogar</h3>
+            <div class="flow-ring-wrapper">
+                <div class="flow-ring-circle">
+                    <span class="ring-number">{{ 100 - (total_tareas_hoy * 15) if (100 - (total_tareas_hoy * 15)) > 0 else 25 }}%</span>
+                </div>
+                <div class="flow-ring-legend">
+                    <p><strong>Rutinas del Hogar:</strong></p>
+                    <p style="font-size: 0.9rem; color: var(--text-secondary);">{% if total_tareas_hoy == 0 %}¡Excelente ritmo! Todo completado hoy.{% else %}Faltan tareas para completar el 100%.{% endif %}</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="neo-card flow-ring-card">
+            <h3>💵 Estado Financiero</h3>
+            <div class="flow-ring-wrapper">
+                <div class="flow-ring-circle ring-money">
+                    <span class="ring-number">{% if mi_balance >= 0 %}OK{% else %}!{% endif %}</span>
+                </div>
+                <div class="flow-ring-legend">
+                    <p><strong>Balance: ${{ "%.2f"|format(mi_balance) }}</strong></p>
+                    <p style="font-size: 0.9rem; color: var(--text-secondary);">{% if mi_balance >= 0 %}Cuentas equilibradas sin deudas.{% else %}Recuerda saldar deudas pendientes.{% endif %}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Mosaico Minimalista -->
+    <div class="flow-mosaic-grid">
+        <a href="{{ url_for('inventario.inventario') }}" class="neo-card flow-mosaic-card">
+            <span class="mosaic-icon">📦</span>
+            <h4>Inventario</h4>
+            <p>{{ total_faltantes }} en stock crítico</p>
+        </a>
+        <a href="{{ url_for('inventario.compras') }}" class="neo-card flow-mosaic-card">
+            <span class="mosaic-icon">🛒</span>
+            <h4>Compras</h4>
+            <p>{{ total_en_lista }} artículos listos</p>
+        </a>
+        <a href="{{ url_for('finanzas.finanzas_page') }}" class="neo-card flow-mosaic-card">
+            <span class="mosaic-icon">💸</span>
+            <h4>Gastos</h4>
+            <p>División transparente</p>
+        </a>
+        <a href="{{ url_for('tareas.tareas_view') }}" class="neo-card flow-mosaic-card">
+            <span class="mosaic-icon">🧹</span>
+            <h4>Tareas</h4>
+            <p>Turnos rotativos</p>
+        </a>
+    </div>
+</div>

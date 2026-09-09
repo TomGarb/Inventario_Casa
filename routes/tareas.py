@@ -5,7 +5,7 @@ from models.database import Usuario, Tarea, ModeloTarea, HistorialTarea, SaltoTa
 from datetime import datetime, timedelta
 from sqlalchemy import extract
 from utils import calcular_proxima_fecha, calcular_proximo_turno
-from services.bot_telegram import enviar_al_grupo
+from services.bot_telegram import enviar_al_grupo, enviar_al_usuario
 
 tareas_bp = Blueprint('tareas', __name__)
 
@@ -225,7 +225,6 @@ def calendario_tareas():
     eventos = []
     
     for t in tareas:
-        usuarios_ids = [u.id for u in t.usuarios]
         nombres_asignados = [u.username for u in t.usuarios]
         
         if not t.alternar:

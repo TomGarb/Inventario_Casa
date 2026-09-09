@@ -457,3 +457,35 @@ def enviar_lista():
         return jsonify({'error': 'Error enviando mensaje'}), 500
 
 
+@inventario_bp.route('/api/marcar_comprado/<int:id_producto>', methods=['POST'])
+def marcar_comprado(id_producto):
+    producto = db.get_or_404(Producto, id_producto)
+    if producto.es_temporal:
+        db.session.delete(producto)
+        accion = "eliminado_completamente"
+    else:
+        producto.en_lista = False
+        accion = "removido_de_lista"
+        
+    db.session.commit()
+    return jsonify({'mensaje': f'Producto {accion}', 'accion': accion})
+
+
+@inventario_bp.route('/api/añadir_rapido', methods=['POST'])
+def añadir_rapido():
+    data = request.json
+    nuevo = Producto(
+        nombre=data['nombre'],
+        comercio_id=data.get('comercio_id'),
+        stock_actual=0.0,
+        stock_minimo=1.0,
+        unidad_medida='unidades',
+        en_lista=True,
+        es_temporal=True
+    )
+    db.session.add(nuevo)
+    db.session.commit()
+    return jsonify(nuevo.to_dict()), 201
+
+
+

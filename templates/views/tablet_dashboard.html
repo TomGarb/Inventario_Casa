@@ -33,12 +33,15 @@
 
     <div class="tablet-grid">
         <!-- Tareas (Izquierda) -->
+        {% if 'tareas' in widgets_tablet %}
         <div class="tablet-card">
             <div class="card-title"><i class="fas fa-tasks"></i> Tareas de Hoy</div>
             <div id="tablet-tareas" class="scroll-list"></div>
         </div>
+        {% endif %}
 
         <!-- Inventario Rápido (Derecha Arriba) -->
+        {% if 'compras' in widgets_tablet %}
         <div class="tablet-card">
             <div class="card-title"><i class="fas fa-cart-plus"></i> Añadir Falta Rápido</div>
             <div class="search-box">
@@ -47,12 +50,15 @@
             </div>
             <div id="tablet-inventario" class="scroll-list product-grid"></div>
         </div>
+        {% endif %}
 
         <!-- Menú (Derecha Abajo) -->
+        {% if 'menus' in widgets_tablet %}
         <div class="tablet-card">
             <div class="card-title"><i class="fas fa-utensils"></i> Menú</div>
             <div id="tablet-menus" class="menu-list"></div>
         </div>
+        {% endif %}
     </div>
 
     

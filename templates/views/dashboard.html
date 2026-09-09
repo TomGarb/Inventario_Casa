@@ -1,175 +1,19 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="launchpad-container">
+<div class="dashboard-wrapper {{ dashboard_layout }}">
 
-    <!-- HERO WIDGET -->
-    <div class="neo-card dashboard-hero">
-        {% set active_casa = current_user.casas_rel | selectattr("casa_id", "equalto", current_user.casa_activa_id) | first %}
-        <h2>👋 Hola, {{ current_user.username }}</h2>
-        <p style="color: var(--primary-color); font-weight: 500; font-size: 1.1rem; margin-top: 5px; margin-bottom: 15px;">
-            🏠 Estás viendo la casa: {{ active_casa.casa.nombre if active_casa else 'Sin Casa' }}
-        </p>
-        <p>
-            Hoy tienes <strong>{{ total_tareas_hoy }}</strong> tareas, 
-            faltan <strong>{{ total_faltantes }}</strong> productos y 
-            debes <strong>${{ "%.2f"|format(deuda_compartida) }}</strong>.
-        </p>
-    </div>
+    {% set active_casa = current_user.casas_rel | selectattr("casa_id", "equalto", current_user.casa_activa_id) | first %}
 
-    <!-- MÓDULOS LAUNCHPAD GRID -->
-    <!-- MÓDULOS LAUNCHPAD GRID -->
-    <div class="launchpad-grid">
-        
-        <!-- INVENTARIO -->
-        {% if 'inventario' in user_widgets %}
-        <div class="neo-card launchpad-card bento-card-lavender" data-widget="inventario">
-            <div class="launchpad-header">
-                <span class="launchpad-icon">📦</span>
-                <h3>Inventario</h3>
-            </div>
-            <p class="launchpad-desc">Gestiona el stock de la casa, visualiza vencimientos y organiza por ubicaciones.</p>
-            <div class="launchpad-status">
-                {% if total_faltantes > 0 %}
-                    <strong style="color: var(--danger-color);">🔴 {{ total_faltantes }} productos en stock crítico</strong>
-                {% else %}
-                    <strong style="color: var(--success-color);">🟢 Stock en niveles óptimos</strong>
-                {% endif %}
-            </div>
-            <a href="{{ url_for('inventario.inventario') }}" class="btn neo-button-secondary">Abrir Inventario ➔</a>
-        </div>
-        {% endif %}
+    {% if dashboard_layout == 'layout-command-center' %}
+        {% include "views/dashboards/command_center.html" %}
+    {% elif dashboard_layout == 'layout-daily-flow' %}
+        {% include "views/dashboards/daily_flow.html" %}
+    {% elif dashboard_layout == 'layout-spatial' %}
+        {% include "views/dashboards/spatial.html" %}
+    {% else %}
+        {% include "views/dashboards/launchpad.html" %}
+    {% endif %}
 
-        <!-- COMPRAS -->
-        {% if 'compras' in user_widgets %}
-        <div class="neo-card launchpad-card bento-card-salmon" data-widget="compras">
-            <div class="launchpad-header">
-                <span class="launchpad-icon">🛒</span>
-                <h3>Compras</h3>
-            </div>
-            <p class="launchpad-desc">Listas inteligentes por comercio y mapas interactivos.</p>
-            <div class="launchpad-status">
-                {% if total_en_lista > 0 %}
-                    <strong style="color: var(--warning-color);">🟡 {{ total_en_lista }} items en la lista</strong>
-                {% else %}
-                    <strong style="color: var(--success-color);">🟢 Nada que comprar hoy</strong>
-                {% endif %}
-            </div>
-            <a href="{{ url_for('inventario.compras') }}" class="btn neo-button-secondary">Abrir Compras ➔</a>
-        </div>
-        {% endif %}
-
-        <!-- FINANZAS -->
-        {% if 'finanzas' in user_widgets %}
-        <div class="neo-card launchpad-card bento-card-teal" data-widget="finanzas">
-            <div class="launchpad-header">
-                <span class="launchpad-icon">💸</span>
-                <h3>Finanzas</h3>
-            </div>
-            <p class="launchpad-desc">Escaneo de tickets por IA y división de gastos compartidos.</p>
-            <div class="launchpad-status">
-                {% if mi_balance < 0 %}
-                    <strong style="color: var(--danger-color);">🔴 Debes: ${{ "%.2f"|format(mi_balance|abs) }}</strong>
-                {% elif mi_balance > 0 %}
-                    <strong style="color: var(--success-color);">🟢 Te deben: ${{ "%.2f"|format(mi_balance) }}</strong>
-                {% else %}
-                    <strong style="color: var(--text-secondary);">⚪ Estás al día</strong>
-                {% endif %}
-            </div>
-            <a href="{{ url_for('finanzas.finanzas_page') }}" class="btn neo-button-secondary">Abrir Finanzas ➔</a>
-        </div>
-        {% endif %}
-
-        <!-- TAREAS -->
-        {% if 'tareas' in user_widgets %}
-        <div class="neo-card launchpad-card bento-card-taupe" data-widget="tareas">
-            <div class="launchpad-header">
-                <span class="launchpad-icon">🧹</span>
-                <h3>Tareas</h3>
-            </div>
-            <p class="launchpad-desc">Sistema de turnos rotativos y rutinas del hogar.</p>
-            <div class="launchpad-status">
-                {% if total_tareas_hoy > 0 %}
-                    <strong style="color: var(--warning-color);">🟡 {{ total_tareas_hoy }} tareas pendientes hoy</strong>
-                {% else %}
-                    <strong style="color: var(--success-color);">🟢 Al día con las tareas</strong>
-                {% endif %}
-            </div>
-            <a href="{{ url_for('tareas.tareas_view') }}" class="btn neo-button-secondary">Abrir Tareas ➔</a>
-        </div>
-        {% endif %}
-
-        <!-- LOGÍSTICA -->
-        {% if 'logistica' in user_widgets %}
-        <div class="neo-card launchpad-card bento-card-rose" data-widget="logistica">
-            <div class="launchpad-header">
-                <span class="launchpad-icon">📅</span>
-                <h3>Logística</h3>
-            </div>
-            <p class="launchpad-desc">Calendario de eventos, visitas y mantenimiento.</p>
-            <div class="launchpad-status">
-                {% if eventos_agenda and eventos_agenda|length > 0 %}
-                    <strong style="color: var(--primary-color);">🔵 Hoy: {{ eventos_agenda[0].titulo }}</strong>
-                {% else %}
-                    <strong style="color: var(--text-secondary);">⚪ Sin eventos próximos</strong>
-                {% endif %}
-            </div>
-            <a href="{{ url_for('logistica.logistica_page') }}" class="btn neo-button-secondary">Abrir Logística ➔</a>
-        </div>
-        {% endif %}
-
-        <!-- MENÚS -->
-        {% if 'menus' in user_widgets %}
-        <div class="neo-card launchpad-card bento-card-blue" data-widget="menus">
-            <div class="launchpad-header">
-                <span class="launchpad-icon">🍽️</span>
-                <h3>Menús</h3>
-            </div>
-            <p class="launchpad-desc">Planificador semanal basado en stock existente.</p>
-            <div class="launchpad-status">
-                {% if menu_hoy %}
-                    <strong style="color: var(--primary-color);">🔵 Hoy: {{ menu_hoy.receta.nombre }}</strong>
-                {% else %}
-                    <strong style="color: var(--text-secondary);">⚪ Sin menú asignado hoy</strong>
-                {% endif %}
-            </div>
-            <a href="{{ url_for('menus.menus_page') }}" class="btn neo-button-secondary">Abrir Menús ➔</a>
-        </div>
-        {% endif %}
-
-        <!-- MÉTRICAS -->
-        {% if 'metricas' in user_widgets %}
-        <div class="neo-card launchpad-card bento-card-sand" data-widget="metricas">
-            <div class="launchpad-header">
-                <span class="launchpad-icon">📊</span>
-                <h3>Métricas</h3>
-            </div>
-            <p class="launchpad-desc">Hub analítico, gráficos de ahorro y metas.</p>
-            <div class="launchpad-status">
-                {% if progreso_meta != None %}
-                    <strong style="color: var(--primary-color);">🔵 Meta: {{ progreso_meta }}% completado</strong>
-                {% else %}
-                    <strong style="color: var(--text-secondary);">⚪ Sin metas activas</strong>
-                {% endif %}
-            </div>
-            <a href="{{ url_for('main.metricas') }}" class="btn neo-button-secondary">Abrir Métricas ➔</a>
-        </div>
-        {% endif %}
-
-        <!-- MASCOTAS -->
-        {% if 'mascotas' in user_widgets %}
-        <div class="neo-card launchpad-card bento-card-plum" data-widget="mascotas">
-            <div class="launchpad-header">
-                <span class="launchpad-icon">🐾</span>
-                <h3>Mascotas</h3>
-            </div>
-            <p class="launchpad-desc">Gestiona paseos, stock de alimento y turnos veterinarios.</p>
-            <div class="launchpad-status">
-                <strong style="color: var(--primary-color);">Ver Ecosistema Animal</strong>
-            </div>
-            <a href="{{ url_for('mascotas.mascotas_page') }}" class="btn neo-button-secondary">Abrir Mascotas ➔</a>
-        </div>
-        {% endif %}
-    </div>
 </div>
 {% endblock %}

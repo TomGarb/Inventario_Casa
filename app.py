@@ -5,6 +5,7 @@ import pytz
 from apscheduler.schedulers.background import BackgroundScheduler
 from flask import Flask, request, jsonify, redirect, url_for, session
 from extensions import db, login_manager, csrf, migrate, bot
+from flask_login import current_user
 
 from sqlalchemy import event, bindparam
 from sqlalchemy.orm import with_loader_criteria
@@ -14,8 +15,6 @@ bot_tenant_var = ContextVar('bot_tenant_var', default=None)
 def get_current_tenant_id():
     tenant_id = None
     try:
-        from flask import request, session
-        from flask_login import current_user
         if request:
             if session.get('current_casa_id'):
                 tenant_id = int(session['current_casa_id'])
@@ -35,13 +34,11 @@ tenant_param = bindparam('tenant_id', callable_=get_current_tenant_id)
 
 from dotenv import load_dotenv
 from datetime import datetime, timedelta
-from flask_login import current_user
 
 # ==========================================
 # 1. CONFIGURACIÓN E INICIALIZACIÓN
 # ==========================================
 import sys
-import logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s [%(levelname)s] [%(threadName)s] %(message)s',
@@ -90,26 +87,16 @@ login_manager.init_app(app)
 login_manager.login_view = 'auth.login_page'
 
 # Importación de modelos
-from models.database import Usuario, Tarea, Producto, EventoLogistico
-
-@login_manager.user_loader
-def load_user(user_id):
-    # Cambia 'Usuario' por el nombre de tu clase en la base de datos (ej. User)
-    return db.session.get(Usuario, int(user_id))
+from models.database import Tarea, Producto, EventoLogistico
 
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN', '')
-TELEGRADMIN_CHAT_ID = os.getenv('ADMIN_CHAT_ID')
 TELEGRAM_GROUP_ID = os.getenv('TELEGRAM_GROUP_ID')
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
-if GEMINI_API_KEY:
-    TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID', '')
 ADMIN_CHAT_ID = os.getenv('ADMIN_CHAT_ID', TELEGRAM_GROUP_ID)
 
 from telebot import apihelper
 apihelper.READ_TIMEOUT = 120
 apihelper.CONNECT_TIMEOUT = 120
-
-CHAT_ID = TELEGRAM_CHAT_ID
 
 # ==========================================
 # 5. RUTAS WEB Y API
@@ -346,7 +333,7 @@ def seed_suscripciones():
             # 1. Limpiar duplicados si ya se crearon previamente
             try:
                 db.session.execute(sqlalchemy.text("""
-                    DELETE FROM suscripciones_deportes a USING suscripciones_deportes b
+                    DELETE FROM suscripciones_deporte a USING suscripciones_deporte b
                     WHERE a.id > b.id AND a.usuario_id = b.usuario_id AND a.external_api_id = b.external_api_id
                 """))
                 db.session.commit()
@@ -354,7 +341,7 @@ def seed_suscripciones():
                 db.session.rollback()
 
             # 2. Consultar con SQL puro para evitar el filtro multi-tenant en el hilo principal
-            count = db.session.execute(sqlalchemy.text("SELECT COUNT(*) FROM suscripciones_deportes")).scalar()
+            count = db.session.execute(sqlalchemy.text("SELECT COUNT(*) FROM suscripciones_deporte")).scalar()
             if count and count > 0:
                 return  # Ya hay datos, no reinyectar
             
@@ -457,9 +444,7 @@ if RUN_MODE in ('monolith', 'web'):
 # 12. ENDPOINTS NUEVOS MODULOS (STUBS) Y WEBHOOK
 # ==========================================
 
-from flask import request, abort
-import telebot
-from extensions import csrf
+from flask import abort
 
 @app.route('/webhook/telegram', methods=['POST'])
 @csrf.exempt

@@ -153,7 +153,57 @@
 
                 <hr style="border: 0; border-top: 1px solid var(--border-color); margin: 30px 0;">
 
-                <h3 class="dash-header">🖥️ Módulos Visibles en el Dashboard</h3>
+                <!-- SELECTOR DE LAYOUT DEL DASHBOARD -->
+                <h3 class="dash-header">📐 Estilo de Diseño del Dashboard Principal</h3>
+                <p style="color: var(--text-secondary); margin-bottom: 20px;">
+                    Selecciona cómo deseas estructurar la pantalla de inicio en tu navegador:
+                </p>
+
+                <div class="layout-selector-grid">
+                    <!-- Layout 1: Launchpad / Bento -->
+                    <div class="layout-card {% if user_layout == 'layout-launchpad' %}active{% endif %}" onclick="seleccionarLayout('layout-launchpad')">
+                        <div class="layout-icon">🍱</div>
+                        <div class="layout-info">
+                            <h4>Bento / Launchpad</h4>
+                            <p>Grilla de tarjetas simétricas con acceso directo y badges de estado.</p>
+                        </div>
+                        <span class="layout-badge">{% if user_layout == 'layout-launchpad' %}Activo ✓{% endif %}</span>
+                    </div>
+
+                    <!-- Layout 2: Command Center -->
+                    <div class="layout-card {% if user_layout == 'layout-command-center' %}active{% endif %}" onclick="seleccionarLayout('layout-command-center')">
+                        <div class="layout-icon">🚀</div>
+                        <div class="layout-info">
+                            <h4>Command Center</h4>
+                            <p>Cockpit HUD de 3 columnas: KPIs de salud, timeline en vivo y acciones directas.</p>
+                        </div>
+                        <span class="layout-badge">{% if user_layout == 'layout-command-center' %}Activo ✓{% endif %}</span>
+                    </div>
+
+                    <!-- Layout 3: Daily Flow -->
+                    <div class="layout-card {% if user_layout == 'layout-daily-flow' %}active{% endif %}" onclick="seleccionarLayout('layout-daily-flow')">
+                        <div class="layout-icon">🌅</div>
+                        <div class="layout-info">
+                            <h4>Daily Flow</h4>
+                            <p>Historias de hoy, anillos de progreso estilo Apple Fitness y hábitos.</p>
+                        </div>
+                        <span class="layout-badge">{% if user_layout == 'layout-daily-flow' %}Activo ✓{% endif %}</span>
+                    </div>
+
+                    <!-- Layout 4: Spatial -->
+                    <div class="layout-card {% if user_layout == 'layout-spatial' %}active{% endif %}" onclick="seleccionarLayout('layout-spatial')">
+                        <div class="layout-icon">🏡</div>
+                        <div class="layout-info">
+                            <h4>Spatial (Por Ambientes)</h4>
+                            <p>Módulos agrupados por lugar físico: Cocina, Living, Lavadero y Patio.</p>
+                        </div>
+                        <span class="layout-badge">{% if user_layout == 'layout-spatial' %}Activo ✓{% endif %}</span>
+                    </div>
+                </div>
+
+                <hr style="border: 0; border-top: 1px solid var(--border-color); margin: 30px 0;">
+
+                <h3 class="dash-header">🖥️ Módulos Visibles en el Dashboard Web</h3>
                 <p style="color: var(--text-secondary); margin-bottom: 20px;">
                     Enciende o apaga las tarjetas que deseas visualizar en la pantalla de inicio de tu hogar:
                 </p>
@@ -219,6 +269,114 @@
                         <span class="toggle-label">🐾 Mascotas (Pet Care)</span>
                         <div class="toggle-wrapper">
                             <input type="checkbox" class="toggle-input widget-toggle-input" data-widget="mascotas" {% if 'mascotas' in user_widgets %}checked{% endif %} onchange="actualizarWidgetsDashboard()">
+                            <div class="toggle-switch"></div>
+                        </div>
+                    </label>
+                </div>
+
+                <hr style="border: 0; border-top: 1px solid var(--border-color); margin: 30px 0;">
+
+                <!-- PERSONALIZACIÓN TV DASHBOARD -->
+                <h3 class="dash-header">📺 Módulos Visibles en el Dashboard de TV (Living)</h3>
+                <p style="color: var(--text-secondary); margin-bottom: 20px;">
+                    Configura qué paneles compartidos se proyectarán en la Smart TV de tu casa activa (<code>{{ casa_actual.nombre if casa_actual else 'Sin Casa' }}</code>):
+                </p>
+
+                <div class="widgets-toggle-grid">
+                    <label class="toggle-container">
+                        <span class="toggle-label">☀️ Reloj y Clima en Vivo</span>
+                        <div class="toggle-wrapper">
+                            <input type="checkbox" class="toggle-input tv-widget-toggle-input" data-widget="clima" {% if 'clima' in casa_widgets_tv %}checked{% endif %} onchange="actualizarWidgetsTV()">
+                            <div class="toggle-switch"></div>
+                        </div>
+                    </label>
+
+                    <label class="toggle-container">
+                        <span class="toggle-label">⚠️ Alertas de Stock Crítico</span>
+                        <div class="toggle-wrapper">
+                            <input type="checkbox" class="toggle-input tv-widget-toggle-input" data-widget="stock" {% if 'stock' in casa_widgets_tv %}checked{% endif %} onchange="actualizarWidgetsTV()">
+                            <div class="toggle-switch"></div>
+                        </div>
+                    </label>
+
+                    <label class="toggle-container">
+                        <span class="toggle-label">🧹 Tareas Pendientes del Día</span>
+                        <div class="toggle-wrapper">
+                            <input type="checkbox" class="toggle-input tv-widget-toggle-input" data-widget="tareas" {% if 'tareas' in casa_widgets_tv %}checked{% endif %} onchange="actualizarWidgetsTV()">
+                            <div class="toggle-switch"></div>
+                        </div>
+                    </label>
+
+                    <label class="toggle-container">
+                        <span class="toggle-label">🍽️ Menú del Día (Almuerzo / Cena)</span>
+                        <div class="toggle-wrapper">
+                            <input type="checkbox" class="toggle-input tv-widget-toggle-input" data-widget="menus" {% if 'menus' in casa_widgets_tv %}checked{% endif %} onchange="actualizarWidgetsTV()">
+                            <div class="toggle-switch"></div>
+                        </div>
+                    </label>
+
+                    <label class="toggle-container">
+                        <span class="toggle-label">📅 Próximos Eventos de Logística</span>
+                        <div class="toggle-wrapper">
+                            <input type="checkbox" class="toggle-input tv-widget-toggle-input" data-widget="logistica" {% if 'logistica' in casa_widgets_tv %}checked{% endif %} onchange="actualizarWidgetsTV()">
+                            <div class="toggle-switch"></div>
+                        </div>
+                    </label>
+
+                    <label class="toggle-container">
+                        <span class="toggle-label">⚽ Partidos y Eventos Deportivos</span>
+                        <div class="toggle-wrapper">
+                            <input type="checkbox" class="toggle-input tv-widget-toggle-input" data-widget="deportes" {% if 'deportes' in casa_widgets_tv %}checked{% endif %} onchange="actualizarWidgetsTV()">
+                            <div class="toggle-switch"></div>
+                        </div>
+                    </label>
+
+                    <label class="toggle-container">
+                        <span class="toggle-label">💰 Resumen de Finanzas del Hogar</span>
+                        <div class="toggle-wrapper">
+                            <input type="checkbox" class="toggle-input tv-widget-toggle-input" data-widget="finanzas" {% if 'finanzas' in casa_widgets_tv %}checked{% endif %} onchange="actualizarWidgetsTV()">
+                            <div class="toggle-switch"></div>
+                        </div>
+                    </label>
+                </div>
+
+                <hr style="border: 0; border-top: 1px solid var(--border-color); margin: 30px 0;">
+
+                <!-- PERSONALIZACIÓN TABLET DASHBOARD -->
+                <h3 class="dash-header">📱 Módulos Visibles en el Dashboard de Tablet (Cocina)</h3>
+                <p style="color: var(--text-secondary); margin-bottom: 20px;">
+                    Configura qué controles rápidos estarán activos en la Tablet fijada en la cocina:
+                </p>
+
+                <div class="widgets-toggle-grid">
+                    <label class="toggle-container">
+                        <span class="toggle-label">🛒 Añadir Rápido a Lista de Compras</span>
+                        <div class="toggle-wrapper">
+                            <input type="checkbox" class="toggle-input tablet-widget-toggle-input" data-widget="compras" {% if 'compras' in casa_widgets_tablet %}checked{% endif %} onchange="actualizarWidgetsTablet()">
+                            <div class="toggle-switch"></div>
+                        </div>
+                    </label>
+
+                    <label class="toggle-container">
+                        <span class="toggle-label">🧹 Checklist Interactivo de Tareas</span>
+                        <div class="toggle-wrapper">
+                            <input type="checkbox" class="toggle-input tablet-widget-toggle-input" data-widget="tareas" {% if 'tareas' in casa_widgets_tablet %}checked{% endif %} onchange="actualizarWidgetsTablet()">
+                            <div class="toggle-switch"></div>
+                        </div>
+                    </label>
+
+                    <label class="toggle-container">
+                        <span class="toggle-label">🍽️ Planificador Semanal de Menús</span>
+                        <div class="toggle-wrapper">
+                            <input type="checkbox" class="toggle-input tablet-widget-toggle-input" data-widget="menus" {% if 'menus' in casa_widgets_tablet %}checked{% endif %} onchange="actualizarWidgetsTablet()">
+                            <div class="toggle-switch"></div>
+                        </div>
+                    </label>
+
+                    <label class="toggle-container">
+                        <span class="toggle-label">🐾 Cuidado y Paseos de Mascotas</span>
+                        <div class="toggle-wrapper">
+                            <input type="checkbox" class="toggle-input tablet-widget-toggle-input" data-widget="mascotas" {% if 'mascotas' in casa_widgets_tablet %}checked{% endif %} onchange="actualizarWidgetsTablet()">
                             <div class="toggle-switch"></div>
                         </div>
                     </label>

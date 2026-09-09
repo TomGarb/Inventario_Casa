@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template
 from flask_login import login_required, current_user
-from models.database import db, Mascota, Producto, Tarea, EventoLogistico, ModeloTarea
+from models.database import Mascota, Producto, Tarea, EventoLogistico, ModeloTarea
 from datetime import datetime
 import pytz
 

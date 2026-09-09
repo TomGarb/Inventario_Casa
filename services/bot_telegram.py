@@ -9,7 +9,7 @@ import telebot
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
 from models.database import Usuario, Gasto, DetalleGasto, DivisionGasto, Producto, Ubicacion, Sala, Comercio, Movimiento, Tarea, HistorialTarea, EventoLogistico, Receta, MenuSemanal, HorarioComidas
 from extensions import db, bot
-from utils import is_authorized, formatear_fecha_amigable, consumir_receta
+from utils import is_authorized, formatear_fecha_amigable, consumir_receta, calcular_balances_globales
 import difflib
 import pytz
 from google import genai
@@ -258,10 +258,6 @@ def procesar_recetas_texto(texto, message):
     safe_telegram_reply(message, " Consultando inventario y pensando una receta...")
     try:
         with get_app().app_context():
-            productos = Producto.query.filter(Producto.stock_actual > 0).all()
-            ingredientes = [f"{p.nombre} ({p.stock_actual})" for p in productos]
-            inv_str = ", ".join(ingredientes) if ingredientes else "No hay ingredientes registrados en inventario actualmente."
-            
             client = genai.Client(api_key=GEMINI_API_KEY)
             prompt = f"""
 A partir de la siguiente receta, genera una lista de los ingredientes exactos que faltan (ingredientes_faltantes).
@@ -274,7 +270,7 @@ Devuelve ÚNICAMENTE un JSON válido con esta estructura, sin comentarios ni for
 Si la receta no tiene ingredientes faltantes, devuelve [].
 
 Receta:
-{receta_json}
+{texto}
 """
             response = client.models.generate_content(
                 model='gemini-2.0-flash',
@@ -541,7 +537,7 @@ def callback_voice(call):
                                     db.session.flush()
                                 else:
                                     ubicacion_obj = None
-                            except Exception as e_ubi:
+                            except Exception:
                                 db.session.rollback()
                                 ubicacion_obj = None
                             

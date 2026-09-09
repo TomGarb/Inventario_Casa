@@ -21,6 +21,7 @@
     <div class="tv-grid">
         
         <!-- Widget: Reloj y Clima -->
+        {% if 'clima' in widgets_tv %}
         <div class="tv-widget clock-widget" style="position: relative; margin-top: 20px;">
             <div id="tv-clock">--:--</div>
             <div id="tv-date">Cargando fecha...</div>
@@ -35,8 +36,10 @@
                 {% endif %}
             </div>
         </div>
+        {% endif %}
 
         <!-- Widget: Tareas de Hoy -->
+        {% if 'tareas' in widgets_tv %}
         <div class="tv-widget">
             <div class="widget-header">
                 <i class="fas fa-tasks"></i> Tareas Pendientes
@@ -45,8 +48,10 @@
                 <div class="loading"><i class="fas fa-spinner fa-spin"></i> Cargando tareas...</div>
             </div>
         </div>
+        {% endif %}
 
         <!-- Widget: Alertas de Stock -->
+        {% if 'stock' in widgets_tv %}
         <div class="tv-widget">
             <div class="widget-header alert-header">
                 <i class="fas fa-exclamation-triangle"></i> Alertas de Stock
@@ -55,22 +60,29 @@
                 <div class="loading"><i class="fas fa-spinner fa-spin"></i> Revisando inventario...</div>
             </div>
         </div>
+        {% endif %}
 
         <!-- Widget: Logística y Menú -->
+        {% if 'logistica' in widgets_tv or 'menus' in widgets_tv %}
         <div class="tv-widget double-widget">
+            {% if 'logistica' in widgets_tv %}
             <div class="sub-widget">
                 <div class="widget-header">
                     <i class="fas fa-calendar-alt"></i> Próximos Eventos
                 </div>
                 <div id="tv-logistica-container" class="widget-content"></div>
             </div>
+            {% endif %}
+            {% if 'menus' in widgets_tv %}
             <div class="sub-widget">
                 <div class="widget-header">
                     <i class="fas fa-utensils"></i> Menú del Día
                 </div>
                 <div id="tv-menu-container" class="widget-content"></div>
             </div>
+            {% endif %}
         </div>
+        {% endif %}
         
     </div>
 

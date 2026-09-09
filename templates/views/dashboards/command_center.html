@@ -1,0 +1,113 @@
+{# ========================================================
+   LAYOUT 2: COMMAND CENTER (COCKPIT HUD)
+   ======================================================== #}
+<div class="command-center-container">
+    <div class="hud-top-bar neo-card">
+        <div>
+            <h2>🚀 Command Center &bull; {{ active_casa.casa.nombre if active_casa else 'Sin Casa' }}</h2>
+            <p style="color: var(--text-secondary); margin: 0; font-size: 0.9rem;">Visión general de alta densidad &bull; Operador: <strong>{{ current_user.username }}</strong></p>
+        </div>
+        <div class="hud-status-badge">
+            <span class="hud-dot-pulse"></span> SISTEMA OPERATIVO
+        </div>
+    </div>
+
+    <div class="command-center-grid">
+        <!-- Columna Izquierda: KPIs & Salud -->
+        <div class="hud-column hud-col-left">
+            <div class="hud-card neo-card">
+                <div class="hud-metric-header">
+                    <span>💰 Balance Finanzas</span>
+                    <span class="hud-metric-tag">Global</span>
+                </div>
+                <div class="hud-metric-value {% if mi_balance < 0 %}text-danger{% elif mi_balance > 0 %}text-success{% endif %}">
+                    ${{ "%.2f"|format(mi_balance) }}
+                </div>
+                <div class="hud-metric-footer">
+                    {% if mi_balance < 0 %}Debes ${{ "%.2f"|format(mi_balance|abs) }}{% elif mi_balance > 0 %}Saldo a favor{% else %}Cuentas al día{% endif %}
+                </div>
+            </div>
+
+            <div class="hud-card neo-card">
+                <div class="hud-metric-header">
+                    <span>📦 Stock Crítico</span>
+                    <span class="hud-metric-tag alert">Alerta</span>
+                </div>
+                <div class="hud-metric-value {% if total_faltantes > 0 %}text-danger{% else %}text-success{% endif %}">
+                    {{ total_faltantes }}
+                </div>
+                <div class="hud-metric-footer">
+                    {{ total_en_lista }} productos en lista de compras
+                </div>
+            </div>
+
+            <div class="hud-card neo-card">
+                <div class="hud-metric-header">
+                    <span>🧹 Tareas del Día</span>
+                    <span class="hud-metric-tag">Hoy</span>
+                </div>
+                <div class="hud-metric-value text-warning">
+                    {{ total_tareas_hoy }}
+                </div>
+                <div class="hud-metric-footer">
+                    Pendientes de ejecución
+                </div>
+            </div>
+        </div>
+
+        <!-- Columna Central: Timeline en Vivo -->
+        <div class="hud-column hud-col-center">
+            <div class="hud-feed-card neo-card">
+                <h3>📡 Feed de Actividad del Hogar</h3>
+                <div class="hud-timeline">
+                    <div class="hud-timeline-item">
+                        <span class="hud-time-icon">🍽️</span>
+                        <div class="hud-time-content">
+                            <strong>Menú de Hoy</strong>
+                            <p>{{ menu_hoy.receta.nombre if menu_hoy else 'Sin menú asignado para hoy' }}</p>
+                        </div>
+                    </div>
+
+                    <div class="hud-timeline-item">
+                        <span class="hud-time-icon">📅</span>
+                        <div class="hud-time-content">
+                            <strong>Próximo Evento de Agenda</strong>
+                            <p>{{ eventos_agenda[0].titulo if eventos_agenda and eventos_agenda|length > 0 else 'Sin eventos en las próximas 24 horas' }}</p>
+                        </div>
+                    </div>
+
+                    <div class="hud-timeline-item">
+                        <span class="hud-time-icon">🔄</span>
+                        <div class="hud-time-content">
+                            <strong>Últimos Movimientos de Stock</strong>
+                            {% if movimientos %}
+                                <ul style="list-style: none; padding: 0; margin-top: 5px; font-size: 0.85rem; color: var(--text-secondary);">
+                                {% for m in movimientos[:3] %}
+                                    <li>&bull; {{ m.tipo|upper }}: {{ m.producto.nombre if m.producto else 'Item' }} ({{ m.cantidad }})</li>
+                                {% endfor %}
+                                </ul>
+                            {% else %}
+                                <p>Sin movimientos recientes</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Columna Derecha: Acciones Rápidas HUD -->
+        <div class="hud-column hud-col-right">
+            <div class="hud-actions-card neo-card">
+                <h3>⚡ Acciones Directas</h3>
+                <div class="hud-quick-buttons">
+                    <a href="{{ url_for('inventario.inventario') }}" class="btn neo-button-primary">📦 Gestionar Stock</a>
+                    <a href="{{ url_for('inventario.compras') }}" class="btn neo-button-secondary">🛒 Ver Lista de Súper</a>
+                    <a href="{{ url_for('finanzas.finanzas_page') }}" class="btn neo-button-secondary">💸 Escanear Ticket IA</a>
+                    <a href="{{ url_for('tareas.tareas_view') }}" class="btn neo-button-secondary">🧹 Panel de Tareas</a>
+                    <a href="{{ url_for('mascotas.mascotas_page') }}" class="btn neo-button-secondary">🐾 Ecosistema Mascotas</a>
+                    <a href="{{ url_for('main.metricas') }}" class="btn neo-button-secondary">📊 Ver Analítica</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

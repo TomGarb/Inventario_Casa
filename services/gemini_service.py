@@ -3,13 +3,12 @@ import json
 import logging
 from google import genai
 from datetime import datetime
-from models.database import Usuario
 
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 
 def check_api_quota_error(e, chat_id=None):
     try:
-        from google.api_core.exceptions import ResourceExhausted, GoogleAPICallError
+        from google.api_core.exceptions import ResourceExhausted
     except ImportError:
         ResourceExhausted = type('ResourceExhausted', (Exception,), {})
         
@@ -126,61 +125,4 @@ def clasificar_intencion(texto, chat_id=None):
         if check_api_quota_error(e, chat_id):
             return "ERROR_CUOTA"
         logging.error(f"[Enrutador] Error de clasificación con Gemini: {e}", exc_info=True)
-        return "INVENTARIO"
-
-def procesar_gasto_texto(texto, message):
-    import re
-    import json
-    import logging
-    if re.search(r'\d+', texto):
-        try:
-            client = genai.Client(api_key=GEMINI_API_KEY)
-            prompt = (
-                f"Analiza este texto de gasto: '{texto}'. "
-                "Extrae el monto numérico (como float), el comercio/concepto, la categoría del gasto (ej. 'Supermercado', 'Alimentos', 'Servicios', 'Otros') "
-                "y, SI detectas que se compraron productos físicos o alimentos (ej. arroz, leche, pan, jabón, detergente), extrae una lista de esos ítems con su nombre en singular y la cantidad numérica "
-                "(o 1 si no se especifica). "
-                "Devuelve ÚNICAMENTE un JSON con el formato exacto: {'monto': float, 'concepto': 'string', 'categoria': 'string', 'items': [{'nombre': 'string', 'cantidad': float}]}."
-            )
-            response = client.models.generate_content(
-            model='gemini-2.0-flash',
-            contents=prompt,
-            config=genai.types.GenerateContentConfig(response_mime_type="application/json")
-        )
-            data = json.loads(response.text.strip())
-            monto = float(data.get('monto', 0))
-            concepto = str(data.get('concepto', 'Gasto en general')).strip()
-            items = data.get('items', [])
-
-            if monto > 0:
-                with app.app_context():
-                    user = Usuario.query.filter_by(telegram_chat_id=str(message.from_user.id)).first()
-                    if not user:
-                        safe_telegram_send(message.chat.id, "⚠️ No estás registrado o vinculado para guardar gastos.")
-                        return
-
-                pending_ocr_confirmations[message.chat.id] = {
-                    'usuario_id': user.id,
-                    'monto_total': monto,
-                    'descripcion': concepto,
-                    'items': items
-                }
-
-                markup = InlineKeyboardMarkup(row_width=2)
-                markup.add(
-                    InlineKeyboardButton("✅ Confirmar Gasto", callback_data="ocr_div_todos"),
-                    InlineKeyboardButton("❌ Cancelar", callback_data="ocr_div_no")
-                )
-                safe_telegram_send(
-                    message.chat.id,
-                    f"💳 **Resumen de Gasto**\n\n📌 **Concepto:** {concepto}\n💰 **Monto:** ${monto}\n\n¿Deseas registrar este gasto?",
-                    reply_markup=markup,
-                    parse_mode="Markdown"
-                )
-                return
-        except Exception as e:
-            if check_api_quota_error(e, message.chat.id):
-                return
-            logging.error(f"[Módulo Finanzas] Error extrayendo gasto con Gemini: {e}", exc_info=True)
-
-    safe_telegram_send(message.chat.id, f"💳 [Módulo Finanzas] Has indicado un gasto: '{texto}'. Por favor, adjunta la foto del ticket o regístralo manualmente en la web mientras conectamos el guardado por texto.")
+        return "INVENTARIO"

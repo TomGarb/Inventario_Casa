@@ -13,45 +13,6 @@ async function fetchDashboardStats() {
         const data = await response.json();
          // Render Alertas
         const dashAlertas = document.getElementById('dash-alertas-lista');
-        /*
-        const dashCriticas = document.getElementById('dash-alertas-criticas');
-        
-        if (dashCriticas) {
-            dashCriticas.innerHTML = '';
-            const criticas = data.alertas_stock.filter(p => p.stock_actual <= 0);
-            if (criticas.length === 0) {
-                dashCriticas.innerHTML = `<p style="color: var(--success-color); width: 100%; text-align: center;">Todo en orden. No hay productos agotados.</p>`;
-            } else {
-                criticas.forEach(p => {
-                    const div = document.createElement('div');
-                    div.style = "background: rgba(255,107,107,0.1); border: 1px solid var(--danger-color); padding: 6px 12px; border-radius: 6px; flex: 0 0 200px; scroll-snap-align: start; display: flex; justify-content: space-between; align-items: center;";
-                    div.innerHTML = `
-                        <div style="font-size: 0.9rem;">
-                            <strong>${p.nombre}</strong><br>
-                            <small>${p.comercio}</small>
-                        </div>
-                        <button class="btn-sm btn-carrito" onclick="forzarAlCarrito(${p.id})">🛒 Añadir</button>
-                    `;
-                    dashCriticas.appendChild(div);
-                });
-                
-                // Limpiar intervalo anterior si existe para evitar duplicados al recargar
-                if (window.critCarouselInterval) clearInterval(window.critCarouselInterval);
-                
-                // Auto-scroll logic
-                window.critCarouselInterval = setInterval(() => {
-                    const maxScroll = dashCriticas.scrollWidth - dashCriticas.clientWidth;
-                    if (maxScroll > 0) {
-                        if (dashCriticas.scrollLeft >= maxScroll - 5) {
-                            dashCriticas.scrollTo({ left: 0, behavior: 'smooth' }); // Volver al inicio
-                        } else {
-                            dashCriticas.scrollBy({ left: 210, behavior: 'smooth' }); // Avanzar una tarjeta
-                        }
-                    }
-                }, 4000); // Mover cada 4 segundos
-            }
-        }
-        */
 
         if(dashAlertas) {
             dashAlertas.innerHTML = '';

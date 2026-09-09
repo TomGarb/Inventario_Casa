@@ -20,6 +20,7 @@ class Usuario(UserMixin, db.Model):
     recibir_recordatorios_tareas = db.Column(db.Boolean, default=True)
     tema_ui = db.Column(db.String(50), default='tema-neomorfico')
     widgets_dashboard = db.Column(db.Text, default='["inventario","compras","finanzas","tareas","logistica","menus","metricas","mascotas"]')
+    dashboard_layout = db.Column(db.String(50), default='layout-launchpad')
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
@@ -37,7 +38,8 @@ class Usuario(UserMixin, db.Model):
             'recibir_alertas_vencimiento': self.recibir_alertas_vencimiento,
             'recibir_recordatorios_tareas': self.recibir_recordatorios_tareas,
             'tema_ui': self.tema_ui or 'tema-neomorfico',
-            'widgets_dashboard': self.widgets_dashboard or '["inventario","compras","finanzas","tareas","logistica","menus","metricas","mascotas"]'
+            'widgets_dashboard': self.widgets_dashboard or '["inventario","compras","finanzas","tareas","logistica","menus","metricas","mascotas"]',
+            'dashboard_layout': self.dashboard_layout or 'layout-launchpad'
         }
 
 
@@ -48,6 +50,17 @@ class Casa(db.Model):
     fecha_creacion = db.Column(db.DateTime, default=datetime.utcnow)
     codigo_invitacion = db.Column(db.String(20), unique=True, index=True, nullable=True)
     password_hash = db.Column(db.String(255), nullable=True)
+    widgets_tv = db.Column(db.Text, default='["clima","stock","tareas","menus","deportes","logistica","finanzas"]')
+    widgets_tablet = db.Column(db.Text, default='["compras","tareas","menus","mascotas"]')
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'nombre': self.nombre,
+            'codigo_invitacion': self.codigo_invitacion,
+            'widgets_tv': self.widgets_tv or '["clima","stock","tareas","menus","deportes","logistica","finanzas"]',
+            'widgets_tablet': self.widgets_tablet or '["compras","tareas","menus","mascotas"]'
+        }
 
 class Mascota(db.Model):
     __tablename__ = 'mascotas'
@@ -63,7 +76,8 @@ class Mascota(db.Model):
         return {
             'id': self.id,
             'nombre': self.nombre,
-            'fecha_creacion': self.fecha_creacion.isoformat() if self.fecha_creacion else None
+            'especie': self.especie,
+            'fecha_nacimiento': self.fecha_nacimiento.isoformat() if self.fecha_nacimiento else None
         }
 
 class UsuarioCasa(db.Model):

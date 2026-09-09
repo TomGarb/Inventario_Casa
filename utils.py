@@ -2,8 +2,8 @@ from functools import wraps
 from flask import jsonify, request
 from flask_login import current_user
 from extensions import db
-from datetime import datetime, date, timedelta
 import calendar
+from datetime import datetime, date, timedelta
 from collections import defaultdict
 
 def is_authorized(user_id):

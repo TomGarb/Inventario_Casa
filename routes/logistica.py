@@ -3,6 +3,7 @@ from flask_login import login_required, current_user
 from extensions import db
 from models.database import EventoLogistico
 from datetime import datetime, timedelta
+import pytz
 
 logistica_bp = Blueprint('logistica', __name__)
 
@@ -110,14 +111,14 @@ def api_logistica_evento_item(id_evento):
         try:
             dt_inicio_naive = datetime.strptime(data['start'][:16], "%Y-%m-%dT%H:%M")
             ev.fecha_inicio = tz.localize(dt_inicio_naive)
-        except Exception as e:
+        except Exception:
             pass
     if 'end' in data:
         if data['end']:
             try:
                 dt_fin_naive = datetime.strptime(data['end'][:16], "%Y-%m-%dT%H:%M")
                 ev.fecha_fin = tz.localize(dt_fin_naive)
-            except Exception as e:
+            except Exception:
                 pass
         else:
             ev.fecha_fin = None

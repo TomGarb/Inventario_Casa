@@ -1,7 +1,7 @@
 import logging
 import pytz
 from apscheduler.schedulers.blocking import BlockingScheduler
-from app import app, check_low_stock, check_tareas_pendientes, enviar_resumen_matutino, cleanup_pending_commands, sync_eventos_deportivos_job
+from app import check_low_stock, check_tareas_pendientes, enviar_resumen_matutino, cleanup_pending_commands, sync_eventos_deportivos_job
 
 if __name__ == '__main__':
     logging.info("=========================================")

@@ -1,5 +1,5 @@
 import logging
-from app import app, bot, registrar_handlers
+from app import app, bot
 
 if __name__ == '__main__':
     logging.info("=========================================")

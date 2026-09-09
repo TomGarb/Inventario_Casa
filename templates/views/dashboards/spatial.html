@@ -1,0 +1,106 @@
+{# ========================================================
+   LAYOUT 4: SPATIAL (POR AMBIENTES DEL HOGAR)
+   ======================================================== #}
+<div class="spatial-container">
+    <div class="spatial-hero neo-card">
+        <h2>🏡 Habitaciones y Ambientes &bull; {{ active_casa.casa.nombre if active_casa else 'Sin Casa' }}</h2>
+        <p style="color: var(--text-secondary); margin: 0;">Gestiona los módulos agrupados por el lugar físico donde ocurren</p>
+    </div>
+
+    <div class="spatial-grid">
+        <!-- 1. Cocina & Despensa -->
+        <div class="neo-card spatial-room-card room-kitchen">
+            <div class="spatial-room-header">
+                <div class="room-title-badge">🍳 Cocina & Despensa</div>
+                <span class="room-icon">🍽️</span>
+            </div>
+            <div class="spatial-room-body">
+                <div class="room-submodule">
+                    <strong>📦 Alimentos en Stock:</strong>
+                    <p>{% if total_faltantes > 0 %}⚠️ {{ total_faltantes }} ingredientes faltantes{% else %}✅ Despensa llena{% endif %}</p>
+                </div>
+                <div class="room-submodule">
+                    <strong>🥘 Menú del Día:</strong>
+                    <p>{{ menu_hoy.receta.nombre if menu_hoy else 'Sin plato planificado' }}</p>
+                </div>
+                <div class="room-submodule">
+                    <strong>🛒 Lista de Súper:</strong>
+                    <p>{{ total_en_lista }} productos para comprar</p>
+                </div>
+            </div>
+            <div class="spatial-room-actions">
+                <a href="{{ url_for('inventario.inventario') }}" class="btn neo-button-secondary">Inventario</a>
+                <a href="{{ url_for('menus.menus_page') }}" class="btn neo-button-secondary">Menús</a>
+                <a href="{{ url_for('inventario.compras') }}" class="btn neo-button-primary">Ir de Compras</a>
+            </div>
+        </div>
+
+        <!-- 2. Sala de Estar & Ocio -->
+        <div class="neo-card spatial-room-card room-living">
+            <div class="spatial-room-header">
+                <div class="room-title-badge">🛋️ Sala de Estar & Ocio</div>
+                <span class="room-icon">🎬</span>
+            </div>
+            <div class="spatial-room-body">
+                <div class="room-submodule">
+                    <strong>⚽ Entretenimiento y Deportes:</strong>
+                    <p>Sincronización activa con tus ligas y equipos</p>
+                </div>
+                <div class="room-submodule">
+                    <strong>💰 Gastos Compartidos:</strong>
+                    <p>{% if mi_balance < 0 %}Debes ${{ "%.2f"|format(mi_balance|abs) }}{% else %}Al día con la casa{% endif %}</p>
+                </div>
+                <div class="room-submodule">
+                    <strong>📅 Eventos del Living:</strong>
+                    <p>{{ eventos_agenda[0].titulo if eventos_agenda and eventos_agenda|length > 0 else 'Sin reuniones próximas' }}</p>
+                </div>
+            </div>
+            <div class="spatial-room-actions">
+                <a href="{{ url_for('logistica.logistica_page') }}" class="btn neo-button-secondary">Logística</a>
+                <a href="{{ url_for('finanzas.finanzas_page') }}" class="btn neo-button-primary">Finanzas</a>
+            </div>
+        </div>
+
+        <!-- 3. Lavadero & Mantenimiento -->
+        <div class="neo-card spatial-room-card room-laundry">
+            <div class="spatial-room-header">
+                <div class="room-title-badge">🧺 Lavadero & Limpieza</div>
+                <span class="room-icon">🧹</span>
+            </div>
+            <div class="spatial-room-body">
+                <div class="room-submodule">
+                    <strong>🧹 Tareas de Limpieza:</strong>
+                    <p>{{ total_tareas_hoy }} pendientes de realización hoy</p>
+                </div>
+                <div class="room-submodule">
+                    <strong>🧼 Insumos del Hogar:</strong>
+                    <p>Control de jabón, detergente y artículos de limpieza</p>
+                </div>
+            </div>
+            <div class="spatial-room-actions">
+                <a href="{{ url_for('tareas.tareas_view') }}" class="btn neo-button-primary">Abrir Tareas</a>
+            </div>
+        </div>
+
+        <!-- 4. Patio & Mascotas -->
+        <div class="neo-card spatial-room-card room-pets">
+            <div class="spatial-room-header">
+                <div class="room-title-badge">🐾 Patio & Mascotas</div>
+                <span class="room-icon">🐶</span>
+            </div>
+            <div class="spatial-room-body">
+                <div class="room-submodule">
+                    <strong>🐕 Ecosistema Animal:</strong>
+                    <p>Control de turnos veterinarios, vacunas y paseos diarios</p>
+                </div>
+                <div class="room-submodule">
+                    <strong>🥩 Alimento de Mascotas:</strong>
+                    <p>Seguimiento de raciones y balanceado</p>
+                </div>
+            </div>
+            <div class="spatial-room-actions">
+                <a href="{{ url_for('mascotas.mascotas_page') }}" class="btn neo-button-primary">Ver Mascotas</a>
+            </div>
+        </div>
+    </div>
+</div>

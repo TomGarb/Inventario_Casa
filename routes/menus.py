@@ -1,3 +1,4 @@
+import random
 from flask import Blueprint, request, jsonify, render_template
 from flask_login import login_required
 from extensions import db

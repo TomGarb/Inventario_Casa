@@ -1,9 +1,12 @@
+import json
+import base64
 from flask import Blueprint, request, jsonify, render_template
 from flask_login import login_required, current_user
 from extensions import db
 from models.database import Usuario, Gasto, DetalleGasto, DivisionGasto
 from datetime import datetime
-import json
+from google import genai
+from services.gemini_service import GEMINI_API_KEY
 from utils import calcular_balances_globales
 
 finanzas_bp = Blueprint('finanzas', __name__)
@@ -31,31 +34,27 @@ def finanzas_ocr():
         if not GEMINI_API_KEY:
             return jsonify({'error': 'Gemini API key no configurada'}), 500
             
-        try:
-            client = genai.Client(api_key=GEMINI_API_KEY)
+        client = genai.Client(api_key=GEMINI_API_KEY)
+        
+        image_bytes = base64.b64decode(image_base64)
+        imagen_gemini = genai.types.Part.from_bytes(data=image_bytes, mime_type='image/jpeg')
+        
+        prompt = "Eres un asistente contable. Analiza este ticket/factura y devuelve EXCLUSIVAMENTE un JSON con tres claves: 'descripcion' (resumen de la compra en 3-4 palabras), 'monto_total' (número float, el total final pagado), e 'items' (lista de productos si es legible). No uses markdown ni texto adicional."
+        
+        response = client.models.generate_content(
+            model='gemini-2.0-flash',
+            contents=[prompt, imagen_gemini]
+        )
+        
+        resultado_str = response.text.strip()
+        # Limpiar backticks por si la IA devuelve markdown
+        if resultado_str.startswith('```json'):
+            resultado_str = resultado_str.replace('```json', '').replace('```', '').strip()
+        elif resultado_str.startswith('```'):
+            resultado_str = resultado_str.replace('```', '').strip()
             
-            image_bytes = base64.b64decode(image_base64)
-            imagen_gemini = genai.types.Part.from_bytes(data=image_bytes, mime_type='image/jpeg')
-            
-            prompt = "Eres un asistente contable. Analiza este ticket/factura y devuelve EXCLUSIVAMENTE un JSON con tres claves: 'descripcion' (resumen de la compra en 3-4 palabras), 'monto_total' (número float, el total final pagado), e 'items' (lista de productos si es legible). No uses markdown ni texto adicional."
-            
-            response = client.models.generate_content(
-                model='gemini-2.0-flash',
-                contents=[prompt, imagen_gemini]
-            )
-            
-            resultado_str = response.text.strip()
-            # Limpiar backticks por si la IA devuelve markdown
-            if resultado_str.startswith('```json'):
-                resultado_str = resultado_str.replace('```json', '').replace('```', '').strip()
-            elif resultado_str.startswith('```'):
-                resultado_str = resultado_str.replace('```', '').strip()
-                
-            resultado = json.loads(resultado_str)
-            return jsonify(resultado), 200
-        finally:
-            if os.path.exists(temp_file_path):
-                os.remove(temp_file_path)
+        resultado = json.loads(resultado_str)
+        return jsonify(resultado), 200
         
     except Exception as e:
         import traceback
