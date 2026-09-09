@@ -57,7 +57,7 @@
                     li.style.justifyContent = 'space-between';
                     li.style.alignItems = 'center';
                     const props = ev.extendedProps || {};
-                    li.innerHTML = `<div><strong>${dateStr} ${timeStr}</strong> - ${escapeHTML(ev.title)}</div> <button class="btn-secundario" style="padding: 2px 8px; font-size: 0.8em;" onclick='editarEventoLogistico(${JSON.stringify({id: ev.id, title: ev.title, raw_title: props.raw_title, start: ev.start, end: ev.end, frecuencia: props.frecuencia, asignado_id: props.asignado_id})})'>✏️ Editar</button>`;
+                    li.innerHTML = `<div><strong>${dateStr} ${timeStr}</strong> - ${escapeHTML(ev.title)}</div> <button class="btn-secundario" style="padding: 2px 8px; font-size: 0.8em;" onclick="editarEventoPorId('${ev.id}')">✏️ Editar</button>`;
                     lista.appendChild(li);
                 });
             }
@@ -82,6 +82,12 @@
         document.getElementById('modal-evento').style.display = 'none';
         document.getElementById('form-evento').reset();
         document.getElementById('ev-id').value = '';
+    }
+
+    function editarEventoPorId(id) {
+        if (!calendar) return;
+        const ev = calendar.getEventById(id);
+        if (ev) editarEventoLogistico(ev);
     }
 
     function editarEventoLogistico(event) {
